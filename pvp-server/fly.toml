@@ -1,0 +1,29 @@
+# fly.toml — English Kombat PvP (Colyseus)
+# After install of flyctl, run:
+#   cd pvp-server
+#   fly launch --no-deploy --copy-config
+#   fly deploy
+#
+# Free tier: 3 shared-cpu-1x@256MB machines.
+
+app = "english-kombat-pvp"
+primary_region = "fra"   # change to nearest: fra, lhr, ams, sjc, syd, gru, etc.
+
+[build]
+
+[env]
+  PORT = "2567"
+  NODE_ENV = "production"
+
+[http_service]
+  internal_port = 2567
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+  cpus = 1

@@ -1,0 +1,7 @@
+node_modules/
+.vercel/
+.claude/
+.env
+.DS_Store
+*.log
+pvp-server/node_modules/

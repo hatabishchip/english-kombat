@@ -1,0 +1,27 @@
+# Render deployment config for English Kombat PvP
+# Deploy steps:
+#   1. Push pvp-server/ to a GitHub repo
+#   2. Go to https://render.com → New + → Web Service
+#   3. Connect GitHub repo, point to pvp-server/ folder
+#   4. Render auto-detects this render.yaml and uses these settings
+#   5. After first deploy, copy the URL (e.g. https://english-kombat-pvp.onrender.com)
+#   6. In public/index.html set: const PVP_SERVER_URL = 'wss://english-kombat-pvp.onrender.com';
+#   7. Redeploy Vercel
+#
+# Free tier: sleeps after 15 min inactivity. First PvP connect takes 30-60s to wake.
+# Subsequent connects (within 15 min) are instant.
+
+services:
+  - type: web
+    name: english-kombat-pvp
+    runtime: node
+    plan: free
+    region: frankfurt   # change to: oregon | ohio | virginia | singapore as needed
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+    healthCheckPath: /health

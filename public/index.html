@@ -1,0 +1,4363 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="theme-color" content="#0a0814">
+  <title>⚔ English Kombat — vs BOT</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{height:100%;overflow:hidden;}
+    body{
+      font-family:'Impact','Arial Black',sans-serif;
+      background:#0a0814; color:#fff;
+      touch-action:manipulation; user-select:none;
+      -webkit-tap-highlight-color:transparent;
+    }
+
+    /* ── SCREENS ── */
+    .screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px 20px;}
+    .screen.on{display:flex;}
+    #s-battle{
+      padding:0;
+      justify-content:flex-start;
+      background:#0a0814;
+      /* fix: override inset:0 so width is responsive on mobile */
+      left:50%;
+      right:auto;
+      width:100%;
+      max-width:520px;
+      transform:translateX(-50%);
+    }
+
+    /* ── COMMON ── */
+    input.field{
+      width:100%;max-width:300px;padding:14px 16px;font-size:18px;text-align:center;
+      background:rgba(255,255,255,.07);border:2px solid rgba(255,209,0,.3);border-radius:5px;
+      color:#fff;outline:none;font-family:inherit;letter-spacing:.04em;
+      -webkit-appearance:none;
+    }
+    input.field:focus{border-color:#ffd100;}
+    .btn{
+      width:100%;max-width:300px;padding:15px;font-size:22px;letter-spacing:2px;
+      font-family:'Impact',sans-serif;border:none;border-radius:5px;cursor:pointer;
+      transition:transform .08s,box-shadow .08s;margin-bottom:10px;
+    }
+    .btn:active{transform:translateY(3px)!important;box-shadow:none!important;}
+    .btn-gold{background:linear-gradient(180deg,#ffd100,#8a6010);color:#1a0e04;
+      box-shadow:0 4px 0 #5a4010,0 6px 14px rgba(0,0,0,.55);}
+    .btn-dark{background:linear-gradient(180deg,#3a3530,#1a1510);color:#c8a868;
+      box-shadow:0 4px 0 #0a0803,0 6px 14px rgba(0,0,0,.55);}
+
+    /* ── HOME ── */
+    .title{font-size:46px;color:#ffd100;text-align:center;letter-spacing:4px;line-height:1.1;
+      text-shadow:0 0 24px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-bottom:6px;}
+    .subtitle{font-family:sans-serif;font-size:12px;color:#555;letter-spacing:2px;text-align:center;margin-bottom:32px;}
+    .opp-preview{
+      display:flex;align-items:center;justify-content:center;gap:24px;margin-bottom:24px;
+    }
+    .vs-tiny{font-size:22px;color:#c83030;letter-spacing:3px;text-shadow:0 0 10px #c83030;}
+    .mini-fi{width:64px;height:120px;}
+
+    /* ══════════════ BATTLE SCREEN ══════════════ */
+    .arena{
+      width:100%;flex:0 0 auto;
+      background:
+        radial-gradient(ellipse at 50% 0%,rgba(100,60,180,.18) 0%,transparent 60%),
+        linear-gradient(180deg,#0a0814 0%,#16102a 55%,#0c0908 100%);
+      display:flex;align-items:flex-end;justify-content:space-around;
+      padding:8px 16px 0;position:relative;overflow:hidden;
+    }
+    .arena::after{
+      content:'';position:absolute;bottom:0;left:0;right:0;height:36px;
+      background:linear-gradient(180deg,#1a1208 0%,#080603 100%);
+      border-top:2px solid #2a1c08;
+    }
+    .arena::before{
+      content:'';position:absolute;bottom:36px;left:50%;transform:translateX(-50%);
+      width:60%;height:2px;background:linear-gradient(90deg,transparent,rgba(200,149,56,.3),transparent);
+    }
+
+    /* fighter column */
+    .fc{display:flex;flex-direction:column;align-items:center;position:relative;z-index:1;min-width:0;}
+
+    /* ── MOBILE LAYOUT ── */
+    @media (max-width:480px){
+      .arena{padding:6px 8px 0;}
+      .hbw{width:110px;height:14px;}
+      .fname{font-size:12px;max-width:110px;letter-spacing:.5px;}
+      .turn-ring{width:90px;height:22px;}
+      #audio-meter{width:88vw;height:72px;padding:8px 12px;}
+      .abar{max-height:54px;}
+      .phrase-ru{font-size:21px;}
+      .phrase-ru.result-ok,.phrase-ru.result-bad{font-size:26px;}
+      .title{font-size:38px;}
+      .bot{padding:10px 12px 14px;}
+      .diff-badge{font-size:9px;}
+      /* safe area for iPhone notch / home bar */
+      #s-battle{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);}
+      .bot{padding-bottom:max(14px,calc(env(safe-area-inset-bottom) + 8px));}
+    }
+    @media (max-width:380px){
+      .arena{padding:4px 4px 0;}
+      .hbw{width:96px;height:13px;}
+      .fname{font-size:11px;max-width:100px;}
+      #audio-meter{height:64px;}
+      .phrase-ru{font-size:19px;}
+    }
+
+    /* ── TURN INDICATOR — glowing ring under active fighter's feet ── */
+    .turn-ring{
+      position:absolute;
+      bottom:10px;
+      left:50%;
+      width:110px;height:26px;
+      transform:translateX(-50%) scale(0);
+      border-radius:50%;
+      background:radial-gradient(ellipse,
+        rgba(255,209,0,.85) 0%,
+        rgba(255,209,0,.45) 35%,
+        rgba(255,209,0,.15) 55%,
+        transparent 75%);
+      pointer-events:none;
+      z-index:3;
+      transition:transform .3s ease;
+      filter:blur(.5px);
+    }
+    .turn-ring.active{
+      animation:ring-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes ring-pulse{
+      0%,100%{transform:translateX(-50%) scale(1);filter:brightness(1) blur(.5px);}
+      50%   {transform:translateX(-50%) scale(1.18);filter:brightness(1.5) blur(0);}
+    }
+    /* bot color = red */
+    #ring-right{
+      background:radial-gradient(ellipse,
+        rgba(255,80,80,.85) 0%,
+        rgba(255,80,80,.45) 35%,
+        rgba(255,80,80,.15) 55%,
+        transparent 75%);
+    }
+
+
+    .fname{font-size:14px;color:#ffd100;letter-spacing:1px;margin-bottom:4px;
+      text-shadow:0 1px 2px #000;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;}
+    .fname.my-turn-glow{text-shadow:0 0 8px #ffd100,0 1px 2px #000;}
+
+    /* hp bar */
+    .hbw{width:140px;height:16px;background:#080504;border:2px solid #6a4a18;
+      box-shadow:inset 0 0 0 1px #c89538;border-radius:2px;overflow:hidden;margin-bottom:8px;}
+    .hbf{height:100%;transition:width .4s ease;
+      background:linear-gradient(180deg,rgba(255,255,255,.35) 0%,transparent 50%),
+                 linear-gradient(180deg,#60d830 0%,#208810 50%,#104806 100%);}
+    .hbf.crit{background:linear-gradient(180deg,rgba(255,255,255,.35) 0%,transparent 50%),
+                          linear-gradient(180deg,#e83030 0%,#881010 50%,#480606 100%);}
+
+    /* fighter wrappers */
+    .fo{display:inline-block;position:relative;}
+    .fi{display:inline-block;transform-origin:50% 95%;}
+    .fi.mirror{transform:scaleX(-1);}
+
+    /* ─── BOXER IDLE STANCE ─── */
+    @keyframes idle-stance{
+      0%,100%{transform:translate(0,0) rotate(0);}
+      20%{transform:translate(-3px,-3px) rotate(-1.2deg);}
+      40%{transform:translate(0,-7px) rotate(0);}
+      60%{transform:translate(3px,-3px) rotate(1.2deg);}
+      80%{transform:translate(0,-2px) rotate(0);}
+    }
+    @keyframes idle-stance-m{
+      0%,100%{transform:scaleX(-1) translate(0,0) rotate(0);}
+      20%{transform:scaleX(-1) translate(-3px,-3px) rotate(-1.2deg);}
+      40%{transform:scaleX(-1) translate(0,-7px) rotate(0);}
+      60%{transform:scaleX(-1) translate(3px,-3px) rotate(1.2deg);}
+      80%{transform:scaleX(-1) translate(0,-2px) rotate(0);}
+    }
+    .fi.idle        {animation:idle-stance   1.9s ease-in-out infinite;}
+    .fi.mirror.idle {animation:idle-stance-m 1.9s ease-in-out infinite;}
+    #fi-right.idle  {animation-delay:.45s;}
+
+    /* eye blink */
+    @keyframes blink{0%,93%,100%{transform:scaleY(1);}96%,98%{transform:scaleY(.1);}}
+    .fi svg .eye{transform-origin:center;transform-box:fill-box;animation:blink 4.5s ease-in-out infinite;}
+    #fi-right svg .eye{animation-delay:1.7s;}
+
+    /* ─── PHYSICAL PUNCH — lunge forward + huge arm reach ─── */
+    @keyframes lunge-l{
+      0%  {transform:translate(0,0);}
+      25% {transform:translate(50px,-6px);}
+      55% {transform:translate(50px,-6px);}
+      100%{transform:translate(0,0);}
+    }
+    @keyframes lunge-r{
+      0%  {transform:scaleX(-1) translate(0,0);}
+      25% {transform:scaleX(-1) translate(50px,-6px);}
+      55% {transform:scaleX(-1) translate(50px,-6px);}
+      100%{transform:scaleX(-1) translate(0,0);}
+    }
+    .fi.punching        {animation:lunge-l 1.3s ease-out !important;}
+    .fi.mirror.punching {animation:lunge-r 1.3s ease-out !important;}
+
+    /* punch arm — reaches WAY further now (slow-mo 2x) */
+    .fi .pa{transition:transform .4s ease-in;}
+    .fi.punching .pa{transform:translateX(55px) translateY(-14px) rotate(-8deg);transition:transform .36s cubic-bezier(.2,.8,.3,1);}
+
+    /* ─── HIT RECOIL — defender flies away from attacker ─── */
+    @keyframes recoil-right{
+      0%{transform:translateX(0);}
+      15%{transform:translateX(28px);}
+      30%{transform:translateX(22px);}
+      55%{transform:translateX(10px);}
+      100%{transform:translateX(0);}
+    }
+    @keyframes recoil-left{
+      0%{transform:translateX(0);}
+      15%{transform:translateX(-28px);}
+      30%{transform:translateX(-22px);}
+      55%{transform:translateX(-10px);}
+      100%{transform:translateX(0);}
+    }
+    .fo.hit-from-left {animation:recoil-right 1.1s ease-out;}
+    .fo.hit-from-right{animation:recoil-left  1.1s ease-out;}
+
+    /* red flash on hit */
+    .fo.hit .fi svg{animation:redflash 1.1s ease-out;}
+    @keyframes redflash{
+      0%,100%{filter:none;}
+      20%{filter:brightness(4.5) saturate(10) hue-rotate(-25deg);}
+      45%{filter:brightness(2.2) saturate(6) hue-rotate(-20deg);}
+    }
+
+    /* VS badge */
+    .vs{position:absolute;top:44%;left:50%;transform:translate(-50%,-50%);
+      font-size:28px;color:rgba(200,149,56,.28);letter-spacing:4px;pointer-events:none;}
+
+    /* ── BOTTOM PANEL ── */
+    .bot{
+      width:100%;flex:1;min-height:0;
+      display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;
+      padding:12px 16px 16px;
+      background:linear-gradient(180deg,#0e0a06 0%,#050302 100%);
+      border-top:2px solid #2a1c08;
+    }
+
+    .phrase-card{
+      width:100%;
+      background:transparent;
+      border:none;
+      padding:8px 14px 4px;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:4px;min-height:60px;
+      position:relative;
+    }
+    /* subtle decorative lines above/below — pure visual, not a frame */
+    .phrase-card::before,
+    .phrase-card::after{
+      content:'';position:absolute;left:15%;right:15%;height:1px;
+      background:linear-gradient(90deg,transparent,rgba(200,149,56,.35),transparent);
+    }
+    .phrase-card::before{top:0;}
+    .phrase-card::after{bottom:0;}
+    .phrase-ru{
+      font-family:'Georgia','Times New Roman',serif;
+      font-size:24px;font-weight:normal;letter-spacing:.5px;
+      color:#f0e8d0;text-align:center;text-shadow:0 1px 2px rgba(0,0,0,.8);
+      transition:color .15s ease,font-size .15s ease;
+    }
+    .phrase-sub{font-family:sans-serif;font-size:11px;color:#7a7060;letter-spacing:.5px;
+      transition:color .15s ease;}
+
+    /* result state — phrase card morphs to show English answer in color */
+    .phrase-card.result-ok,
+    .phrase-card.result-bad{
+      transition:background .2s ease;
+      border-radius:8px;padding:14px 16px;
+    }
+    .phrase-card.result-ok::before,
+    .phrase-card.result-ok::after,
+    .phrase-card.result-bad::before,
+    .phrase-card.result-bad::after{display:none;}
+    .phrase-card.result-ok{background:rgba(30,160,30,.16);}
+    .phrase-card.result-bad{background:rgba(180,20,20,.22);}
+
+    .phrase-ru.result-ok{
+      color:#60ff60;font-size:32px;font-weight:bold;
+      font-family:'Impact','Arial Black',sans-serif;letter-spacing:1px;
+      text-shadow:0 0 16px rgba(96,255,96,.55),0 2px 3px rgba(0,0,0,.85);
+    }
+    .phrase-ru.result-bad{
+      color:#ff5858;font-size:32px;font-weight:bold;
+      font-family:'Impact','Arial Black',sans-serif;letter-spacing:1px;
+      text-shadow:0 0 16px rgba(255,88,88,.5),0 2px 3px rgba(0,0,0,.85);
+    }
+    .phrase-sub.result-ok{color:#80ff80;font-weight:bold;font-size:13px;}
+    .phrase-sub.result-bad{color:#ff8080;font-weight:bold;font-size:13px;}
+
+    .status{font-family:sans-serif;font-size:13px;letter-spacing:1px;color:#555;
+      text-align:center;min-height:18px;}
+    .status.mine{color:#ffd100;}
+    .status.ok{color:#40d840;}
+    .status.bad{color:#e84040;}
+
+    /* ─── TUTOR OVERLAY ─── */
+    #ov-tutor{align-items:center;justify-content:center;background:rgba(0,0,0,.78);}
+    #ov-tutor.on{pointer-events:auto;cursor:pointer;}
+    .tutor-card{
+      width:88%;max-width:380px;
+      padding:22px 18px 16px;
+      background:linear-gradient(180deg,rgba(20,12,4,.98),rgba(10,5,2,.98));
+      border:3px solid #ffd100;border-radius:10px;
+      box-shadow:inset 0 0 0 1px #c89538,0 0 30px rgba(255,209,0,.5),0 8px 30px rgba(0,0,0,.85);
+      text-align:center;
+      animation:tutor-pop .35s cubic-bezier(.2,1.6,.4,1);
+    }
+    @keyframes tutor-pop{
+      0%{transform:scale(.7);opacity:0;}
+      100%{transform:scale(1);opacity:1;}
+    }
+    .tutor-emoji{font-size:42px;margin-bottom:6px;
+      filter:drop-shadow(0 0 12px rgba(255,209,0,.6));}
+    .tutor-title{
+      font-family:'Impact',sans-serif;font-size:22px;color:#ffd100;
+      letter-spacing:1.5px;text-shadow:0 0 12px rgba(255,209,0,.55),0 2px 0 #5a4010;
+      margin-bottom:6px;
+    }
+    .tutor-text{
+      font-family:'Georgia',serif;font-size:14px;color:#f0e8d0;
+      line-height:1.45;margin-bottom:12px;
+    }
+    .tutor-tap{
+      font-family:sans-serif;font-size:11px;color:#888;letter-spacing:1.5px;
+      animation:hint-pulse 1.6s ease-in-out infinite;
+    }
+
+    /* ─── CARD-MATCHING MODE ─── */
+    .cards-row{
+      display:flex;flex-direction:column;align-items:center;gap:10px;width:100%;
+    }
+    .cards-grid{
+      display:grid;grid-template-columns:1fr 1fr;gap:10px;
+      width:100%;max-width:540px;padding:0 6px;
+    }
+    .card-opt{
+      background:linear-gradient(180deg,rgba(20,12,4,.92),rgba(0,0,0,.92));
+      border:2.5px solid #6a4818;
+      box-shadow:inset 0 0 0 1px #c89538,0 3px 8px rgba(0,0,0,.6);
+      border-radius:10px;
+      padding:0 10px;
+      font-family:'Impact','Arial Black',sans-serif;font-size:19px;letter-spacing:.5px;
+      color:#ffe8b0;
+      cursor:pointer;
+      text-align:center;line-height:1.15;
+      aspect-ratio:1.4 / 1;
+      min-height:88px;
+      display:flex;align-items:center;justify-content:center;
+      text-shadow:0 2px 3px rgba(0,0,0,.85);
+      transition:transform .08s ease,border-color .15s ease,box-shadow .15s ease;
+      -webkit-tap-highlight-color:transparent;
+    }
+    @media (max-width:480px){
+      .cards-grid{gap:8px;padding:0 4px;}
+      .card-opt{font-size:17px;min-height:78px;border-radius:8px;}
+    }
+    @media (max-width:380px){
+      .card-opt{font-size:15px;min-height:70px;}
+    }
+    .card-opt:active:not(:disabled){transform:scale(.97);}
+    .card-opt:hover:not(:disabled){border-color:#ffd100;}
+    .card-opt:disabled{cursor:not-allowed;opacity:.55;}
+    .card-opt.right{
+      background:linear-gradient(180deg,rgba(30,120,30,.85),rgba(10,50,10,.92));
+      border-color:#60ff60;
+      box-shadow:inset 0 0 0 1px #80ff80,0 0 18px rgba(96,255,96,.55);
+      color:#fff;
+    }
+    .card-opt.wrong{
+      background:linear-gradient(180deg,rgba(160,30,30,.85),rgba(60,5,5,.92));
+      border-color:#ff5050;
+      box-shadow:inset 0 0 0 1px #ff8080,0 0 18px rgba(255,80,80,.55);
+      color:#fff;
+    }
+
+    /* mic button hidden — meter takes its place */
+    .mic-row,.mic{display:none!important;}
+    .timer-el{font-size:30px;min-width:32px;text-align:center;color:#555;
+      font-family:'Impact',sans-serif;letter-spacing:1px;}
+    .timer-el.urgent{color:#e84040;animation:tflash .35s ease-in-out infinite;}
+    @keyframes tflash{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+    .no-voice{font-family:sans-serif;font-size:12px;color:#e84040;text-align:center;min-height:16px;}
+
+    /* ── BIG AUDIO METER (replaces mic button) ── */
+    .meter-zone{
+      display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;
+    }
+    #audio-meter{
+      display:flex;align-items:flex-end;justify-content:center;gap:5px;
+      height:82px;padding:10px 18px;
+      background:rgba(0,0,0,.65);border:2px solid #3a2808;border-radius:12px;
+      box-shadow:inset 0 0 14px rgba(0,0,0,.65),0 2px 8px rgba(0,0,0,.5);
+      width:300px;max-width:92%;
+      transition:border-color .25s ease;
+    }
+    /* glowing frame when it's player's turn — even in silence you see it's your move */
+    #audio-meter.my-turn{
+      border-color:#ffd100;
+      animation:meter-glow 1.5s ease-in-out infinite;
+    }
+    @keyframes meter-glow{
+      0%,100%{box-shadow:inset 0 0 14px rgba(0,0,0,.55),
+                         0 0 14px rgba(255,209,0,.45),
+                         0 0 28px rgba(255,209,0,.18);}
+      50%   {box-shadow:inset 0 0 14px rgba(0,0,0,.55),
+                         0 0 24px rgba(255,209,0,.7),
+                         0 0 44px rgba(255,209,0,.32);}
+    }
+    .abar{
+      flex:1;min-height:6px;max-height:62px;
+      border-radius:4px 4px 0 0;
+      transition:height .05s ease,background .15s ease;
+      height:6px;
+      background:linear-gradient(180deg,#3a2808 0%,#1a1208 100%);
+    }
+    #heard-txt{
+      font-family:sans-serif;font-size:14px;color:#c8a868;
+      min-height:20px;text-align:center;font-style:italic;
+      max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    }
+    #heard-txt.final{color:#40d840;font-style:normal;font-weight:bold;}
+
+    /* diff badge */
+    .diff-badge{
+      position:absolute;top:0;left:50%;transform:translateX(-50%);
+      font-family:sans-serif;font-size:10px;letter-spacing:2px;color:#555;
+      background:rgba(0,0,0,.6);padding:2px 10px;border-radius:0 0 8px 8px;
+      z-index:10;pointer-events:none;
+    }
+    .diff-badge.medium{color:#1eff00;}
+    .diff-badge.hard{color:#0070dd;}
+
+    /* ── GAME OVER ── */
+    #s-over{background:radial-gradient(ellipse at center,#18103a 0%,#07050d 100%);}
+    .over-title{font-size:54px;letter-spacing:4px;margin-bottom:6px;text-align:center;}
+    .win{color:#ffd100;text-shadow:0 0 24px rgba(255,209,0,.55);}
+    .lose{color:#c83030;text-shadow:0 0 24px rgba(200,48,48,.55);}
+    .over-sub{font-family:sans-serif;font-size:15px;color:#666;letter-spacing:1px;margin-bottom:36px;text-align:center;}
+
+    /* ══ OVERLAYS ══ */
+    .ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:200;pointer-events:none;}
+    .ov.on{display:flex;}
+    /* result overlay — clickable to dismiss early */
+    #ov-result.on{pointer-events:auto;cursor:pointer;}
+    #ov-result.on::after{
+      content:'тапни чтобы закрыть';
+      position:absolute;bottom:24px;left:50%;transform:translateX(-50%);
+      font-family:sans-serif;font-size:11px;color:rgba(255,255,255,.55);
+      letter-spacing:1px;
+    }
+
+    .cdn{font-size:130px;color:#ffd100;text-shadow:0 0 32px rgba(255,209,0,.6),0 4px 0 #5a4010;
+      animation:cdpop .95s ease-out forwards;}
+    @keyframes cdpop{
+      0%{transform:scale(2.2);opacity:0;}
+      18%{transform:scale(.88);opacity:1;}
+      38%{transform:scale(1.04);}
+      55%,78%{transform:scale(1);opacity:1;}
+      100%{transform:scale(.65);opacity:0;}
+    }
+
+    /* result popup — positioned over a specific fighter */
+    .r-pos{position:absolute;transform:translate(-50%,-100%);pointer-events:none;}
+    /* speech-bubble pointer down to fighter */
+    .r-pos::after{
+      content:'';position:absolute;top:100%;left:50%;
+      margin-top:-1px;
+      border:12px solid transparent;border-top-width:14px;
+      transform:translateX(-50%);
+    }
+    .r-pos.ok::after{border-top-color:rgba(30,160,30,.92);filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));}
+    .r-pos.bad::after{border-top-color:rgba(160,20,20,.92);filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));}
+
+    .rflash{
+      padding:14px 22px;border-radius:8px;font-size:20px;letter-spacing:1px;text-align:center;
+      max-width:min(86vw,360px);line-height:1.35;
+      animation:rfpop 4s ease-out forwards;
+      box-shadow:0 6px 18px rgba(0,0,0,.7);
+    }
+    .rflash.ok-f{background:rgba(30,160,30,.94);border:2px solid #80ff80;color:#fff;
+      text-shadow:0 0 10px rgba(128,255,128,.5);}
+    .rflash.bad-f{background:rgba(160,20,20,.94);border:2px solid #ff6060;color:#fff;}
+    @keyframes rfpop{
+      0%  {transform:scale(.4);opacity:0;}
+      7%  {transform:scale(1.12);opacity:1;}
+      14%,90%{transform:scale(1);opacity:1;}
+      100%{transform:scale(.88);opacity:0;}
+    }
+    /* result overlay doesn't use flex centering — popup positioned absolutely */
+    #ov-result.on{align-items:flex-start;justify-content:flex-start;}
+
+    .diffup{padding:10px 26px;background:rgba(140,30,200,.9);border:2px solid #d080ff;
+      border-radius:5px;font-size:15px;letter-spacing:2px;animation:rfpop 2.2s ease-out forwards;}
+
+    @keyframes scrflash{0%{opacity:.55;}100%{opacity:0;}}
+    .scrf{position:fixed;inset:0;pointer-events:none;z-index:180;animation:scrflash .5s ease-out forwards;}
+
+    /* ── IMPACT BURST ── */
+    .impact-burst{position:absolute;pointer-events:none;z-index:5;width:0;height:0;}
+    .impact-burst .ring{
+      position:absolute;left:0;top:0;width:24px;height:24px;
+      border:5px solid #ffd100;border-radius:50%;
+      transform:translate(-50%,-50%) scale(.2);
+      animation:imp-ring 1s ease-out forwards;
+      box-shadow:0 0 16px #ffd100,inset 0 0 8px #ffd100;
+    }
+    @keyframes imp-ring{
+      0%{transform:translate(-50%,-50%) scale(.2);opacity:1;}
+      100%{transform:translate(-50%,-50%) scale(4.5);opacity:0;}
+    }
+    .impact-burst .pow{
+      position:absolute;left:0;top:0;
+      font-family:'Impact','Arial Black',sans-serif;font-size:38px;font-weight:900;
+      color:#ffd100;text-shadow:0 0 10px #ff4040,0 0 20px #ff4040,2px 3px 0 #6a0a0a,4px 5px 0 #1a0404;
+      transform:translate(-50%,-50%) scale(0) rotate(-12deg);
+      letter-spacing:1px;white-space:nowrap;
+      animation:pow-fly 1.6s cubic-bezier(.2,1.6,.4,1) forwards;
+    }
+    @keyframes pow-fly{
+      0%  {transform:translate(-50%,-50%) scale(0) rotate(-18deg);opacity:0;}
+      25% {transform:translate(-50%,-90%) scale(1.5) rotate(-10deg);opacity:1;}
+      55% {transform:translate(-50%,-140%) scale(1.2) rotate(-8deg);opacity:1;}
+      100%{transform:translate(-50%,-240%) scale(1) rotate(-6deg);opacity:0;}
+    }
+    .impact-burst .star{
+      position:absolute;left:0;top:0;width:12px;height:12px;
+      background:#ffd100;
+      clip-path:polygon(50% 0%,62% 38%,100% 38%,68% 60%,80% 100%,50% 76%,20% 100%,32% 60%,0% 38%,38% 38%);
+      transform:translate(-50%,-50%) scale(0);
+      animation:star-fly 1.2s ease-out forwards;
+      box-shadow:0 0 8px #ffd100;
+    }
+    @keyframes star-fly{
+      0%  {transform:translate(-50%,-50%) scale(0) rotate(0);opacity:1;}
+      30% {transform:translate(calc(-50% + var(--tx) * .5),calc(-50% + var(--ty) * .5)) scale(1.3) rotate(180deg);opacity:1;}
+      100%{transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(.4) rotate(360deg);opacity:0;}
+    }
+
+    /* SCREEN SHAKE */
+    @keyframes scr-shake{
+      0%,100%{transform:translate(0,0);}
+      15%{transform:translate(-5px,-3px);}
+      30%{transform:translate(6px,2px);}
+      45%{transform:translate(-3px,3px);}
+      60%{transform:translate(4px,-2px);}
+      80%{transform:translate(-2px,1px);}
+    }
+    .shaking{animation:scr-shake .42s ease-out;}
+
+    /* KO FALL */
+    @keyframes ko-fall-l{
+      0%  {transform:rotate(0) translateY(0);opacity:1;}
+      30% {transform:rotate(-20deg) translateY(-10px);}
+      60% {transform:rotate(45deg) translateY(10px);}
+      100%{transform:rotate(95deg) translateY(40px);opacity:.55;}
+    }
+    @keyframes ko-fall-r{
+      0%  {transform:scaleX(-1) rotate(0) translateY(0);opacity:1;}
+      30% {transform:scaleX(-1) rotate(-20deg) translateY(-10px);}
+      60% {transform:scaleX(-1) rotate(45deg) translateY(10px);}
+      100%{transform:scaleX(-1) rotate(95deg) translateY(40px);opacity:.55;}
+    }
+    .fi.ko-fallen        {animation:ko-fall-l 1s cubic-bezier(.4,0,.7,1) forwards;transform-origin:30% 90%;}
+    .fi.mirror.ko-fallen {animation:ko-fall-r 1s cubic-bezier(.4,0,.7,1) forwards;}
+
+    /* VICTORY POSE */
+    @keyframes vict-jump{0%,100%{transform:translateY(0);}50%{transform:translateY(-14px);}}
+    @keyframes vict-jump-m{0%,100%{transform:scaleX(-1) translateY(0);}50%{transform:scaleX(-1) translateY(-14px);}}
+    .fi.victory        {animation:vict-jump   .45s ease-in-out infinite;}
+    .fi.mirror.victory {animation:vict-jump-m .45s ease-in-out infinite;}
+
+    .crown-over{
+      position:absolute;top:-30px;left:50%;transform:translateX(-50%);
+      font-size:30px;z-index:6;
+      filter:drop-shadow(0 0 8px #ffd100) drop-shadow(0 0 16px #ffd100);
+      animation:crown-bob .6s ease-in-out infinite;
+    }
+    @keyframes crown-bob{
+      0%,100%{transform:translateX(-50%) translateY(0) rotate(-3deg);}
+      50%{transform:translateX(-50%) translateY(-4px) rotate(3deg);}
+    }
+
+    /* atmospheric dust */
+    @keyframes dust-float{
+      0%  {transform:translate(0,0);opacity:0;}
+      15% {opacity:.5;}
+      85% {opacity:.5;}
+      100%{transform:translate(var(--dx,10px),-60px);opacity:0;}
+    }
+    .dust{position:absolute;width:3px;height:3px;border-radius:50%;
+      background:rgba(200,149,56,.5);animation:dust-float 7s linear infinite;
+      pointer-events:none;}
+
+    /* spotlight */
+    @keyframes spot-sway{0%,100%{transform:translateX(-50%) rotate(-3deg);}50%{transform:translateX(-50%) rotate(3deg);}}
+    .spot{position:absolute;top:-20%;left:50%;width:200%;height:140%;
+      background:radial-gradient(ellipse at 50% 0%,rgba(255,209,0,.08) 0%,transparent 50%);
+      animation:spot-sway 8s ease-in-out infinite;
+      transform-origin:50% 0%;pointer-events:none;}
+
+    /* COMBO */
+    .combo-badge{
+      position:absolute;top:50%;right:8px;
+      transform:translateY(-50%) scale(0);
+      font-family:'Impact',sans-serif;font-size:30px;
+      color:#ff4040;text-shadow:0 0 10px #ff4040,0 0 20px #ff4040,2px 3px 0 #5a0a0a;
+      letter-spacing:1px;line-height:1;z-index:11;pointer-events:none;
+      transition:transform .25s cubic-bezier(.2,1.8,.4,1);
+    }
+    .combo-badge.on{transform:translateY(-50%) scale(1);}
+    .combo-badge .combo-x{font-size:42px;color:#ffd100;text-shadow:0 0 12px #ffd100,3px 3px 0 #5a4010;}
+    .combo-badge .combo-lbl{font-size:11px;color:#ffd100;letter-spacing:3px;}
+
+    /* KO BANNER */
+    .ko-banner{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:190;pointer-events:none;}
+    .ko-banner .ko-text{
+      font-family:'Impact',sans-serif;font-size:140px;letter-spacing:4px;
+      color:#ff2020;text-shadow:0 0 24px #ff2020,0 0 60px #ff2020,4px 6px 0 #5a0404,8px 12px 0 #1a0101;
+      animation:ko-pop .9s cubic-bezier(.2,1.6,.4,1) forwards;
+    }
+    @keyframes ko-pop{
+      0%{transform:scale(0) rotate(-25deg);opacity:0;}
+      30%{transform:scale(1.25) rotate(-5deg);opacity:1;}
+      55%{transform:scale(1) rotate(0);}
+      85%{transform:scale(1) rotate(0);opacity:1;}
+      100%{transform:scale(1.1) rotate(0);opacity:0;}
+    }
+
+    /* ═══════════ LOGIN ═══════════ */
+    #s-login{
+      padding:24px 20px;
+      background:
+        radial-gradient(circle at 50% 0%,rgba(60,30,15,.4) 0%,transparent 60%),
+        linear-gradient(180deg,#0a0814 0%,#1a1408 100%);
+      justify-content:center;
+    }
+    .login-box{
+      width:100%;max-width:340px;
+      padding:20px 16px;
+      background:linear-gradient(180deg,rgba(20,12,4,.85),rgba(0,0,0,.92));
+      border:2.5px solid #6a4818;border-radius:8px;
+      box-shadow:inset 0 0 0 1px #c89538,0 6px 22px rgba(0,0,0,.7);
+      display:flex;flex-direction:column;align-items:center;gap:10px;
+    }
+    .login-title{
+      font-family:'Impact',sans-serif;font-size:26px;color:#ffd100;
+      letter-spacing:2px;text-align:center;line-height:1.1;
+      text-shadow:0 0 14px rgba(255,209,0,.5),0 3px 0 #5a4010;
+      margin-bottom:2px;
+    }
+    .login-sub{
+      font-family:sans-serif;font-size:11px;color:#888;
+      letter-spacing:1px;text-align:center;margin-bottom:10px;
+    }
+    .login-tab-switch{
+      font-family:sans-serif;font-size:12px;color:#c8a868;
+      text-align:center;margin-top:8px;cursor:pointer;
+      text-decoration:underline;
+    }
+    .login-err{
+      font-family:sans-serif;font-size:12px;color:#e84040;
+      min-height:18px;text-align:center;margin-top:4px;
+    }
+    .login-saved-info{
+      font-family:sans-serif;font-size:11px;color:#7a7060;
+      text-align:center;margin-bottom:8px;letter-spacing:.5px;
+    }
+
+    /* ═══════════ HOME — logged in info ═══════════ */
+    .user-card{
+      width:100%;max-width:300px;
+      padding:10px 14px;
+      background:rgba(0,0,0,.55);
+      border:1.5px solid #6a4818;border-radius:6px;
+      box-shadow:inset 0 0 0 1px #c89538;
+      margin-bottom:14px;
+      text-align:center;
+    }
+    .user-name{
+      font-family:'Impact',sans-serif;font-size:18px;color:#ffd100;
+      letter-spacing:1.5px;line-height:1;
+      text-shadow:0 1px 2px #000;
+    }
+    .user-level{
+      font-family:sans-serif;font-size:12px;color:#c8a868;
+      margin-top:2px;
+    }
+    .user-stats{
+      font-family:sans-serif;font-size:11px;color:#9a8868;
+      margin-top:4px;display:flex;justify-content:center;gap:14px;
+    }
+    .user-pwbar{
+      margin-top:6px;
+      height:8px;background:#0a0604;
+      border:1px solid #6a4818;border-radius:4px;
+      overflow:hidden;
+      box-shadow:inset 0 0 4px rgba(0,0,0,.8);
+    }
+    /* vitality (tamagotchi) bar */
+    .user-vitality{
+      margin-top:6px;
+      font-family:sans-serif;font-size:11px;color:#c8a868;
+      letter-spacing:.5px;
+      display:flex;justify-content:space-between;align-items:center;
+    }
+    .user-vitality-bar{
+      margin-top:3px;
+      height:6px;background:#0a0604;
+      border:1px solid #6a4818;border-radius:3px;
+      overflow:hidden;
+      box-shadow:inset 0 0 4px rgba(0,0,0,.8);
+    }
+    .user-vitality-fill{
+      height:100%;
+      transition:width .8s ease,background .6s ease;
+      background:linear-gradient(180deg,#60ff60 0%,#208810 100%);
+    }
+    .user-vitality-fill.warn{background:linear-gradient(180deg,#ffd060 0%,#a06010 100%);}
+    .user-vitality-fill.danger{background:linear-gradient(180deg,#ff5050 0%,#a01010 100%);
+      animation:vit-pulse .9s ease-in-out infinite;}
+    @keyframes vit-pulse{
+      0%,100%{box-shadow:0 0 6px rgba(255,80,80,.3);}
+      50%{box-shadow:0 0 14px rgba(255,80,80,.8);}
+    }
+    /* big warning banner when vitality critical */
+    .vitality-banner{
+      width:100%;padding:8px 12px;text-align:center;
+      font-family:'Impact',sans-serif;letter-spacing:1.5px;
+      animation:vit-pulse .9s ease-in-out infinite;
+      margin-bottom:10px;border-radius:6px;
+      display:none;
+    }
+    .vitality-banner.warn{
+      display:block;background:rgba(160,90,10,.4);border:2px solid #ffb040;
+      color:#ffe080;font-size:12px;
+    }
+    .vitality-banner.danger{
+      display:block;background:rgba(160,20,20,.5);border:2px solid #ff4040;
+      color:#fff;font-size:13px;
+    }
+    /* death modal */
+    #ov-death{align-items:center;justify-content:center;background:rgba(0,0,0,.92);}
+    #ov-death.on{pointer-events:auto;}
+    .death-card{
+      width:88%;max-width:340px;padding:24px 18px;
+      background:radial-gradient(ellipse at 50% 30%,rgba(80,10,10,.95) 0%,rgba(20,5,5,.98) 100%);
+      border:3px solid #c83030;border-radius:10px;
+      box-shadow:0 0 30px rgba(200,30,30,.5),0 8px 30px rgba(0,0,0,.95);
+      text-align:center;animation:tutor-pop .35s cubic-bezier(.2,1.6,.4,1);
+    }
+    .death-emoji{font-size:64px;margin-bottom:6px;
+      filter:drop-shadow(0 0 14px rgba(200,30,30,.7));}
+    .death-title{font-family:'Impact',sans-serif;font-size:28px;color:#ff4040;
+      letter-spacing:3px;margin-bottom:8px;
+      text-shadow:0 0 14px rgba(255,40,40,.6),0 3px 0 #5a0a0a;}
+    .death-text{font-family:'Georgia',serif;font-size:14px;color:#ffd0d0;
+      line-height:1.4;margin-bottom:16px;}
+    .user-pwbar-fill{
+      height:100%;
+      background:linear-gradient(180deg,rgba(255,255,255,.4) 0%,transparent 50%),
+                 linear-gradient(180deg,#ffd100 0%,#c89538 50%,#8a6010 100%);
+      transition:width .6s ease;
+      box-shadow:0 0 6px rgba(255,209,0,.5);
+    }
+    .user-char-mini{
+      width:48px;height:48px;display:inline-block;
+      margin-right:8px;vertical-align:middle;
+    }
+    .user-char-mini svg{width:100%;height:auto;}
+
+    /* ═══════════ CHARACTER SELECT ═══════════ */
+    #s-select{
+      padding:18px 16px;
+      background:
+        radial-gradient(ellipse at 50% 0%,rgba(140,30,30,.25) 0%,transparent 50%),
+        linear-gradient(180deg,#0a0814 0%,#1a0a08 100%);
+      justify-content:flex-start;
+      overflow-y:auto;
+    }
+    .select-title{
+      font-family:'Impact',sans-serif;font-size:32px;color:#ffd100;
+      letter-spacing:3px;text-align:center;line-height:1.05;
+      text-shadow:0 0 18px rgba(255,209,0,.55),0 3px 0 #5a4010;
+      margin-bottom:4px;
+    }
+    .select-sub{
+      font-family:sans-serif;font-size:12px;color:#888;letter-spacing:2px;
+      text-align:center;margin-bottom:16px;
+    }
+    /* horizontal snap carousel for character picker */
+    .char-grid{
+      display:flex;
+      flex-direction:row;
+      flex-wrap:nowrap;
+      gap:14px;
+      width:100%;max-width:560px;
+      margin-bottom:14px;
+      padding:8px 30vw;
+      overflow-x:auto;
+      overflow-y:hidden;
+      scroll-snap-type:x mandatory;
+      -webkit-overflow-scrolling:touch;
+      scrollbar-width:none;
+    }
+    .char-grid::-webkit-scrollbar{display:none;}
+    .char-grid > .char-card{
+      flex:0 0 60vw;max-width:240px;
+      scroll-snap-align:center;
+    }
+    .char-card{
+      position:relative;
+      background:linear-gradient(180deg,rgba(30,20,10,.85) 0%,rgba(10,5,2,.95) 100%);
+      border:2.5px solid #4a3018;
+      border-radius:6px;
+      padding:8px 6px 10px;
+      display:flex;flex-direction:column;align-items:center;
+      cursor:pointer;
+      transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;
+      box-shadow:inset 0 0 0 1px #2a1808,0 3px 8px rgba(0,0,0,.6);
+      overflow:hidden;
+    }
+    .char-card::before{
+      content:'';position:absolute;inset:0;
+      background:radial-gradient(ellipse at 50% 30%,rgba(255,209,0,.08),transparent 60%);
+      pointer-events:none;
+    }
+    .char-card:active{transform:scale(.97);}
+    .char-card.selected{
+      border-color:#ffd100;
+      box-shadow:inset 0 0 0 1px #c89538,0 0 22px rgba(255,209,0,.55),0 4px 12px rgba(0,0,0,.6);
+      background:linear-gradient(180deg,rgba(60,40,15,.95) 0%,rgba(30,15,5,.95) 100%);
+    }
+    .char-portrait{
+      width:100%;
+      height:140px;
+      display:flex;align-items:center;justify-content:center;
+      background:radial-gradient(ellipse at 50% 60%,rgba(200,149,56,.15) 0%,transparent 70%);
+      border:1px solid rgba(200,149,56,.25);
+      border-radius:3px;
+      overflow:hidden;
+    }
+    .char-portrait svg{transform:translateY(8px);}
+    .char-name{
+      font-family:'Impact',sans-serif;font-size:14px;letter-spacing:1.5px;
+      color:#ffd100;margin-top:6px;text-align:center;line-height:1;
+      text-shadow:0 1px 2px #000;
+    }
+    .char-role{
+      font-family:sans-serif;font-size:9.5px;color:#9a8868;
+      text-align:center;margin-top:3px;letter-spacing:.5px;
+      min-height:22px;line-height:1.1;
+    }
+    .char-card.selected .char-name{text-shadow:0 0 8px #ffd100,0 1px 2px #000;}
+
+    @media (min-width:560px){
+      .char-grid{grid-template-columns:repeat(4,1fr);max-width:640px;gap:12px;}
+      .char-portrait{height:160px;}
+    }
+
+    /* ═══════════ CITY MAP ═══════════ */
+    #s-map{
+      padding:0;
+      background:
+        radial-gradient(circle at 50% 0%,rgba(60,30,15,.4) 0%,transparent 60%),
+        linear-gradient(180deg,#0a0814 0%,#1a1408 100%);
+      justify-content:flex-start;
+    }
+
+    /* top stats bar — character avatar + power */
+    .map-stats-top{
+      width:100%;padding:10px 12px;
+      background:linear-gradient(180deg,rgba(20,12,4,.95) 0%,rgba(0,0,0,.85) 100%);
+      border-bottom:2px solid #3a2808;
+      display:flex;justify-content:center;
+    }
+    .map-player-card{
+      display:flex;align-items:center;gap:12px;
+      max-width:500px;width:100%;
+      padding:8px 12px;
+      background:rgba(0,0,0,.55);
+      border:1.5px solid #6a4818;border-radius:6px;
+      box-shadow:inset 0 0 0 1px #c89538;
+    }
+    .map-avatar-portrait{
+      width:62px;height:62px;flex-shrink:0;
+      background:radial-gradient(circle at 35% 30%,rgba(255,209,0,.25),transparent 70%);
+      border:1.5px solid #6a4818;border-radius:50%;
+      overflow:hidden;
+      display:flex;align-items:flex-end;justify-content:center;
+      position:relative;
+    }
+    .map-avatar-portrait svg{
+      width:auto;height:90%;
+      transform:translateY(8%);
+    }
+    .map-avatar-level{
+      position:absolute;bottom:-2px;right:-2px;
+      width:22px;height:22px;
+      background:radial-gradient(circle at 30% 30%,#ffd100,#8a6010);
+      border:1.5px solid #1a0e04;border-radius:50%;
+      font-family:'Impact',sans-serif;font-size:12px;
+      color:#1a0e04;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 2px 4px rgba(0,0,0,.6);
+    }
+    .map-player-info{flex:1;min-width:0;}
+    .map-player-name{
+      font-family:'Impact',sans-serif;font-size:16px;color:#ffd100;
+      letter-spacing:1px;line-height:1;
+      text-shadow:0 1px 2px #000;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    }
+    .map-player-role{
+      font-family:sans-serif;font-size:10px;color:#9a8868;
+      margin-top:1px;letter-spacing:.5px;
+    }
+    .map-power{margin-top:5px;}
+    .map-power-label{
+      font-family:sans-serif;font-size:10px;color:#c8a868;
+      letter-spacing:.5px;margin-bottom:2px;
+      display:flex;justify-content:space-between;
+    }
+    .map-power-bar{
+      height:10px;background:#0a0604;
+      border:1px solid #6a4818;border-radius:5px;
+      overflow:hidden;
+      box-shadow:inset 0 0 4px rgba(0,0,0,.85);
+      position:relative;
+    }
+    .map-power-fill{
+      height:100%;
+      background:linear-gradient(180deg,rgba(255,255,255,.4) 0%,transparent 50%),
+                 linear-gradient(180deg,#ffd100 0%,#c89538 50%,#8a6010 100%);
+      transition:width .8s cubic-bezier(.2,.8,.4,1);
+      box-shadow:0 0 8px rgba(255,209,0,.5);
+    }
+    .map-power-segments{
+      position:absolute;inset:0;display:flex;
+    }
+    .map-power-segments div{
+      flex:1;border-right:1px solid rgba(0,0,0,.5);
+    }
+    .map-power-segments div:last-child{border:none;}
+
+    /* the world map area */
+    .map-world{
+      flex:1;width:100%;position:relative;overflow:hidden;
+      background:
+        repeating-linear-gradient(60deg,
+          transparent 0 30px,
+          rgba(255,255,255,.015) 30px 31px),
+        radial-gradient(ellipse at 50% 100%,rgba(80,60,20,.2) 0%,transparent 70%),
+        linear-gradient(180deg,#1a1408 0%,#0a0804 100%);
+    }
+    /* decorative props */
+    .map-prop{
+      position:absolute;font-size:24px;
+      filter:drop-shadow(0 3px 4px rgba(0,0,0,.7));
+      pointer-events:none;opacity:.65;
+    }
+
+    /* roads */
+    .map-roads{
+      position:absolute;inset:0;width:100%;height:100%;
+      pointer-events:none;
+    }
+    .map-roads .road{
+      fill:none;
+      stroke:#3a2812;
+      stroke-width:18;
+      stroke-linecap:round;
+    }
+    .map-roads .road-dash{
+      fill:none;
+      stroke:#ffd100;
+      stroke-width:2;
+      stroke-dasharray:8 10;
+      opacity:.45;
+      stroke-linecap:round;
+    }
+
+    /* location markers */
+    .map-loc{
+      position:absolute;
+      transform:translate(-50%,-50%);
+      cursor:pointer;
+      z-index:5;
+      text-align:center;
+      transition:transform .15s ease;
+    }
+    .map-loc:active{transform:translate(-50%,-50%) scale(.92);}
+    .map-loc-icon{
+      width:52px;height:52px;margin:0 auto;
+      background:radial-gradient(circle at 35% 30%,rgba(255,209,0,.25),transparent 70%);
+      border:2.5px solid #c89538;
+      border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      font-size:30px;
+      box-shadow:inset 0 0 8px rgba(0,0,0,.65),0 0 18px rgba(255,209,0,.35),0 4px 8px rgba(0,0,0,.7);
+      animation:loc-pulse 2s ease-in-out infinite;
+      position:relative;
+    }
+    @keyframes loc-pulse{
+      0%,100%{box-shadow:inset 0 0 8px rgba(0,0,0,.65),0 0 16px rgba(255,209,0,.35),0 4px 8px rgba(0,0,0,.7);}
+      50%   {box-shadow:inset 0 0 8px rgba(0,0,0,.65),0 0 28px rgba(255,209,0,.65),0 4px 8px rgba(0,0,0,.7);}
+    }
+    /* LOCKED state — greyed out + 🔒 badge */
+    .map-loc.locked{cursor:not-allowed;}
+    .map-loc.locked .map-loc-icon{
+      animation:none;
+      filter:grayscale(.85) brightness(.45);
+      border-color:#3a2812;
+      box-shadow:inset 0 0 12px rgba(0,0,0,.8),0 2px 4px rgba(0,0,0,.7);
+    }
+    .map-loc.locked .map-loc-label,
+    .map-loc.locked .map-loc-sub{opacity:.45;}
+    .map-loc.locked .map-loc-icon::after{
+      content:'🔒';
+      position:absolute;bottom:-4px;right:-4px;
+      width:22px;height:22px;
+      background:radial-gradient(circle at 30% 30%,#666,#222);
+      border:1.5px solid #1a0e04;border-radius:50%;
+      font-size:11px;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 2px 4px rgba(0,0,0,.7);
+    }
+    /* COMPLETED state — green checkmark */
+    .map-loc.completed .map-loc-icon{
+      border-color:#60ff60;
+      box-shadow:inset 0 0 8px rgba(0,0,0,.65),0 0 18px rgba(96,255,96,.45),0 4px 8px rgba(0,0,0,.7);
+      animation:none;
+    }
+    .map-loc.completed .map-loc-icon::after{
+      content:'✓';
+      position:absolute;bottom:-4px;right:-4px;
+      width:22px;height:22px;
+      background:radial-gradient(circle at 30% 30%,#60ff60,#208810);
+      border:1.5px solid #1a0e04;border-radius:50%;
+      font-size:13px;font-weight:bold;color:#0a2008;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 2px 4px rgba(0,0,0,.7);
+    }
+    /* CURRENT (next-up) — extra glow */
+    .map-loc.current .map-loc-icon{
+      animation:loc-pulse-strong 1.3s ease-in-out infinite;
+    }
+    @keyframes loc-pulse-strong{
+      0%,100%{box-shadow:inset 0 0 8px rgba(0,0,0,.65),0 0 20px rgba(255,209,0,.6),0 4px 8px rgba(0,0,0,.7);transform:scale(1);}
+      50%   {box-shadow:inset 0 0 8px rgba(0,0,0,.65),0 0 36px rgba(255,209,0,.95),0 4px 8px rgba(0,0,0,.7);transform:scale(1.08);}
+    }
+    .map-loc-label{
+      font-family:'Impact',sans-serif;font-size:11px;color:#ffd100;
+      letter-spacing:1.5px;margin-top:5px;
+      text-shadow:0 0 6px rgba(255,209,0,.5),0 1px 2px #000;
+      white-space:nowrap;
+    }
+    .map-loc-sub{
+      font-family:sans-serif;font-size:9px;color:#8a8060;
+      letter-spacing:.5px;
+    }
+
+    /* player position marker (driven directly by JS — no CSS transition) */
+    .map-player-marker{
+      position:absolute;
+      transform:translate(-50%,-50%);
+      pointer-events:none;
+      z-index:6;
+    }
+    /* world is draggable surface */
+    .map-world{touch-action:none;cursor:grab;}
+    .map-world:active{cursor:grabbing;}
+    .player-dot{
+      width:18px;height:18px;
+      background:radial-gradient(circle at 30% 30%,#fff5a0,#c89538);
+      border:2.5px solid #1a0e04;
+      border-radius:50%;
+      box-shadow:0 0 14px #ffd100;
+    }
+    .player-pulse{
+      position:absolute;left:50%;top:50%;
+      transform:translate(-50%,-50%);
+      width:30px;height:30px;
+      border:2px solid #ffd100;
+      border-radius:50%;
+      opacity:.7;
+      animation:player-pulse 1.6s ease-out infinite;
+    }
+    @keyframes player-pulse{
+      0%  {transform:translate(-50%,-50%) scale(.4);opacity:.9;}
+      100%{transform:translate(-50%,-50%) scale(2.8);opacity:0;}
+    }
+
+    .map-hint{
+      position:absolute;bottom:14px;left:50%;
+      transform:translateX(-50%);
+      font-family:sans-serif;font-size:12px;color:#c8a868;
+      background:rgba(0,0,0,.65);padding:6px 14px;border-radius:14px;
+      border:1px solid rgba(200,149,56,.4);
+      animation:hint-pulse 2.4s ease-in-out infinite;
+      pointer-events:none;white-space:nowrap;
+      letter-spacing:.5px;
+    }
+
+    @media (max-width:480px){
+      .map-avatar-portrait{width:54px;height:54px;}
+      .map-player-name{font-size:14px;}
+      .map-loc-icon{width:46px;height:46px;font-size:26px;}
+      .map-loc-label{font-size:10px;}
+    }
+
+    /* ═══════════ WALK SCENE ═══════════ */
+    #s-walk{
+      padding:0;
+      background:linear-gradient(180deg,#0a0814 0%,#0e0a18 40%,#0a0814 100%);
+      justify-content:flex-start;
+      overflow:hidden;
+      touch-action:none;
+    }
+    .walk-arena{
+      position:relative;
+      width:100%;
+      flex:1;
+      overflow:hidden;
+      background:
+        radial-gradient(ellipse at 50% 8%,rgba(255,209,0,.18) 0%,transparent 35%),
+        radial-gradient(ellipse at 50% 50%,rgba(80,80,140,.06) 0%,transparent 60%);
+    }
+    /* the road */
+    .walk-path{
+      position:absolute;
+      left:50%;
+      top:7%;
+      width:42%;
+      max-width:200px;
+      height:85%;
+      transform:translateX(-50%);
+      background:
+        repeating-linear-gradient(180deg,
+          transparent 0 24px,
+          rgba(255,209,0,.45) 24px 48px),
+        linear-gradient(180deg,#1c1812 0%,#13110a 100%);
+      border-left:2px solid #2a1f12;
+      border-right:2px solid #2a1f12;
+      box-shadow:inset 0 0 30px rgba(0,0,0,.5);
+    }
+    /* sidewalks (buildings on each side) */
+    .walk-arena::before,
+    .walk-arena::after{
+      content:'';position:absolute;top:0;bottom:0;width:29%;
+      background:linear-gradient(90deg,#0a0805 0%,#13100a 100%);
+    }
+    .walk-arena::before{left:0;}
+    .walk-arena::after{right:0;background:linear-gradient(270deg,#0a0805 0%,#13100a 100%);}
+
+    /* streetlight glows */
+    .streetlight{
+      position:absolute;width:50px;height:50px;
+      background:radial-gradient(circle,rgba(255,209,0,.4) 0%,rgba(255,150,0,.1) 50%,transparent 70%);
+      pointer-events:none;
+      animation:lamp-flicker 4s ease-in-out infinite;
+    }
+    @keyframes lamp-flicker{
+      0%,100%{opacity:.85;}
+      48%,52%{opacity:.55;}
+    }
+
+    /* shop building at top of street */
+    .shop-icon{
+      position:absolute;
+      top:2%;
+      left:50%;
+      transform:translateX(-50%);
+      width:38%;max-width:170px;
+      z-index:4;
+      pointer-events:none;
+    }
+    .shop-roof{
+      width:100%;height:0;
+      border-left:14px solid transparent;
+      border-right:14px solid transparent;
+      border-bottom:24px solid #5a2a18;
+    }
+    .shop-body{
+      background:linear-gradient(180deg,#3a2818 0%,#1f1408 100%);
+      border:2px solid #6a4818;
+      border-radius:0 0 4px 4px;
+      padding:10px 8px 14px;
+      box-shadow:0 0 24px rgba(255,209,0,.25),inset 0 0 16px rgba(0,0,0,.55);
+      position:relative;
+    }
+    .shop-sign{
+      background:linear-gradient(180deg,#ffd100 0%,#8a6010 100%);
+      color:#1a0e04;
+      font-family:'Impact',sans-serif;font-size:14px;letter-spacing:1px;
+      text-align:center;padding:4px 6px;
+      border:1.5px solid #6a4810;border-radius:3px;
+      box-shadow:0 0 10px rgba(255,209,0,.5);
+      animation:sign-blink 3s ease-in-out infinite;
+    }
+    @keyframes sign-blink{
+      0%,100%{box-shadow:0 0 10px rgba(255,209,0,.5);}
+      50%{box-shadow:0 0 18px rgba(255,209,0,.85);}
+    }
+    .shop-door{
+      width:34px;height:46px;margin:8px auto 0;
+      background:radial-gradient(ellipse at 50% 60%,#5a3a18 0%,#0a0603 100%);
+      border:2px solid #c89538;border-radius:4px 4px 0 0;
+      position:relative;
+      transform-origin:left center;
+      transition:transform 1.1s cubic-bezier(.3,.1,.7,1);
+    }
+    .shop-door::after{
+      content:'';position:absolute;right:5px;top:55%;
+      width:3px;height:3px;border-radius:50%;background:#ffd100;
+    }
+    /* warm light from inside when opening */
+    .shop-door::before{
+      content:'';position:absolute;left:-2px;right:-2px;top:-2px;bottom:-2px;
+      background:radial-gradient(ellipse,rgba(255,209,0,0) 0%,rgba(255,150,0,0) 100%);
+      transition:background 1s ease-in;
+      border-radius:4px 4px 0 0;
+      z-index:-1;
+    }
+    .shop-door.opening{transform:perspective(300px) rotateY(-78deg);}
+    .shop-door.opening::before{
+      background:radial-gradient(ellipse,rgba(255,209,0,.8) 0%,rgba(255,120,0,.4) 100%);
+      box-shadow:0 0 30px rgba(255,180,0,.8),0 0 60px rgba(255,150,0,.5);
+    }
+    /* shop zooms slightly when entering */
+    .walk-arena.entering .shop-icon{
+      transform:translateX(-50%) scale(1.6);
+      transition:transform 1.1s ease-in;
+    }
+
+    /* fade-to-black overlay for room transition */
+    .door-fade{
+      position:fixed;inset:0;background:#000;
+      opacity:0;z-index:9999;pointer-events:none;
+      transition:opacity 1s ease-in;
+    }
+    .door-fade.fade-in{opacity:1;}
+    .door-fade.fade-out{opacity:0;transition:opacity .5s ease-out;}
+    .shop-light{
+      position:absolute;top:-14px;left:50%;transform:translateX(-50%);
+      width:120%;height:60px;
+      background:radial-gradient(ellipse at 50% 100%,rgba(255,209,0,.5) 0%,transparent 60%);
+      pointer-events:none;
+    }
+
+    /* walker character */
+    .walker{
+      position:absolute;
+      left:50%;
+      bottom:6%;
+      transform:translateX(-50%);
+      width:48px;
+      height:80px;
+      z-index:5;
+      pointer-events:none;
+      transition:bottom .15s linear;
+      filter:drop-shadow(0 4px 6px rgba(0,0,0,.7));
+    }
+    .walker svg{display:block;width:100%;height:100%;}
+
+    /* walking animation — legs alternate */
+    @keyframes leg-l{0%,100%{transform:translateY(0);}50%{transform:translateY(-3px) rotate(-3deg);}}
+    @keyframes leg-r{0%,100%{transform:translateY(-3px) rotate(3deg);}50%{transform:translateY(0);}}
+    @keyframes body-bob{0%,100%{transform:translateY(0);}25%,75%{transform:translateY(-1.5px);}50%{transform:translateY(0);}}
+    .walker.walking .w-leg-l{animation:leg-l .35s ease-in-out infinite;transform-origin:center top;}
+    .walker.walking .w-leg-r{animation:leg-r .35s ease-in-out infinite;transform-origin:center top;}
+    .walker.walking .w-body{animation:body-bob .35s ease-in-out infinite;transform-origin:center bottom;}
+
+    /* swipe hint */
+    .walk-hint{
+      position:absolute;
+      bottom:10px;
+      left:50%;
+      transform:translateX(-50%);
+      font-family:sans-serif;font-size:13px;color:#c8a868;
+      letter-spacing:.8px;text-shadow:0 1px 2px #000;
+      background:rgba(0,0,0,.5);padding:6px 14px;border-radius:14px;
+      border:1px solid rgba(200,149,56,.4);
+      animation:hint-pulse 2.4s ease-in-out infinite;
+      pointer-events:none;
+      white-space:nowrap;
+    }
+    @keyframes hint-pulse{0%,100%{opacity:.7;}50%{opacity:1;}}
+
+    /* choice panel after reaching shop */
+    .walk-choice{
+      position:absolute;
+      top:50%;left:50%;
+      transform:translate(-50%,-50%) scale(.7);
+      width:88%;max-width:360px;
+      background:linear-gradient(180deg,rgba(20,12,4,.96) 0%,rgba(0,0,0,.96) 100%);
+      border:3px solid #c89538;
+      box-shadow:inset 0 0 0 1px #000,0 8px 30px rgba(0,0,0,.95);
+      border-radius:8px;
+      padding:18px 16px;
+      z-index:20;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .35s ease,transform .35s cubic-bezier(.2,1.6,.4,1);
+    }
+    .walk-choice.on{
+      opacity:1;
+      transform:translate(-50%,-50%) scale(1);
+      pointer-events:auto;
+    }
+    .walk-choice-title{
+      font-family:'Impact',sans-serif;font-size:20px;color:#ffd100;
+      text-align:center;letter-spacing:1px;margin-bottom:6px;
+      text-shadow:0 2px 0 #5a4010,0 0 12px rgba(255,209,0,.4);
+    }
+    .walk-choice-sub{
+      font-family:sans-serif;font-size:12px;color:#888;
+      text-align:center;margin-bottom:14px;letter-spacing:.5px;
+    }
+
+    /* ═══════════ TRAIN SCENE ═══════════ */
+    #s-train{
+      padding:24px 20px;
+      background:linear-gradient(180deg,#0e0a18 0%,#0a0814 100%);
+      justify-content:flex-start;
+    }
+    .train-header{
+      width:100%;max-width:420px;
+      display:flex;align-items:center;justify-content:space-between;
+      margin-bottom:16px;
+    }
+    .train-title{
+      font-family:'Impact',sans-serif;font-size:22px;color:#ffd100;
+      letter-spacing:2px;text-shadow:0 0 10px rgba(255,209,0,.4);
+    }
+    .train-progress{
+      font-family:sans-serif;font-size:14px;color:#888;
+      background:rgba(0,0,0,.5);padding:4px 10px;border-radius:10px;
+      border:1px solid rgba(200,149,56,.4);
+    }
+    .train-card{
+      width:100%;max-width:420px;
+      background:linear-gradient(180deg,rgba(20,12,4,.85) 0%,rgba(0,0,0,.85) 100%);
+      border:2px solid #6a4818;
+      box-shadow:inset 0 0 0 1px #c89538,0 4px 16px rgba(0,0,0,.7);
+      border-radius:6px;
+      padding:30px 24px;
+      margin-bottom:24px;
+      min-height:200px;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:14px;
+    }
+    .train-ru{
+      font-family:'Georgia',serif;font-size:30px;
+      color:#f0e8d0;text-align:center;text-shadow:0 2px 3px rgba(0,0,0,.8);
+      line-height:1.2;
+    }
+    .train-en{
+      font-family:'Impact',sans-serif;font-size:26px;letter-spacing:1px;
+      color:#60ff60;text-align:center;
+      text-shadow:0 0 14px rgba(96,255,96,.5),0 2px 3px rgba(0,0,0,.85);
+      opacity:0;transition:opacity .3s ease;
+      min-height:32px;
+      cursor:default;user-select:none;
+    }
+    .train-en.show{opacity:1;cursor:pointer;}
+    .train-en.show::after{
+      content:' 🔊';font-size:18px;opacity:.7;
+    }
+    .train-en.show:active{transform:scale(.97);}
+    .train-divider{width:60%;height:1px;background:linear-gradient(90deg,transparent,rgba(200,149,56,.5),transparent);}
+    .train-buttons{
+      display:flex;flex-direction:column;gap:10px;width:100%;max-width:420px;
+    }
+    .train-buttons .btn{margin-bottom:0;}
+    .btn-red{background:linear-gradient(180deg,#c83030,#5a0e0e);color:#fff;
+      box-shadow:0 4px 0 #2a0404,0 6px 14px rgba(0,0,0,.55);}
+
+    /* listening button — aural training */
+    .btn-listen{
+      background:linear-gradient(180deg,#4090d0,#1a4868);color:#fff;
+      box-shadow:0 4px 0 #0a2040,0 6px 14px rgba(0,0,0,.55);
+    }
+    /* mic button — speak the translation */
+    .btn-mic{
+      background:linear-gradient(180deg,#c84050,#5a1020);color:#fff;
+      box-shadow:0 4px 0 #2a0808,0 6px 14px rgba(0,0,0,.55);
+    }
+    .btn-mic.listening{
+      animation:mic-pulse-train .55s ease-in-out infinite;
+      background:linear-gradient(180deg,#ff5050,#c01010);
+    }
+    @keyframes mic-pulse-train{
+      0%,100%{box-shadow:0 4px 0 #2a0808,0 0 14px rgba(255,80,80,.5);}
+      50%   {box-shadow:0 4px 0 #2a0808,0 0 30px rgba(255,120,120,1);}
+    }
+    /* training feedback states on the en text */
+    .train-en.train-wrong{
+      color:#ff5858;
+      text-shadow:0 0 14px rgba(255,88,88,.55),0 2px 3px rgba(0,0,0,.85);
+    }
+    .train-en.train-correct{
+      color:#60ff60;
+      text-shadow:0 0 18px rgba(96,255,96,.7),0 2px 3px rgba(0,0,0,.85);
+    }
+    /* what the recognition heard */
+    .train-heard{
+      font-family:sans-serif;font-size:13px;color:#ff8080;
+      font-style:italic;margin-top:8px;text-align:center;
+    }
+    .btn-listen.playing{animation:listen-pulse .55s ease-in-out infinite;}
+    @keyframes listen-pulse{
+      0%,100%{box-shadow:0 4px 0 #0a2040,0 0 14px rgba(96,180,255,.5);}
+      50%{box-shadow:0 4px 0 #0a2040,0 0 26px rgba(120,200,255,.95);}
+    }
+
+    /* listening waveform indicator (animated bars) */
+    .listen-wave{
+      display:inline-flex;align-items:flex-end;gap:3px;height:18px;margin-left:8px;
+      vertical-align:middle;
+    }
+    .listen-wave span{
+      width:3px;background:#fff;border-radius:1px;
+      animation:wave-bar .55s ease-in-out infinite;
+      opacity:0;
+    }
+    .btn-listen.playing .listen-wave span{opacity:1;}
+    .listen-wave span:nth-child(1){height:6px;animation-delay:0s;}
+    .listen-wave span:nth-child(2){height:14px;animation-delay:.08s;}
+    .listen-wave span:nth-child(3){height:10px;animation-delay:.16s;}
+    .listen-wave span:nth-child(4){height:16px;animation-delay:.24s;}
+    .listen-wave span:nth-child(5){height:8px;animation-delay:.32s;}
+    @keyframes wave-bar{
+      0%,100%{transform:scaleY(.5);}
+      50%{transform:scaleY(1.4);}
+    }
+
+    @media (max-width:480px){
+      .walk-hint{font-size:11px;padding:5px 10px;}
+      .walk-choice-title{font-size:17px;}
+      .train-ru{font-size:24px;}
+      .train-en{font-size:21px;}
+      .train-card{padding:22px 16px;min-height:170px;}
+    }
+
+    /* bot thinking */
+    .bot-thinking-bubble{
+      position:absolute;top:-32px;right:-10px;
+      background:rgba(0,0,0,.85);border:1px solid #6a4a18;border-radius:14px;
+      padding:6px 12px;font-family:sans-serif;font-size:12px;color:#c8a868;
+      white-space:nowrap;
+    }
+    .bot-thinking-bubble::after{
+      content:'';position:absolute;top:100%;left:20%;
+      border:6px solid transparent;border-top-color:#6a4a18;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── LOGIN / REGISTER ───────────────────────────── -->
+<div id="s-login" class="screen on">
+  <div class="login-box">
+    <div class="login-title">⚔ ENGLISH<br>KOMBAT</div>
+    <div class="login-sub">ВОЙДИ — ПРОГРЕСС СОХРАНИТСЯ</div>
+    <input id="login-name" class="field" type="text" placeholder="ИМЯ" maxlength="14" autocomplete="username">
+    <input id="login-pwd"  class="field" type="password" placeholder="ПАРОЛЬ" maxlength="20" autocomplete="current-password">
+    <button class="btn btn-gold" style="margin-top:6px" onclick="doLogin()">⚔ ВОЙТИ / РЕГИСТРАЦИЯ</button>
+    <div id="login-err" class="login-err"></div>
+    <div id="login-saved-info" class="login-saved-info"></div>
+  </div>
+</div>
+
+<!-- ── HOME ───────────────────────────────────────── -->
+<div id="s-home" class="screen">
+  <div class="title">⚔ ENGLISH<br>KOMBAT</div>
+  <div class="subtitle">УЧИШЬ АНГЛИЙСКИЙ ИЛИ ПОЛУЧАЕШЬ ПО ГОЛОВЕ</div>
+
+  <div class="opp-preview">
+    <div class="mini-fi" id="mini-l"></div>
+    <div class="vs-tiny">VS</div>
+    <div class="mini-fi" id="mini-r"></div>
+  </div>
+
+  <!-- vitality banner (shown when low) -->
+  <div id="vitality-banner" class="vitality-banner"></div>
+
+  <!-- user info card -->
+  <div class="user-card" id="user-card">
+    <div class="user-name" id="user-card-name">—</div>
+    <div class="user-level" id="user-card-level">Уровень 1/10</div>
+    <div class="user-stats" id="user-card-stats">🏆 0 · 💀 0</div>
+    <div class="user-pwbar"><div id="user-card-fill" class="user-pwbar-fill" style="width:10%"></div></div>
+    <div class="user-vitality">
+      <span>❤ Жизнеспособность</span>
+      <span id="vit-num">7/7</span>
+    </div>
+    <div class="user-vitality-bar">
+      <div id="vit-fill" class="user-vitality-fill" style="width:100%"></div>
+    </div>
+  </div>
+
+  <button class="btn btn-gold" onclick="startGame()">⚔ В БОЙ С БОТОМ</button>
+  <button id="btn-pvp" class="btn btn-listen" onclick="startPvP()">🌐 ОНЛАЙН-БОЙ (PvP)</button>
+  <button id="btn-change-char" class="btn btn-dark" style="font-size:13px;display:none" onclick="forceCharSelect()">СМЕНИТЬ ПЕРСОНАЖА</button>
+  <button class="btn" style="background:rgba(255,255,255,.08);color:#c8a868;font-size:13px;padding:9px;max-width:280px;border:1.5px solid rgba(200,149,56,.4)" onclick="testSound()">🔊 ПРОВЕРИТЬ ЗВУК</button>
+  <button class="btn" style="background:transparent;color:#666;font-size:11px;padding:4px;max-width:280px;border:none;text-decoration:underline;margin-top:6px" onclick="doLogout()">выйти</button>
+  <div id="home-err" style="font-family:sans-serif;font-size:12px;color:#e84040;margin-top:6px;min-height:18px;text-align:center"></div>
+  <div id="sound-test-result" style="font-family:sans-serif;font-size:12px;color:#888;margin-top:4px;min-height:18px;text-align:center;max-width:300px;line-height:1.4"></div>
+</div>
+
+<!-- ── CHARACTER SELECT (first step after home) ── -->
+<div id="s-select" class="screen">
+  <div class="select-title">⚔ ВЫБЕРИ БОЙЦА</div>
+  <div class="select-sub">КЕМ ПОЙДЁШЬ ДРАТЬСЯ ЗА ШМОТКИ</div>
+  <div class="char-grid" id="char-grid">
+    <div class="char-card" data-id="subzero">
+      <div class="char-portrait" id="portrait-subzero"></div>
+      <div class="char-name">SUB-ZERO</div>
+      <div class="char-role">Криоманс<br>Лин Куэй</div>
+    </div>
+    <div class="char-card" data-id="kotal">
+      <div class="char-portrait" id="portrait-kotal"></div>
+      <div class="char-name">KOTAL KAHN</div>
+      <div class="char-role">Император<br>Внешнего Мира</div>
+    </div>
+    <div class="char-card" data-id="sareena">
+      <div class="char-portrait" id="portrait-sareena"></div>
+      <div class="char-name">SAREENA</div>
+      <div class="char-role">Демон-<br>ассасин</div>
+    </div>
+    <div class="char-card" data-id="nightwolf">
+      <div class="char-portrait" id="portrait-nightwolf"></div>
+      <div class="char-name">NIGHTWOLF</div>
+      <div class="char-role">Шаман-<br>воин</div>
+    </div>
+  </div>
+  <button id="select-confirm" class="btn btn-gold" disabled style="opacity:.4">ВЫБЕРИ ПЕРСОНАЖА</button>
+</div>
+
+<!-- ── CITY MAP — choose location ─────────────────── -->
+<div id="s-map" class="screen">
+  <!-- top: avatar + power -->
+  <div class="map-stats-top">
+    <div class="map-player-card">
+      <div id="map-avatar" class="map-avatar-portrait">
+        <div id="map-avatar-level" class="map-avatar-level">1</div>
+      </div>
+      <div class="map-player-info">
+        <div id="map-player-name" class="map-player-name">SUB-ZERO</div>
+        <div id="map-player-role" class="map-player-role">Криоманс Лин Куэй</div>
+        <div class="map-power">
+          <div class="map-power-label">
+            <span>⚡ СИЛА</span>
+            <span id="map-power-num">1/10</span>
+          </div>
+          <div class="map-power-bar">
+            <div id="map-power-fill" class="map-power-fill" style="width:10%"></div>
+            <div class="map-power-segments">
+              <div></div><div></div><div></div><div></div><div></div>
+              <div></div><div></div><div></div><div></div><div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- the world -->
+  <div class="map-world" id="map-world">
+    <div class="map-prop" style="left:6%;top:50%">🌳</div>
+    <div class="map-prop" style="right:7%;top:55%">🌲</div>
+    <div class="map-prop" style="left:42%;top:30%">🌳</div>
+    <div class="map-prop" style="right:38%;bottom:30%">🌲</div>
+    <div class="map-prop" style="left:10%;bottom:14%">🏚</div>
+    <div class="map-prop" style="right:8%;bottom:18%">🚧</div>
+
+    <!-- winding road through all 4 locations -->
+    <svg class="map-roads" viewBox="0 0 400 600" preserveAspectRatio="none">
+      <!-- start → canteen (50%, 78%) → shop (25%, 55%) → barber (75%, 35%) → home (50%, 15%) -->
+      <path class="road"      d="M 200 540 L 200 470 Q 150 430 100 360 Q 60 300 100 240 Q 200 200 300 220 Q 360 250 300 320 Q 250 380 200 340 Q 160 280 200 200 Q 230 130 200 80" />
+      <path class="road-dash" d="M 200 540 L 200 470 Q 150 430 100 360 Q 60 300 100 240 Q 200 200 300 220 Q 360 250 300 320 Q 250 380 200 340 Q 160 280 200 200 Q 230 130 200 80" />
+    </svg>
+
+    <!-- 4 locations -->
+    <div class="map-loc" id="map-loc-canteen"   data-loc="canteen"   style="left:50%;top:78%">
+      <div class="map-loc-icon">🍳</div>
+      <div class="map-loc-label">CANTEEN</div>
+      <div class="map-loc-sub">столовая</div>
+    </div>
+    <div class="map-loc" id="map-loc-shop"      data-loc="shop"      style="left:25%;top:55%">
+      <div class="map-loc-icon">👕</div>
+      <div class="map-loc-label">SECOND HAND</div>
+      <div class="map-loc-sub">одежда</div>
+    </div>
+    <div class="map-loc" id="map-loc-barber"    data-loc="barber"    style="left:75%;top:35%">
+      <div class="map-loc-icon">💈</div>
+      <div class="map-loc-label">BARBERSHOP</div>
+      <div class="map-loc-sub">стрижка</div>
+    </div>
+    <div class="map-loc" id="map-loc-apartment" data-loc="apartment" style="left:50%;top:15%">
+      <div class="map-loc-icon">🏠</div>
+      <div class="map-loc-label">HOME</div>
+      <div class="map-loc-sub">свидание</div>
+    </div>
+
+    <!-- player marker -->
+    <div id="map-player" class="map-player-marker" style="left:50%;top:88%">
+      <div class="player-pulse"></div>
+      <div class="player-dot"></div>
+    </div>
+
+    <div class="map-hint">👆 Тапни на локацию куда пойти</div>
+  </div>
+</div>
+
+<!-- ── WALK (between home and battle) ───────────── -->
+<div id="s-walk" class="screen">
+  <div class="walk-arena" id="walk-arena">
+    <!-- street lights down the path -->
+    <div class="streetlight" style="left:18%;top:18%;"></div>
+    <div class="streetlight" style="right:18%;top:38%;"></div>
+    <div class="streetlight" style="left:18%;top:58%;"></div>
+    <div class="streetlight" style="right:18%;top:78%;"></div>
+
+    <!-- road -->
+    <div class="walk-path"></div>
+
+    <!-- shop at top -->
+    <div class="shop-icon">
+      <div class="shop-light"></div>
+      <div class="shop-roof"></div>
+      <div class="shop-body">
+        <div class="shop-sign">👕 SHOP</div>
+        <div class="shop-door"></div>
+      </div>
+    </div>
+
+    <!-- walker character -->
+    <div id="walker" class="walker walking"></div>
+
+    <!-- hint -->
+    <div class="walk-hint" id="walk-hint">👆 Веди пальцем к магазину</div>
+
+    <!-- choice panel (hidden until arrival) -->
+    <div id="walk-choice" class="walk-choice">
+      <div class="walk-choice-title">⚔ ЛАВКА ВОНЮЧЕГО СЕМЫ</div>
+      <div class="walk-choice-sub">Что будешь делать?</div>
+      <button class="btn btn-gold"   onclick="goTrain()"      style="margin-bottom:8px">📚 ВЫУЧИТЬ СЛОВА</button>
+      <button class="btn btn-red"    onclick="goBattle('voice')"             style="margin-bottom:8px">🎤 БОЙ ГОЛОСОМ</button>
+      <button class="btn btn-listen" onclick="goBattle('cards')">🃏 БОЙ КАРТОЧКАМИ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TRAINING ──────────────────────────────────── -->
+<div id="s-train" class="screen">
+  <div class="train-header">
+    <div class="train-title">📚 СЛОВАРЬ</div>
+    <div id="train-progress" class="train-progress">1 / 6</div>
+  </div>
+
+  <div class="train-card">
+    <div id="train-ru" class="train-ru">---</div>
+    <div class="train-divider"></div>
+    <div id="train-en" class="train-en" onclick="replayEN()" title="тап чтобы переслушать">---</div>
+    <div id="train-heard" class="train-heard" style="display:none"></div>
+  </div>
+
+  <div class="train-buttons">
+    <button id="train-btn-listen" class="btn btn-listen" onclick="listenToEN()">
+      🔊 ПОСЛУШАТЬ ПО-АНГЛИЙСКИ
+      <span class="listen-wave"><span></span><span></span><span></span><span></span><span></span></span>
+    </button>
+    <button id="train-btn-speak" class="btn btn-mic" onclick="trainStartMic()">🎤 СКАЗАТЬ ПЕРЕВОД</button>
+    <button id="train-btn-know"  class="btn btn-gold" onclick="trainAnswer(true)">✓ ЗНАЮ — ДАЛЬШЕ</button>
+    <button id="train-btn-dunno" class="btn btn-red"  onclick="trainAnswer(false)">❌ НЕ ЗНАЮ — ПОКАЖИ</button>
+    <button id="train-btn-next"  class="btn btn-dark" style="display:none" onclick="trainNext()">→ ДАЛЬШЕ</button>
+    <button class="btn btn-dark" style="font-size:13px" onclick="goBattle()">⏭ ПРОПУСТИТЬ К БОЮ</button>
+  </div>
+</div>
+
+<!-- ── BATTLE ────────────────────────────────────── -->
+<div id="s-battle" class="screen">
+
+  <div id="diff-badge" class="diff-badge">EASY</div>
+
+  <div id="arena" class="arena">
+    <div class="spot"></div>
+    <div class="dust" style="left:18%;bottom:36px;--dx:8px;animation-delay:0s;"></div>
+    <div class="dust" style="left:32%;bottom:36px;--dx:-12px;animation-delay:1.4s;"></div>
+    <div class="dust" style="left:52%;bottom:36px;--dx:6px;animation-delay:2.8s;"></div>
+    <div class="dust" style="left:68%;bottom:36px;--dx:-8px;animation-delay:4.1s;"></div>
+    <div class="dust" style="left:82%;bottom:36px;--dx:10px;animation-delay:5.5s;"></div>
+    <div class="vs">VS</div>
+
+    <div id="combo-badge" class="combo-badge">
+      <div class="combo-x" id="combo-x">x2</div>
+      <div class="combo-lbl">COMBO!</div>
+    </div>
+
+    <!-- left = me -->
+    <div class="fc">
+      <div id="n-left" class="fname">ТЫ</div>
+      <div class="hbw"><div id="hp-left"  class="hbf" style="width:100%"></div></div>
+      <div id="fo-left"  class="fo">
+        <div id="fi-left"  class="fi idle"></div>
+      </div>
+      <div id="ring-left" class="turn-ring"></div>
+    </div>
+
+    <!-- right = bot -->
+    <div class="fc">
+      <div id="n-right" class="fname">🤖 BOT</div>
+      <div class="hbw"><div id="hp-right" class="hbf" style="width:100%"></div></div>
+      <div id="fo-right" class="fo">
+        <div id="fi-right" class="fi mirror idle"></div>
+      </div>
+      <div id="ring-right" class="turn-ring"></div>
+    </div>
+  </div>
+
+  <div class="bot">
+    <div id="phrase-card" class="phrase-card">
+      <div id="phrase-ru"  class="phrase-ru">Готовься...</div>
+      <div id="phrase-sub" class="phrase-sub"></div>
+    </div>
+
+    <div id="status" class="status">⚔ Начинаем...</div>
+
+    <div class="meter-zone">
+      <div id="timer" class="timer-el"></div>
+      <div id="audio-meter">
+        <div class="abar"></div><div class="abar"></div><div class="abar"></div>
+        <div class="abar"></div><div class="abar"></div><div class="abar"></div>
+        <div class="abar"></div><div class="abar"></div>
+      </div>
+      <div id="heard-txt"></div>
+    </div>
+
+    <!-- card-matching mode UI — hidden by default -->
+    <div id="cards-row" class="cards-row" style="display:none">
+      <div id="cards-timer" class="timer-el"></div>
+      <div id="cards-grid" class="cards-grid">
+        <button class="card-opt" data-idx="0"></button>
+        <button class="card-opt" data-idx="1"></button>
+        <button class="card-opt" data-idx="2"></button>
+        <button class="card-opt" data-idx="3"></button>
+      </div>
+    </div>
+
+    <div id="no-voice" class="no-voice"></div>
+    <!-- hidden mic button kept for backwards compat -->
+    <button id="mic-btn" class="mic off" style="display:none" onclick="micClick()">🎤</button>
+  </div>
+</div>
+
+<!-- ── GAME OVER ─────────────────────────────────── -->
+<div id="s-over" class="screen">
+  <div id="over-title" class="over-title win">ПОБЕДА!</div>
+  <div id="over-sub"   class="over-sub">---</div>
+  <div id="over-levelup" style="font-family:'Impact',sans-serif;font-size:18px;color:#60ff60;margin-bottom:20px;display:none;text-shadow:0 0 12px rgba(96,255,96,.6)">⚡ +1 К СИЛЕ! </div>
+  <button class="btn btn-gold" onclick="goBackToMap()">🗺 НА КАРТУ</button>
+  <button class="btn btn-dark" style="max-width:200px;font-size:14px;margin-top:4px" onclick="goHome()">В МЕНЮ</button>
+</div>
+
+<!-- overlays -->
+<div id="ov-cd"     class="ov"><div id="cdn-num" class="cdn">3</div></div>
+<div id="ov-result" class="ov">
+  <div id="r-pos" class="r-pos ok">
+    <div id="r-flash" class="rflash ok-f">✓</div>
+  </div>
+</div>
+<div id="ov-diff"   class="ov"><div id="diff-txt" class="diffup">СЛОЖНОСТЬ ВЫРОСЛА!</div></div>
+<div id="ov-ko"     class="ov"><div class="ko-banner"><div class="ko-text">K.O.</div></div></div>
+<div id="ov-death"  class="ov">
+  <div class="death-card">
+    <div class="death-emoji">💀</div>
+    <div class="death-title">ПЕРСОНАЖ УМЕР</div>
+    <div class="death-text" id="death-text">Ты не заходил слишком долго. Жизнеспособность достигла нуля — прогресс сброшен.<br><br>Каждый день вне игры съедает 1 единицу. Возвращайся регулярно.</div>
+    <button class="btn btn-gold" onclick="acknowledgeDeath()">⚔ НАЧАТЬ ЗАНОВО</button>
+  </div>
+</div>
+<div id="ov-tutor"  class="ov">
+  <div class="tutor-card">
+    <div id="tutor-emoji" class="tutor-emoji">⚔</div>
+    <div id="tutor-title" class="tutor-title">ПОДСКАЗКА</div>
+    <div id="tutor-text"  class="tutor-text">…</div>
+    <div class="tutor-tap">👆 ТАПНИ ЧТОБЫ ПРОДОЛЖИТЬ</div>
+  </div>
+</div>
+
+<script>
+// ═════════════════════════════════════════════════════════════════
+//  PHRASES
+// ═════════════════════════════════════════════════════════════════
+const PHRASES = {
+  easy: [
+    { id:1,  ru:'Я хочу есть',           en:'I want to eat',          answers:['i want to eat','i wanna eat','i want food'] },
+    { id:2,  ru:'Я могу говорить',        en:'I can speak',            answers:['i can speak','i can talk','i am able to speak'] },
+    { id:3,  ru:'Я знаю английский',      en:'I know English',         answers:['i know english','i speak english'] },
+    { id:4,  ru:'Я хочу спать',           en:'I want to sleep',        answers:['i want to sleep','i wanna sleep','i need to sleep'] },
+    { id:5,  ru:'Я не знаю',             en:"I don't know",           answers:["i don't know","i do not know",'i dunno'] },
+    { id:6,  ru:'Это хорошо',            en:"It's good",              answers:["it's good",'it is good','this is good','that is good'] },
+    { id:7,  ru:'Я иду домой',           en:"I'm going home",         answers:["i'm going home",'i am going home','i go home'] },
+    { id:8,  ru:'Дай мне воды',          en:'Give me water',          answers:['give me water','give me some water'] },
+    { id:9,  ru:'Я устал',              en:"I'm tired",              answers:["i'm tired",'i am tired'] },
+    { id:10, ru:'Помоги мне',            en:'Help me',                answers:['help me','please help me'] },
+  ],
+  medium: [
+    { id:101, ru:'Я знаю немецкий',        en:'I know German',          answers:['i know german','i speak german'] },
+    { id:102, ru:'Я знаю французский',     en:'I know French',          answers:['i know french','i speak french'] },
+    { id:103, ru:'Он хочет есть',          en:'He wants to eat',        answers:['he wants to eat'] },
+    { id:104, ru:'Я хочу пить воду',       en:'I want to drink water',  answers:['i want to drink water','i want water'] },
+    { id:105, ru:'Я могу помочь тебе',     en:'I can help you',         answers:['i can help you'] },
+    { id:106, ru:'Это очень хорошо',       en:"It's very good",         answers:["it's very good",'this is very good','that is very good'] },
+    { id:107, ru:'Она умеет готовить',     en:'She can cook',           answers:['she can cook','she knows how to cook'] },
+    { id:108, ru:'Мы идём в магазин',      en:"We're going to the store", answers:["we're going to the store",'we are going to the store','we go to the store'] },
+    { id:109, ru:'Я хочу выиграть',        en:'I want to win',          answers:['i want to win'] },
+    { id:110, ru:'Ты говоришь по-английски?', en:'Do you speak English?', answers:['do you speak english'] },
+  ],
+  hard: [
+    { id:201, ru:'Я хотел бы поесть',             en:"I'd like to eat",             answers:["i'd like to eat",'i would like to eat'] },
+    { id:202, ru:'Я не могу этого сделать',        en:"I can't do it",               answers:["i can't do it","i cannot do this","i can't do that"] },
+    { id:203, ru:'Ты должен учиться',              en:'You must study',              answers:['you must study','you should study','you need to study','you have to study'] },
+    { id:204, ru:'Мне нужна помощь',              en:'I need help',                 answers:['i need help','i need some help'] },
+    { id:205, ru:'Она не знает ответа',            en:"She doesn't know the answer", answers:["she doesn't know the answer","she does not know the answer"] },
+    { id:206, ru:'Мы умеем говорить по-английски', en:'We can speak English',        answers:['we can speak english','we speak english'] },
+  ],
+};
+
+// ─── PHRASES per location theme (food / clothes / grooming / home) ───
+const PHRASES_BY_THEME = {
+  food: {
+    easy: [
+      { id:301, ru:'Я ем яйца',         en:'I eat eggs',           answers:['i eat eggs'] },
+      { id:302, ru:'Я пью воду',        en:'I drink water',        answers:['i drink water'] },
+      { id:303, ru:'Я хочу хлеб',       en:'I want bread',         answers:['i want bread','i want some bread'] },
+      { id:304, ru:'Дай мне кофе',      en:'Give me coffee',       answers:['give me coffee','give me some coffee'] },
+      { id:305, ru:'Я голоден',         en:"I'm hungry",           answers:["i'm hungry",'i am hungry'] },
+      { id:306, ru:'Я хочу пиццу',      en:'I want pizza',         answers:['i want pizza','i want a pizza'] },
+      { id:307, ru:'Это вкусно',        en:"It's tasty",           answers:["it's tasty","it's delicious",'it is tasty'] },
+      { id:308, ru:'Передай соль',      en:'Pass the salt',        answers:['pass the salt'] },
+      { id:309, ru:'Я ем суп',          en:'I eat soup',           answers:['i eat soup'] },
+      { id:310, ru:'Мне нужна еда',     en:'I need food',          answers:['i need food','i need some food'] },
+    ],
+    medium: [
+      { id:311, ru:'Я хочу мясо и картошку', en:'I want meat and potatoes', answers:['i want meat and potatoes'] },
+      { id:312, ru:'Сколько это стоит',      en:'How much is it',           answers:['how much is it','how much does it cost'] },
+      { id:313, ru:'Я закажу пасту',         en:"I'll order pasta",         answers:["i'll order pasta",'i will order pasta'] },
+      { id:314, ru:'Я не ем мясо',           en:"I don't eat meat",         answers:["i don't eat meat",'i do not eat meat'] },
+      { id:315, ru:'Принесите счёт',         en:'Bring the bill',           answers:['bring the bill','bring the check'] },
+    ],
+  },
+  clothes: {
+    easy: [
+      { id:401, ru:'Мне нужна футболка',  en:'I need a shirt',        answers:['i need a shirt','i need a t-shirt'] },
+      { id:402, ru:'Эти штаны',           en:'These pants',           answers:['these pants','these trousers'] },
+      { id:403, ru:'Я хочу обувь',        en:'I want shoes',          answers:['i want shoes','i want some shoes'] },
+      { id:404, ru:'Это дорого',          en:"It's expensive",        answers:["it's expensive","it is expensive"] },
+      { id:405, ru:'Это дёшево',          en:"It's cheap",            answers:["it's cheap",'it is cheap'] },
+      { id:406, ru:'Подходит',            en:'It fits me',            answers:['it fits me','it fits'] },
+      { id:407, ru:'Слишком мало',        en:"It's too small",        answers:["it's too small",'too small'] },
+      { id:408, ru:'Слишком большое',     en:"It's too big",          answers:["it's too big",'too big'] },
+      { id:409, ru:'Где зеркало',         en:"Where's the mirror",    answers:["where's the mirror",'where is the mirror'] },
+      { id:410, ru:'Я померяю',           en:"I'll try it on",        answers:["i'll try it on",'i will try it on'] },
+    ],
+    medium: [
+      { id:411, ru:'Эта рубашка мне идёт',   en:'This shirt looks good on me', answers:['this shirt looks good on me','this shirt suits me'] },
+      { id:412, ru:'У вас есть размер больше', en:'Do you have a bigger size', answers:['do you have a bigger size'] },
+      { id:413, ru:'Я возьму эти кроссовки',  en:"I'll take these sneakers",   answers:["i'll take these sneakers",'i will take these sneakers'] },
+      { id:414, ru:'Мне не нравится цвет',     en:"I don't like the color",     answers:["i don't like the color"] },
+      { id:415, ru:'Сколько я должен',         en:'How much do I owe',          answers:['how much do i owe'] },
+    ],
+  },
+  grooming: {
+    easy: [
+      { id:501, ru:'Подстриги меня',      en:'Cut my hair',           answers:['cut my hair'] },
+      { id:502, ru:'Помой голову',        en:'Wash my hair',          answers:['wash my hair'] },
+      { id:503, ru:'Слишком коротко',     en:"It's too short",        answers:["it's too short",'too short'] },
+      { id:504, ru:'Покороче',            en:'A bit shorter',         answers:['a bit shorter','shorter please'] },
+      { id:505, ru:'Сделай аккуратно',    en:'Make it neat',          answers:['make it neat'] },
+      { id:506, ru:'Покрась волосы',      en:'Color my hair',         answers:['color my hair','dye my hair'] },
+      { id:507, ru:'Подровняй бороду',    en:'Trim my beard',         answers:['trim my beard'] },
+      { id:508, ru:'Я хочу побриться',    en:'I want a shave',        answers:['i want a shave','i want to shave'] },
+      { id:509, ru:'Хорошо выглядит',     en:'That looks good',       answers:['that looks good','it looks good','looks good'] },
+      { id:510, ru:'Сними побольше',      en:'Take more off',         answers:['take more off','take some more off'] },
+    ],
+    medium: [
+      { id:511, ru:'Я хочу другую причёску',  en:'I want a different style',  answers:['i want a different style'] },
+      { id:512, ru:'По бокам короче',          en:'Shorter on the sides',      answers:['shorter on the sides'] },
+      { id:513, ru:'Не трогай чёлку',          en:"Don't touch the bangs",     answers:["don't touch the bangs"] },
+      { id:514, ru:'Можешь посушить',          en:'Can you blow dry it',       answers:['can you blow dry it'] },
+    ],
+  },
+  home: {
+    easy: [
+      { id:601, ru:'Добро пожаловать',    en:'Welcome home',          answers:['welcome home'] },
+      { id:602, ru:'Посмотрим фильм',     en:"Let's watch a movie",   answers:["let's watch a movie",'lets watch a movie'] },
+      { id:603, ru:'Ты голодна',          en:'Are you hungry',        answers:['are you hungry'] },
+      { id:604, ru:'Располагайся',        en:'Make yourself comfortable', answers:['make yourself comfortable'] },
+      { id:605, ru:'Я приготовил ужин',   en:'I cooked dinner',       answers:['i cooked dinner','i made dinner'] },
+      { id:606, ru:'Хочешь вина',         en:'Want some wine',        answers:['want some wine','do you want some wine'] },
+      { id:607, ru:'Давай расслабимся',   en:"Let's relax",           answers:["let's relax",'lets relax'] },
+      { id:608, ru:'Это красиво',         en:"It's beautiful",        answers:["it's beautiful",'this is beautiful'] },
+      { id:609, ru:'Останься на ночь',    en:'Stay the night',        answers:['stay the night'] },
+      { id:610, ru:'Доброе утро',         en:'Good morning',          answers:['good morning'] },
+    ],
+    medium: [
+      { id:611, ru:'Я очень рад тебя видеть', en:"I'm so glad to see you",   answers:["i'm so glad to see you",'i am so glad to see you'] },
+      { id:612, ru:'Ты прекрасно выглядишь',  en:'You look beautiful',      answers:['you look beautiful','you look gorgeous'] },
+      { id:613, ru:'Сделать тебе кофе',        en:'Should I make you coffee', answers:['should i make you coffee','want me to make coffee'] },
+      { id:614, ru:'Я давно хотел сказать',    en:"I've been wanting to say", answers:["i've been wanting to say"] },
+    ],
+  },
+};
+
+// fake "broken English" for bot misses
+const BOT_FAILS = ['huh...','um... what?','ай донт ноу','i kno... iglish','*тишина*','wat?','let me think...','ehhh','э... no'];
+const BOT_THINKS = ['🤔 думаю...','💭 эээ...','🧠 секунду...','📚 ищу слова...','🤖 calculating...'];
+
+// ═════════════════════════════════════════════════════════════════
+//  PHRASE CHECKER
+// ═════════════════════════════════════════════════════════════════
+function norm(t) {
+  return String(t).toLowerCase().replace(/[.,!?;:'"()\-]/g,'').replace(/\s+/g,' ').trim();
+}
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const dp = Array(b.length + 1).fill(0).map((_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = dp[0]; dp[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i-1] === b[j-1] ? prev : Math.min(prev, dp[j], dp[j-1]) + 1;
+      prev = tmp;
+    }
+  }
+  return dp[b.length];
+}
+function checkAnswer(spoken, answers) {
+  const s = norm(spoken);
+  const stop = new Set(['a','an','the','to','of','in','i','it','is','am','are','was','were','be']);
+  return answers.some(a => {
+    const n = norm(a);
+    if (s === n) return true;
+    if (s.includes(n)) return true;
+    const kw = n.split(' ').filter(w => w.length > 1 && !stop.has(w));
+    if (!kw.length) return false;
+    if (kw.filter(w => s.includes(w)).length / kw.length >= 0.75) return true;
+    const skw = s.split(' ').filter(w => w.length > 1 && !stop.has(w));
+    if (skw.length > 0) {
+      const rev = skw.filter(w => n.includes(w)).length;
+      if (rev / skw.length >= 0.85 && skw.length >= Math.max(1, kw.length - 1)) return true;
+    }
+    const d = levenshtein(s, n);
+    if (Math.max(s.length, n.length) > 0 && d / Math.max(s.length, n.length) <= 0.22) return true;
+    if (kw.length > 0 && skw.length > 0) {
+      const fz = kw.filter(k => skw.some(w => levenshtein(k, w) <= Math.max(1, Math.floor(k.length / 4)))).length;
+      if (fz / kw.length >= 0.75) return true;
+    }
+    return false;
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  SVG FIGHTER
+// ═════════════════════════════════════════════════════════════════
+const FIGHTER_W = window.innerWidth < 480 ? 90 : 110;
+const FIGHTER_H = FIGHTER_W * 2;
+
+// ═══ CHARACTERS — Mortal Kombat inspired ═══
+const CHARS = {
+  subzero: {
+    name: 'SUB-ZERO',
+    role: 'Криоманс Лин Куэй',
+    bodyFill:'#162a4a', accentFill:'#60d8ff', armFill:'#0a1428', skinFill:'#5a6e8c',
+    beltFill:'#08101e', buckleFill:'#60d8ff',
+    headSVG: `
+      <!-- icy aura halo -->
+      <ellipse cx="39" cy="24" rx="22" ry="22" fill="#60d8ff" opacity=".12"/>
+      <!-- hood -->
+      <path d="M 14 12 Q 8 36 18 44 L 60 44 Q 70 36 64 12 Q 39 -2 14 12 Z" fill="#08101e" stroke="#000" stroke-width="1.5"/>
+      <!-- face under hood (skin) -->
+      <ellipse cx="39" cy="24" rx="13" ry="14" fill="#5a6e8c" stroke="#000" stroke-width="1"/>
+      <!-- mask covering nose+mouth -->
+      <path d="M 22 26 L 56 26 L 58 40 Q 39 46 20 40 Z" fill="#162a4a" stroke="#000" stroke-width="1.2"/>
+      <!-- mask seam -->
+      <line x1="22" y1="33" x2="56" y2="33" stroke="#000" stroke-width=".7" opacity=".6"/>
+      <!-- glowing icy eyes -->
+      <g class="eye"><ellipse cx="31" cy="22" rx="4" ry="2.5" fill="#60d8ff"/><circle cx="31" cy="22" r="1.4" fill="#fff"/></g>
+      <g class="eye"><ellipse cx="47" cy="22" rx="4" ry="2.5" fill="#60d8ff"/><circle cx="47" cy="22" r="1.4" fill="#fff"/></g>
+      <!-- ice frost on hood edges -->
+      <path d="M 14 12 L 18 16 M 64 12 L 60 16" stroke="#60d8ff" stroke-width="1" opacity=".7"/>
+    `
+  },
+  kotal: {
+    name: 'KOTAL KAHN',
+    role: 'Император Внешнего Мира',
+    bodyFill:'#1a8888', accentFill:'#ffd100', armFill:'#0a4444', skinFill:'#3aa8a8',
+    beltFill:'#8a6010', buckleFill:'#ffd100',
+    headSVG: `
+      <!-- tall jade/gold crown headdress -->
+      <path d="M 18 16 L 20 -2 L 28 14 L 32 -8 L 39 12 L 46 -8 L 50 14 L 58 -2 L 60 16 Z" fill="#c89538" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>
+      <!-- jade center stone -->
+      <ellipse cx="39" cy="2" rx="3.5" ry="4" fill="#1aaaaa" stroke="#000" stroke-width="1"/>
+      <ellipse cx="39" cy="1.5" rx="1.5" ry="1.8" fill="#60ffff" opacity=".7"/>
+      <!-- gold band under crown -->
+      <rect x="20" y="14" width="38" height="5" fill="#8a6010" stroke="#000" stroke-width="1"/>
+      <!-- teal/blue painted face -->
+      <ellipse cx="39" cy="26" rx="14" ry="15" fill="#3aa8a8" stroke="#000" stroke-width="1.5"/>
+      <!-- face war-paint stripes (gold) -->
+      <rect x="22" y="20" width="34" height="1.5" fill="#ffd100" opacity=".75"/>
+      <rect x="22" y="33" width="34" height="1.5" fill="#ffd100" opacity=".75"/>
+      <!-- piercing gold eyes -->
+      <g class="eye"><circle cx="31" cy="25" r="3.5" fill="#ffd100"/><circle cx="31" cy="25" r="1.6" fill="#fff"/></g>
+      <g class="eye"><circle cx="47" cy="25" r="3.5" fill="#ffd100"/><circle cx="47" cy="25" r="1.6" fill="#fff"/></g>
+      <!-- nose -->
+      <path d="M 39 28 L 37 34 L 41 34 Z" fill="#1a8888" opacity=".7"/>
+    `
+  },
+  sareena: {
+    name: 'SAREENA',
+    role: 'Демон-ассасин',
+    bodyFill:'#2a1830', accentFill:'#d040a0', armFill:'#1a0e20', skinFill:'#ead0d8',
+    beltFill:'#4a2040', buckleFill:'#d040a0',
+    headSVG: `
+      <!-- dark heavy hood -->
+      <path d="M 10 12 Q 4 32 14 48 L 64 48 Q 74 32 68 12 Q 39 -4 10 12 Z" fill="#1a0e20" stroke="#000" stroke-width="1.5"/>
+      <!-- inner hood shadow -->
+      <ellipse cx="39" cy="32" rx="25" ry="18" fill="#0a0410" opacity=".55"/>
+      <!-- pale face -->
+      <ellipse cx="39" cy="24" rx="12" ry="13" fill="#ead0d8" stroke="#000" stroke-width="1"/>
+      <!-- hollow shadowed eye sockets -->
+      <ellipse cx="31" cy="22" rx="3.5" ry="4" fill="#2a0a1a"/>
+      <ellipse cx="47" cy="22" rx="3.5" ry="4" fill="#2a0a1a"/>
+      <!-- glowing pink/magenta pupils -->
+      <g class="eye"><circle cx="31" cy="22" r="1.6" fill="#ff60c8"/></g>
+      <g class="eye"><circle cx="47" cy="22" r="1.6" fill="#ff60c8"/></g>
+      <!-- dark lipstick -->
+      <path d="M 32 32 Q 39 34.5 46 32" stroke="#5a0a3a" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M 39 32.5 L 39 34" stroke="#5a0a3a" stroke-width="1"/>
+      <!-- tiny vampire fang hint -->
+      <path d="M 36 33.5 L 36 35" stroke="#fff" stroke-width="1"/>
+    `
+  },
+  nightwolf: {
+    name: 'NIGHTWOLF',
+    role: 'Шаман-воин',
+    bodyFill:'#5a2818', accentFill:'#c83020', armFill:'#3a1408', skinFill:'#c88058',
+    beltFill:'#8a5028', buckleFill:'#c83020',
+    headSVG: `
+      <!-- long black hair behind -->
+      <path d="M 18 18 Q 8 36 14 52 L 22 52 Q 26 36 26 22 Z" fill="#0a0604" stroke="#000" stroke-width="1.2"/>
+      <path d="M 60 18 Q 70 36 64 52 L 56 52 Q 52 36 52 22 Z" fill="#0a0604" stroke="#000" stroke-width="1.2"/>
+      <!-- tan/red face -->
+      <ellipse cx="39" cy="26" rx="14" ry="15" fill="#c88058" stroke="#000" stroke-width="1.5"/>
+      <!-- blue headband -->
+      <rect x="20" y="14" width="38" height="6" fill="#1a6090" stroke="#000" stroke-width="1.2"/>
+      <rect x="20" y="18" width="38" height="1" fill="#0a3060"/>
+      <!-- feather sticking up from headband -->
+      <path d="M 18 14 L 8 -4 Q 10 6 12 14 Z" fill="#f0e8c0" stroke="#000" stroke-width="1.2"/>
+      <line x1="10" y1="2" x2="12" y2="14" stroke="#000" stroke-width=".5"/>
+      <path d="M 9 4 L 14 4 M 8 7 L 14 7 M 9 10 L 14 10" stroke="#000" stroke-width=".5"/>
+      <!-- red war paint V on cheeks -->
+      <path d="M 24 25 L 30 30 L 24 33" stroke="#c83020" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <path d="M 54 25 L 48 30 L 54 33" stroke="#c83020" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <!-- horizontal red stripe across nose -->
+      <rect x="29" y="27" width="20" height="2" fill="#c83020" opacity=".8"/>
+      <!-- stern dark eyes -->
+      <g class="eye"><ellipse cx="31" cy="25" rx="2" ry="2.5" fill="#1a0a04"/><circle cx="31.5" cy="24.5" r=".8" fill="#fff"/></g>
+      <g class="eye"><ellipse cx="47" cy="25" rx="2" ry="2.5" fill="#1a0a04"/><circle cx="47.5" cy="24.5" r=".8" fill="#fff"/></g>
+    `
+  },
+};
+
+function makeFighterSVG(charId, w = FIGHTER_W) {
+  const c = CHARS[charId] || CHARS.subzero;
+  const h = w * 2;
+  return `
+<svg width="${w}" height="${h}" viewBox="0 0 78 156" style="display:block">
+  ${c.headSVG}
+  <rect x="35" y="44" width="8" height="8" fill="${c.armFill}"/>
+  <rect x="19" y="50" width="40" height="56" rx="7" fill="${c.bodyFill}" stroke="#000" stroke-width="1.2"/>
+  <rect x="19" y="83" width="40" height="7" fill="${c.beltFill}"/>
+  <rect x="33" y="83" width="12" height="7" fill="${c.buckleFill}"/>
+  <rect x="6" y="52" width="12" height="44" rx="5" fill="${c.armFill}" stroke="#000" stroke-width="1"/>
+  <ellipse cx="12" cy="101" rx="7" ry="5" fill="${c.armFill}"/>
+  <g class="pa">
+    <rect x="60" y="52" width="12" height="44" rx="5" fill="${c.bodyFill}" stroke="#000" stroke-width="1"/>
+    <rect x="58" y="92" width="16" height="12" rx="4" fill="${c.armFill}"/>
+  </g>
+  <rect x="21" y="104" width="16" height="46" rx="5" fill="${c.bodyFill}" stroke="#000" stroke-width="1"/>
+  <rect x="41" y="104" width="16" height="46" rx="5" fill="${c.bodyFill}" stroke="#000" stroke-width="1"/>
+  <rect x="17" y="144" width="22" height="8" rx="3" fill="${c.armFill}"/>
+  <rect x="39" y="144" width="22" height="8" rx="3" fill="${c.armFill}"/>
+  <rect x="19" y="50" width="40" height="2" rx="1" fill="${c.accentFill}" opacity=".55"/>
+</svg>`;
+}
+
+function makeWalkerSVG(charId) {
+  const c = CHARS[charId] || CHARS.subzero;
+  // smaller walker with character-themed colors
+  return `
+<svg viewBox="0 0 60 100" style="display:block">
+  <g class="w-body">
+    <ellipse cx="30" cy="16" rx="13" ry="14" fill="${c.skinFill}" stroke="#000" stroke-width="1.5"/>
+    <circle cx="24" cy="14" r="2.5" fill="${c.accentFill}"/>
+    <circle cx="36" cy="14" r="2.5" fill="${c.accentFill}"/>
+    <rect x="17" y="30" width="26" height="34" rx="5" fill="${c.bodyFill}" stroke="#000" stroke-width="1.5"/>
+    <rect x="17" y="52" width="26" height="5" fill="${c.armFill}"/>
+    <rect x="27" y="52" width="6" height="5" fill="${c.buckleFill}"/>
+    <rect x="9"  y="32" width="8" height="22" rx="3" fill="${c.armFill}" stroke="#000" stroke-width="1"/>
+    <rect x="43" y="32" width="8" height="22" rx="3" fill="${c.armFill}" stroke="#000" stroke-width="1"/>
+  </g>
+  <rect class="w-leg-l" x="19" y="62" width="9" height="32" rx="3" fill="${c.bodyFill}" stroke="#000" stroke-width="1.5"/>
+  <rect class="w-leg-r" x="32" y="62" width="9" height="32" rx="3" fill="${c.bodyFill}" stroke="#000" stroke-width="1.5"/>
+</svg>`;
+}
+
+// Initial render — default characters (will be overwritten when player picks)
+function renderBattleFighters() {
+  const p = state.playerChar || 'subzero';
+  const b = state.botChar    || 'kotal';
+  document.getElementById('fi-left').innerHTML  = makeFighterSVG(p);
+  document.getElementById('fi-right').innerHTML = makeFighterSVG(b);
+  // Update name labels with character name
+  if (state.playerChar) document.getElementById('n-left').textContent = `${state.myName} (${CHARS[p].name})`;
+  document.getElementById('n-right').textContent = `🤖 ${CHARS[b].name}`;
+}
+
+document.getElementById('fi-left').innerHTML  = makeFighterSVG('subzero');
+document.getElementById('fi-right').innerHTML = makeFighterSVG('kotal');
+document.getElementById('mini-l').innerHTML = `<div class="fi idle">${makeFighterSVG('subzero', 64)}</div>`;
+document.getElementById('mini-r').innerHTML = `<div class="fi mirror idle">${makeFighterSVG('kotal', 64)}</div>`;
+
+// ═════════════════════════════════════════════════════════════════
+//  CLOUD SYNC — optional Supabase backing for cross-device save
+//  Setup (1 min):
+//    1. Create free Supabase project @ supabase.com
+//    2. SQL Editor → create table:
+//       create table profiles (
+//         username text primary key,
+//         hash text not null,
+//         level int default 1,
+//         wins int default 0,
+//         losses int default 0,
+//         character text,
+//         completed text[] default '{}',
+//         last_played timestamptz default now()
+//       );
+//       alter table profiles enable row level security;
+//       create policy "anyone can read profiles" on profiles for select using (true);
+//       create policy "anyone can upsert profiles" on profiles for all using (true);
+//    3. Paste your project URL + anon key below.
+//       Without these the game runs LOCAL-ONLY (works fine, but progress
+//       won't sync between devices).
+// ═════════════════════════════════════════════════════════════════
+const SUPABASE_URL = ''; // e.g. 'https://abcdefg.supabase.co'
+const SUPABASE_KEY = ''; // e.g. 'eyJhbGciOi...'  (anon public key, NOT service role)
+let _supa = null;
+async function getSupa() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  if (_supa) return _supa;
+  if (!window.supabase) {
+    // load SDK on demand
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  _supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  return _supa;
+}
+async function cloudFetchProfile(username) {
+  try {
+    const sb = await getSupa(); if (!sb) return null;
+    const { data, error } = await sb.from('profiles').select('*').eq('username', username).maybeSingle();
+    if (error) { console.warn('[cloud] fetch:', error.message); return null; }
+    return data;
+  } catch(e) { console.warn('[cloud] fetch failed:', e); return null; }
+}
+async function cloudUpsertProfile(username, profile) {
+  try {
+    const sb = await getSupa(); if (!sb) return false;
+    const row = {
+      username,
+      hash:        profile.hash,
+      level:       profile.level || 1,
+      wins:        profile.wins || 0,
+      losses:      profile.losses || 0,
+      character:   profile.character || null,
+      completed:   profile.completed || [],
+      last_played: new Date().toISOString(),
+    };
+    const { error } = await sb.from('profiles').upsert(row, { onConflict: 'username' });
+    if (error) { console.warn('[cloud] upsert:', error.message); return false; }
+    return true;
+  } catch(e) { console.warn('[cloud] upsert failed:', e); return false; }
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  AUTH / SAVE — localStorage with SHA-256 password hash + optional cloud
+// ═════════════════════════════════════════════════════════════════
+const SAVE_KEY = 'ek_save_v1';
+
+function authLoad() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return { v:1, currentUser:null, users:{} };
+    return JSON.parse(raw);
+  } catch { return { v:1, currentUser:null, users:{} }; }
+}
+function authSave(data) {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch(e) { console.warn('save:', e); }
+}
+async function authHash(text) {
+  if (!crypto?.subtle) return text;  // fallback for very old browsers
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+async function doLogin() {
+  const u = document.getElementById('login-name').value.trim().toLowerCase();
+  const p = document.getElementById('login-pwd').value;
+  const errEl = document.getElementById('login-err');
+  errEl.textContent = '';
+  if (u.length < 2) { errEl.textContent = '⚠ Имя минимум 2 символа'; return; }
+  if (!p)           { errEl.textContent = '⚠ Введи пароль'; return; }
+  const data = authLoad();
+  const hash = await authHash(p);
+  let newAcc = false;
+
+  // 1. Try cloud first — if a profile exists in cloud, validate against IT
+  const cloudProfile = await cloudFetchProfile(u);
+  if (cloudProfile) {
+    if (cloudProfile.hash !== hash) { errEl.textContent = '⚠ Неверный пароль'; return; }
+    // merge cloud → local (cloud wins for cross-device)
+    data.users[u] = {
+      hash:        cloudProfile.hash,
+      level:       cloudProfile.level       || 1,
+      wins:        cloudProfile.wins        || 0,
+      losses:      cloudProfile.losses      || 0,
+      character:   cloudProfile.character   || null,
+      completed:   cloudProfile.completed   || [],
+      lastPlayed:  Date.now(),
+    };
+  } else if (data.users[u]) {
+    if (data.users[u].hash !== hash) { errEl.textContent = '⚠ Неверный пароль'; return; }
+  } else {
+    data.users[u] = { hash, level:1, wins:0, losses:0, character:null, completed:[], lastPlayed:Date.now() };
+    newAcc = true;
+  }
+  data.currentUser = u;
+  authSave(data);
+  // push to cloud (silent, non-blocking)
+  cloudUpsertProfile(u, data.users[u]).catch(()=>{});
+  console.log(newAcc ? '[auth] new account' : '[auth] login ok', u);
+  applyLoginState();
+  show('s-home');
+}
+function authCurrent() {
+  const data = authLoad();
+  if (!data.currentUser) return null;
+  const u = data.users[data.currentUser];
+  return u ? { username: data.currentUser, ...u } : null;
+}
+function authUpdate(updates) {
+  const data = authLoad();
+  if (!data.currentUser) return;
+  Object.assign(data.users[data.currentUser], updates);
+  data.users[data.currentUser].lastPlayed = Date.now();
+  authSave(data);
+  // push to cloud silently (non-blocking)
+  cloudUpsertProfile(data.currentUser, data.users[data.currentUser]).catch(()=>{});
+}
+function doLogout() {
+  const data = authLoad();
+  data.currentUser = null;
+  authSave(data);
+  state.playerLevel = 1;
+  state.playerChar  = null;
+  state.botChar     = null;
+  document.getElementById('login-name').value = '';
+  document.getElementById('login-pwd').value  = '';
+  document.getElementById('login-err').textContent = '';
+  show('s-login');
+}
+// ─── TAMAGOTCHI VITALITY — degrades 1 unit/day offline ───
+const VITALITY_MAX = 7;     // 7 days of grace
+const VITALITY_WARN = 3;    // yellow alarm below this
+const VITALITY_DANGER = 1;  // red emergency
+
+function vitalityFor(user) {
+  if (!user) return VITALITY_MAX;
+  if (!user.lastPlayed) return VITALITY_MAX;
+  const daysOffline = Math.floor((Date.now() - user.lastPlayed) / (24 * 60 * 60 * 1000));
+  return Math.max(0, VITALITY_MAX - daysOffline);
+}
+
+function checkVitalityOnLogin() {
+  const data = authLoad();
+  if (!data.currentUser) return;
+  const u = data.users[data.currentUser];
+  if (!u) return;
+  const vit = vitalityFor(u);
+  if (vit <= 0) {
+    // character died — reset progress but KEEP account
+    triggerDeath(data.currentUser, u);
+  }
+}
+
+function triggerDeath(username, oldProfile) {
+  // reset progress, keep auth
+  const data = authLoad();
+  data.users[username] = {
+    hash: oldProfile.hash,
+    level: 1,
+    wins: 0,
+    losses: 0,
+    character: null,
+    completed: [],
+    lastPlayed: Date.now(),
+  };
+  authSave(data);
+  // push reset to cloud (silent)
+  cloudUpsertProfile(username, data.users[username]).catch(()=>{});
+  document.getElementById('ov-death').classList.add('on');
+}
+function acknowledgeDeath() {
+  document.getElementById('ov-death').classList.remove('on');
+  applyLoginState();
+}
+
+function applyLoginState() {
+  const u = authCurrent();
+  if (!u) return;
+  state.myName      = u.username.toUpperCase();
+  state.playerLevel = u.level || 1;
+  state.playerChar  = u.character || null;
+  renderUserCard();
+  renderVitality();
+  document.getElementById('btn-change-char').style.display = u.character ? '' : 'none';
+  // bump lastPlayed each time user opens app — proves "alive"
+  authUpdate({});
+}
+
+function renderVitality() {
+  const u = authCurrent();
+  if (!u) return;
+  const vit = vitalityFor(u);
+  const pct = (vit / VITALITY_MAX) * 100;
+  const fill = document.getElementById('vit-fill');
+  const num  = document.getElementById('vit-num');
+  if (!fill || !num) return;
+  fill.style.width = `${pct}%`;
+  num.textContent  = `${vit}/${VITALITY_MAX}`;
+  fill.classList.remove('warn','danger');
+  const banner = document.getElementById('vitality-banner');
+  if (banner) banner.className = 'vitality-banner';
+  if (vit <= VITALITY_DANGER) {
+    fill.classList.add('danger');
+    if (banner) {
+      banner.classList.add('danger');
+      banner.textContent = `⚠ ПЕРСОНАЖ ПРИ СМЕРТИ! Сыграй СЕЙЧАС или сбросится`;
+    }
+  } else if (vit <= VITALITY_WARN) {
+    fill.classList.add('warn');
+    if (banner) {
+      banner.classList.add('warn');
+      banner.textContent = `⚠ Жизнеспособность падает — заходи каждый день`;
+    }
+  }
+}
+function renderUserCard() {
+  const u = authCurrent();
+  if (!u) return;
+  document.getElementById('user-card-name').textContent  = u.username.toUpperCase();
+  document.getElementById('user-card-level').textContent =
+    `Уровень ${u.level || 1}/10` + (u.character ? ` · ${CHARS[u.character]?.name || ''}` : ' · нет персонажа');
+  document.getElementById('user-card-stats').textContent = `🏆 ${u.wins || 0}   💀 ${u.losses || 0}`;
+  document.getElementById('user-card-fill').style.width  = `${(u.level || 1) * 10}%`;
+}
+function forceCharSelect() {
+  // jump straight to character pick from home (lets user change saved character)
+  startSelect();
+}
+
+// On Enter in login fields → submit
+document.getElementById('login-pwd').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('login-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('login-pwd').focus();
+});
+
+// ═════════════════════════════════════════════════════════════════
+//  GAME STATE
+// ═════════════════════════════════════════════════════════════════
+const state = {
+  phase: 'home',
+  myName: 'ТЫ',
+  myHP: 100,
+  botHP: 100,
+  myTurn: true,
+  currentPhrase: null,
+  usedIds: new Set(),
+  correctCount: 0,
+  difficulty: 'easy',
+  botSkill: 0.55,
+  // ── meta ──
+  playerChar: null,
+  botChar:    null,
+  playerLevel: 1,           // 1..10 — grows by 1 per battle won
+  currentLocation: 'shop',  // which location player is entering ('shop' | 'barber')
+};
+
+// ═════════════════════════════════════════════════════════════════
+//  SCREEN MGMT
+// ═════════════════════════════════════════════════════════════════
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+}
+function showOv(id, ms, clickToDismiss) {
+  const el = document.getElementById(id);
+  el.classList.add('on');
+  const t = setTimeout(() => el.classList.remove('on'), ms);
+  if (clickToDismiss) {
+    const dismiss = () => { clearTimeout(t); el.classList.remove('on'); };
+    el.addEventListener('click', dismiss, { once: true });
+  }
+}
+
+function goHome() {
+  stopTimer(); stopListen();
+  state.phase = 'home';
+  show('s-home');
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  GAME FLOW
+// ═════════════════════════════════════════════════════════════════
+function startGame() {
+  warmupAudio();
+  const u = authCurrent();
+  if (!u) { show('s-login'); return; }   // must be logged in
+
+  state.myName       = u.username.toUpperCase().slice(0,14);
+  state.myHP         = 100;
+  state.botHP        = 100;
+  state.usedIds      = new Set();
+  state.correctCount = 0;
+  state.difficulty   = 'easy';
+  state.myTurn       = Math.random() < 0.5;
+  state.playerLevel  = u.level || 1;       // restore saved level
+  state.playerChar   = u.character || null;
+
+  document.getElementById('diff-badge').textContent = 'EASY';
+  document.getElementById('diff-badge').className   = 'diff-badge';
+  setHP('left', 100);
+  setHP('right', 100);
+
+  // skip character select if user already chose one — go straight to map
+  if (state.playerChar && CHARS[state.playerChar]) {
+    const others = Object.keys(CHARS).filter(id => id !== state.playerChar);
+    state.botChar = others[Math.floor(Math.random() * others.length)];
+    renderBattleFighters();
+    resetFighters();
+    startMap();
+  } else {
+    startSelect();
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  CHARACTER SELECT
+// ═════════════════════════════════════════════════════════════════
+function startSelect() {
+  // render portraits
+  for (const id of Object.keys(CHARS)) {
+    const el = document.getElementById(`portrait-${id}`);
+    if (el) el.innerHTML = makeFighterSVG(id, 110);
+  }
+  // reset selection
+  state.playerChar = null;
+  state.botChar    = null;
+  document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+  const btn = document.getElementById('select-confirm');
+  btn.disabled = true;
+  btn.style.opacity = '.4';
+  btn.textContent = 'ВЫБЕРИ ПЕРСОНАЖА';
+  show('s-select');
+}
+
+// wire up clicks once on load
+document.querySelectorAll('.char-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const id = card.dataset.id;
+    state.playerChar = id;
+    warmupAudio();                     // unlock AC on first card-tap
+    CHAR_CRIES[id]?.();                // unique signature sound for the character
+    document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    const btn = document.getElementById('select-confirm');
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.textContent = `⚔ ИГРАТЬ ЗА ${CHARS[id].name}`;
+  });
+});
+
+// Global click sound on any .btn — UI feedback everywhere
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.btn');
+  if (btn && !btn.disabled) playClick();
+});
+
+// ─── Character carousel snap-tick: subtle click when a new card centers ───
+(function setupCarouselSnap() {
+  const grid = document.getElementById('char-grid');
+  if (!grid) return;
+  let lastCenteredIdx = -1;
+  const onScroll = () => {
+    const cards = Array.from(grid.querySelectorAll('.char-card'));
+    if (!cards.length) return;
+    const gridRect = grid.getBoundingClientRect();
+    const gridMid  = gridRect.left + gridRect.width / 2;
+    let bestIdx = 0, bestDist = Infinity;
+    cards.forEach((c, i) => {
+      const r = c.getBoundingClientRect();
+      const mid = r.left + r.width / 2;
+      const d = Math.abs(mid - gridMid);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    });
+    if (bestIdx !== lastCenteredIdx) {
+      lastCenteredIdx = bestIdx;
+      // subtle haptic tick
+      playClick();
+      if (navigator.vibrate) navigator.vibrate(8);
+    }
+  };
+  let scrollTimer = null;
+  grid.addEventListener('scroll', () => {
+    if (scrollTimer) clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(onScroll, 50);
+  });
+})();
+
+document.getElementById('select-confirm').addEventListener('click', () => {
+  if (!state.playerChar) return;
+  warmupAudio();
+  // SAVE chosen character to the user's profile
+  authUpdate({ character: state.playerChar });
+  const others = Object.keys(CHARS).filter(id => id !== state.playerChar);
+  state.botChar = others[Math.floor(Math.random() * others.length)];
+  renderBattleFighters();
+  resetFighters();
+  startMap();
+});
+
+// ═════════════════════════════════════════════════════════════════
+//  CITY MAP
+// ═════════════════════════════════════════════════════════════════
+// 4 locations in unlock order — each opens after the previous is completed
+const LOCATIONS = {
+  canteen:   { order:1, sign:'🍳 CANTEEN',   icon:'🍳', label:'CANTEEN',     sub:'столовая',     pos:{x:50,y:78}, ru:'СТОЛОВАЯ',     theme:'food' },
+  shop:      { order:2, sign:'👕 SHOP',      icon:'👕', label:'SECOND HAND', sub:'одежда',       pos:{x:25,y:55}, ru:'ОДЕЖДА',       theme:'clothes' },
+  barber:    { order:3, sign:'💈 BARBER',    icon:'💈', label:'BARBERSHOP',  sub:'парикмахерская', pos:{x:75,y:35}, ru:'СТРИЖКА',     theme:'grooming' },
+  apartment: { order:4, sign:'🏠 HOME',      icon:'🏠', label:'HOME',        sub:'свидание',     pos:{x:50,y:15}, ru:'ДОМ',           theme:'home' },
+};
+const LOC_ORDER = ['canteen','shop','barber','apartment'];
+
+function isLocationUnlocked(id) {
+  const u = authCurrent();
+  const completed = (u && u.completed) || [];
+  const idx = LOC_ORDER.indexOf(id);
+  if (idx === 0) return true;          // first always unlocked
+  return completed.includes(LOC_ORDER[idx - 1]);
+}
+function nextUncompletedLocation() {
+  const u = authCurrent();
+  const completed = (u && u.completed) || [];
+  return LOC_ORDER.find(id => !completed.includes(id)) || null;
+}
+
+function startMap() {
+  const c = CHARS[state.playerChar];
+  const avatar = document.getElementById('map-avatar');
+  avatar.innerHTML = makeFighterSVG(state.playerChar, 50) +
+    `<div id="map-avatar-level" class="map-avatar-level">${state.playerLevel || 1}</div>`;
+  document.getElementById('map-player-name').textContent = c.name;
+  document.getElementById('map-player-role').textContent = c.role;
+  updatePowerBar();
+  // mark each location as completed / current / locked
+  const u = authCurrent();
+  const completed = (u && u.completed) || [];
+  const nextLoc = nextUncompletedLocation();
+  LOC_ORDER.forEach(id => {
+    const el = document.getElementById(`map-loc-${id}`);
+    if (!el) return;
+    el.classList.remove('locked','completed','current');
+    if (completed.includes(id))     el.classList.add('completed');
+    else if (!isLocationUnlocked(id)) el.classList.add('locked');
+    else if (id === nextLoc)         el.classList.add('current');
+  });
+  // hint
+  const hintEl = document.querySelector('.map-hint');
+  if (hintEl) {
+    hintEl.style.display = '';
+    const allDone = LOC_ORDER.every(id => completed.includes(id));
+    hintEl.textContent = allDone
+      ? '🏆 ВСЕ ЛОКАЦИИ ПРОЙДЕНЫ — теперь ты топ!'
+      : `👆 Веди пальцем к локации ${LOCATIONS[nextLoc]?.icon || ''}`;
+  }
+  show('s-map');
+  startMapMovement();
+}
+
+function updatePowerBar() {
+  const power = Math.min(10, state.playerLevel || 1);
+  document.getElementById('map-power-num').textContent  = `${power}/10`;
+  document.getElementById('map-power-fill').style.width = `${power * 10}%`;
+  const lv = document.getElementById('map-avatar-level');
+  if (lv) lv.textContent = power;
+}
+
+// ─── DRAG-DRIVEN MAP MOVEMENT ───
+let mapPlayerX = 50, mapPlayerY = 88;     // player position (% of map-world)
+let mapTargetX = 50, mapTargetY = 88;     // current target (where finger is)
+let mapDragging = false;
+let mapArrived  = false;
+let mapTickInt  = null;
+const ARRIVAL_DIST = 7;                    // % distance to trigger entering a location
+
+function startMapMovement() {
+  mapPlayerX = 50; mapPlayerY = 88;
+  mapTargetX = 50; mapTargetY = 88;
+  mapDragging = false;
+  mapArrived  = false;
+  const m = document.getElementById('map-player');
+  m.style.left = '50%'; m.style.top = '88%';
+  const world = document.getElementById('map-world');
+  world.addEventListener('pointerdown',   onMapPointerDown);
+  world.addEventListener('pointermove',   onMapPointerMove);
+  world.addEventListener('pointerup',     onMapPointerUp);
+  world.addEventListener('pointercancel', onMapPointerUp);
+  if (mapTickInt) clearInterval(mapTickInt);
+  mapTickInt = setInterval(mapTick, 60);
+}
+
+function stopMapMovement() {
+  if (mapTickInt) { clearInterval(mapTickInt); mapTickInt = null; }
+  const world = document.getElementById('map-world');
+  if (world) {
+    world.removeEventListener('pointerdown',   onMapPointerDown);
+    world.removeEventListener('pointermove',   onMapPointerMove);
+    world.removeEventListener('pointerup',     onMapPointerUp);
+    world.removeEventListener('pointercancel', onMapPointerUp);
+  }
+  mapDragging = false;
+}
+
+function setMapTargetFromEvent(e) {
+  const world = document.getElementById('map-world');
+  const r = world.getBoundingClientRect();
+  mapTargetX = Math.max(3, Math.min(97, ((e.clientX - r.left) / r.width)  * 100));
+  mapTargetY = Math.max(3, Math.min(97, ((e.clientY - r.top)  / r.height) * 100));
+}
+
+function onMapPointerDown(e) {
+  if (mapArrived) return;
+  mapDragging = true;
+  setMapTargetFromEvent(e);
+  document.querySelector('.map-hint').style.display = 'none';
+  e.preventDefault();
+}
+function onMapPointerMove(e) {
+  if (!mapDragging || mapArrived) return;
+  setMapTargetFromEvent(e);
+}
+function onMapPointerUp() {
+  mapDragging = false;
+  // player keeps walking toward last target after finger lifts
+}
+
+function mapTick() {
+  if (mapArrived) return;
+  const dx = mapTargetX - mapPlayerX;
+  const dy = mapTargetY - mapPlayerY;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const SPEED = 1.5;     // percent per tick (60ms)
+  if (dist > 0.3) {
+    const step = Math.min(dist, SPEED);
+    mapPlayerX += (dx / dist) * step;
+    mapPlayerY += (dy / dist) * step;
+    const m = document.getElementById('map-player');
+    m.style.left = `${mapPlayerX}%`;
+    m.style.top  = `${mapPlayerY}%`;
+    playFootstep();
+  }
+  // check if player walked into an UNLOCKED location
+  for (const [id, loc] of Object.entries(LOCATIONS)) {
+    const ldx = mapPlayerX - loc.pos.x;
+    const ldy = mapPlayerY - loc.pos.y;
+    if (Math.sqrt(ldx*ldx + ldy*ldy) < ARRIVAL_DIST) {
+      if (!isLocationUnlocked(id)) {
+        // bounce: show "locked" feedback, push player back a bit
+        const hintEl = document.querySelector('.map-hint');
+        if (hintEl) { hintEl.textContent = '🔒 Сначала пройди предыдущую локацию'; }
+        mapTargetX = 50; mapTargetY = 88;
+        return;
+      }
+      arriveAtMapLocation(id);
+      return;
+    }
+  }
+}
+
+function arriveAtMapLocation(id) {
+  if (mapArrived) return;
+  mapArrived = true;
+  state.currentLocation = id;
+  stopMapMovement();
+  // snap to exact location for a clean entry
+  const m = document.getElementById('map-player');
+  m.style.left = `${LOCATIONS[id].pos.x}%`;
+  m.style.top  = `${LOCATIONS[id].pos.y}%`;
+  setTimeout(() => startWalk(), 450);
+}
+
+function goBattle(mode) {
+  endWalkScene();
+  state.battleMode = (mode === 'cards') ? 'cards' : 'voice';
+  const currentScreen = document.querySelector('.screen.on')?.id;
+  const fromWalkOrTrain = currentScreen === 's-walk' || currentScreen === 's-train';
+  const launch = () => {
+    renderBattleFighters();
+    show('s-battle');
+    const meter = document.querySelector('.meter-zone');
+    const cards = document.getElementById('cards-row');
+    if (meter) meter.style.display = state.battleMode === 'cards' ? 'none' : '';
+    if (cards) cards.style.display = state.battleMode === 'cards' ? '' : 'none';
+    state.phase = 'countdown';
+    // show onboarding hint before countdown for the first 4 battles
+    const startCountdown = () => runCountdown(() => startTurn());
+    maybeShowBattleTutor(startCountdown) || startCountdown();
+  };
+  if (fromWalkOrTrain) playDoorTransition(launch);
+  else launch();
+}
+
+function playDoorTransition(onComplete) {
+  // 1. animate the shop door opening if visible
+  const door  = document.querySelector('.shop-door');
+  const arena = document.getElementById('walk-arena');
+  if (door)  door.classList.add('opening');
+  if (arena) arena.classList.add('entering');
+  // 2. play creaking sound
+  playDoorCreak();
+  // 3. fade to black overlay
+  const fade = document.createElement('div');
+  fade.className = 'door-fade';
+  document.body.appendChild(fade);
+  // trigger fade-in next frame so CSS transition runs
+  requestAnimationFrame(() => fade.classList.add('fade-in'));
+  // 4. when fully black → switch screen → fade out
+  setTimeout(() => {
+    onComplete();
+    requestAnimationFrame(() => {
+      fade.classList.add('fade-out');
+      setTimeout(() => {
+        fade.remove();
+        if (door)  door.classList.remove('opening');
+        if (arena) arena.classList.remove('entering');
+      }, 550);
+    });
+  }, 1200);
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  WALK SCENE
+// ═════════════════════════════════════════════════════════════════
+const WALKER_SVG = `
+<svg viewBox="0 0 60 100" style="display:block">
+  <g class="w-body">
+    <ellipse cx="30" cy="16" rx="13" ry="14" fill="#1a1830" stroke="#000" stroke-width="1.5"/>
+    <circle cx="24" cy="14" r="2.5" fill="#3060c8"/>
+    <circle cx="36" cy="14" r="2.5" fill="#3060c8"/>
+    <rect x="17" y="30" width="26" height="34" rx="5" fill="#1a1830" stroke="#000" stroke-width="1.5"/>
+    <rect x="17" y="52" width="26" height="5" fill="#13111e"/>
+    <rect x="27" y="52" width="6" height="5" fill="#c89538"/>
+    <rect x="9"  y="32" width="8" height="22" rx="3" fill="#13111e" stroke="#000" stroke-width="1"/>
+    <rect x="43" y="32" width="8" height="22" rx="3" fill="#13111e" stroke="#000" stroke-width="1"/>
+  </g>
+  <rect class="w-leg-l" x="19" y="62" width="9" height="32" rx="3" fill="#1a1830" stroke="#000" stroke-width="1.5"/>
+  <rect class="w-leg-r" x="32" y="62" width="9" height="32" rx="3" fill="#1a1830" stroke="#000" stroke-width="1.5"/>
+</svg>`;
+
+document.getElementById('walker').innerHTML = WALKER_SVG;
+function refreshWalkerSVG() {
+  if (state.playerChar) {
+    document.getElementById('walker').innerHTML = makeWalkerSVG(state.playerChar);
+  }
+}
+
+let walkerY     = 6;
+let walkTargetY = 6;
+let walkInterval = null;
+let walkArrived  = false;
+let walkDragging = false;
+let footstepCounter = 0;
+const ARRIVE_Y = 70;
+
+function startWalk() {
+  refreshWalkerSVG();
+  // Set the shop sign + label based on the chosen location
+  const loc = LOCATIONS[state.currentLocation] || LOCATIONS.shop;
+  const signEl = document.querySelector('.shop-sign');
+  if (signEl) signEl.textContent = loc.sign;
+  const titleEl = document.querySelector('.walk-choice-title');
+  if (titleEl) {
+    const titles = {
+      canteen:   '🍳 СТОЛОВАЯ',
+      shop:      '⚔ ЛАВКА ВОНЮЧЕГО СЕМЫ',
+      barber:    '✂ ПАРИКМАХЕРСКАЯ',
+      apartment: '🏠 СВИДАНИЕ',
+    };
+    titleEl.textContent = titles[state.currentLocation] || titles.shop;
+  }
+  walkerY      = 6;
+  walkTargetY  = 6;
+  walkArrived  = false;
+  walkDragging = false;
+  document.getElementById('walker').style.bottom = `${walkerY}%`;
+  document.getElementById('walker').classList.remove('walking');
+  document.getElementById('walk-choice').classList.remove('on');
+  document.getElementById('walk-hint').style.display = '';
+
+  show('s-walk');
+
+  const arena = document.getElementById('walk-arena');
+  arena.addEventListener('pointerdown',   walkPointerDown);
+  arena.addEventListener('pointermove',   walkPointerMove);
+  arena.addEventListener('pointerup',     walkPointerUp);
+  arena.addEventListener('pointercancel', walkPointerUp);
+
+  if (walkInterval) clearInterval(walkInterval);
+  walkInterval = setInterval(walkTick, 70);
+}
+
+function endWalkScene() {
+  if (walkInterval) { clearInterval(walkInterval); walkInterval = null; }
+  const arena = document.getElementById('walk-arena');
+  if (arena) {
+    arena.removeEventListener('pointerdown',   walkPointerDown);
+    arena.removeEventListener('pointermove',   walkPointerMove);
+    arena.removeEventListener('pointerup',     walkPointerUp);
+    arena.removeEventListener('pointercancel', walkPointerUp);
+  }
+  const w = document.getElementById('walker');
+  if (w) w.classList.remove('walking');
+}
+
+function walkPointerDown(e) {
+  if (walkArrived) return;
+  walkDragging = true;
+  document.getElementById('walk-hint').style.display = 'none';
+  document.getElementById('walker').classList.add('walking');
+  updateWalkTargetFromEvent(e);
+  e.preventDefault();
+}
+function walkPointerMove(e) {
+  if (!walkDragging || walkArrived) return;
+  updateWalkTargetFromEvent(e);
+}
+function walkPointerUp() {
+  walkDragging = false;
+}
+
+function updateWalkTargetFromEvent(e) {
+  const arena = document.getElementById('walk-arena');
+  const r = arena.getBoundingClientRect();
+  const relY = (e.clientY - r.top) / r.height;
+  const fromBottomPct = (1 - relY) * 100;
+  walkTargetY = Math.max(6, Math.min(80, fromBottomPct));
+}
+
+function walkTick() {
+  const diff = walkTargetY - walkerY;
+  const SPEED = 1.6;
+  if (Math.abs(diff) > 0.4) {
+    walkerY += Math.sign(diff) * Math.min(Math.abs(diff), SPEED);
+    document.getElementById('walker').style.bottom = `${walkerY}%`;
+    document.getElementById('walker').classList.add('walking');
+    playFootstep();
+  } else if (!walkDragging) {
+    document.getElementById('walker').classList.remove('walking');
+  }
+  if (walkerY >= ARRIVE_Y && !walkArrived) {
+    walkArrived = true;
+    document.getElementById('walker').classList.remove('walking');
+    document.getElementById('walk-choice').classList.add('on');
+  }
+}
+
+let _lastFootstep = 0;
+function playFootstep() {
+  const now = performance.now();
+  if (now - _lastFootstep < 220) return;
+  _lastFootstep = now;
+  const ctx = getAC(); if (!ctx) return;
+  footstepCounter++;
+  const isLeft = footstepCounter % 2 === 0;
+  // boosted noise scuff
+  const buf = ctx.createBuffer(1, ctx.sampleRate * .09, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    d[i] = (Math.random() * 2 - 1) * Math.max(0, 1 - i / d.length) * .45;
+  }
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const flt = ctx.createBiquadFilter(); flt.type = 'lowpass';
+  flt.frequency.value = isLeft ? 220 : 260;
+  src.connect(flt); flt.connect(ctx.destination); src.start();
+  // boosted bass thump
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = 'sine';
+  o.frequency.value = isLeft ? 90 : 105;
+  g.gain.setValueAtTime(.45, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .08);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(); o.stop(ctx.currentTime + .08);
+}
+
+// ─── DOOR CREAK ───
+function playDoorCreak() {
+  const ctx = getAC(); if (!ctx) return;
+  const sr = ctx.sampleRate;
+  const dur = 1.1;
+  const buf = ctx.createBuffer(1, sr * dur, sr);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const t = i / sr;
+    // descending whine + stutter modulation (creaky rhythm) + grain noise
+    const baseFreq = 220 - t * 130;             // 220 → 90 Hz sweep
+    const stutter  = 1 + 0.4 * Math.sin(2 * Math.PI * 14 * t);  // 14 Hz wobble
+    const env      = Math.exp(-t * 1.1);
+    const tone     = Math.sin(2 * Math.PI * baseFreq * t) * 0.55;
+    const grain    = (Math.random() * 2 - 1) * 0.22;
+    d[i] = (tone + grain) * env * stutter;
+  }
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const flt = ctx.createBiquadFilter(); flt.type = 'lowpass';
+  flt.frequency.value = 900;
+  flt.Q.value = 0.8;
+  const g = ctx.createGain(); g.gain.value = 0.7;
+  src.connect(flt); flt.connect(g); g.connect(ctx.destination);
+  src.start();
+  // soft "thunk" at the end as the door fully opens
+  setTimeout(() => {
+    const ctx2 = getAC(); if (!ctx2) return;
+    const o = ctx2.createOscillator(), gg = ctx2.createGain();
+    o.type = 'sine'; o.frequency.value = 60;
+    gg.gain.setValueAtTime(.4, ctx2.currentTime);
+    gg.gain.exponentialRampToValueAtTime(.001, ctx2.currentTime + .25);
+    o.connect(gg); gg.connect(ctx2.destination);
+    o.start(); o.stop(ctx2.currentTime + .25);
+  }, 1000);
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  TRAINING SCENE
+// ═════════════════════════════════════════════════════════════════
+let trainCards = [];
+let trainIdx   = 0;
+
+function goTrain() {
+  endWalkScene();
+  const pool = PHRASES[state.difficulty];
+  trainCards = [...pool].sort(() => Math.random() - 0.5).slice(0, 6);
+  trainIdx   = 0;
+  show('s-train');
+  renderTrainCard();
+}
+
+function renderTrainCard() {
+  if (trainIdx >= trainCards.length) {
+    goBattle();
+    return;
+  }
+  const card = trainCards[trainIdx];
+  document.getElementById('train-ru').textContent = card.ru;
+  const enEl = document.getElementById('train-en');
+  enEl.textContent = card.en;
+  enEl.classList.remove('show', 'train-wrong', 'train-correct');
+  document.getElementById('train-progress').textContent = `${trainIdx + 1} / ${trainCards.length}`;
+  document.getElementById('train-heard').style.display = 'none';
+  document.getElementById('train-heard').textContent   = '';
+
+  const speakBtn = document.getElementById('train-btn-speak');
+  speakBtn.classList.remove('listening');
+  speakBtn.textContent = '🎤 СКАЗАТЬ ПЕРЕВОД';
+
+  document.getElementById('train-btn-listen').style.display = '';
+  document.getElementById('train-btn-listen').classList.remove('playing');
+  document.getElementById('train-btn-speak').style.display  = '';
+  document.getElementById('train-btn-know').style.display   = '';
+  document.getElementById('train-btn-dunno').style.display  = '';
+  document.getElementById('train-btn-next').style.display   = 'none';
+  // auto-play English once when card appears (audio comprehension first)
+  setTimeout(() => listenToEN(), 350);
+}
+
+function trainAnswer(knew) {
+  if (knew) {
+    trainIdx++;
+    renderTrainCard();
+  } else {
+    document.getElementById('train-en').classList.add('show');
+    speakEN(trainCards[trainIdx].en);   // нейронка проговаривает перевод
+    document.getElementById('train-btn-know').style.display  = 'none';
+    document.getElementById('train-btn-dunno').style.display = 'none';
+    document.getElementById('train-btn-next').style.display  = '';
+  }
+}
+
+// English TTS — voice the translation when user reveals it
+function speakEN(text) {
+  if (!('speechSynthesis' in window) || !text) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang   = 'en-US';
+    u.rate   = 0.88;
+    u.pitch  = 1.0;
+    u.volume = 1;
+    speechSynthesis.speak(u);
+  } catch(e) { console.warn('TTS:', e); }
+}
+function replayEN() {
+  const el = document.getElementById('train-en');
+  if (!el.classList.contains('show')) return;
+  speakEN(el.textContent);
+}
+
+// Listen to the English version of the current card (audio comprehension practice)
+let _listenTimer = null;
+function listenToEN() {
+  if (!trainCards.length || trainIdx >= trainCards.length) return;
+  const en  = trainCards[trainIdx].en;
+  const btn = document.getElementById('train-btn-listen');
+  btn.classList.add('playing');
+  speakEN(en);
+  // estimate utterance duration: rate=0.88, ~10 chars/sec at normal speed → ~8.5 c/s
+  const dur = Math.max(900, en.length * 90);
+  if (_listenTimer) clearTimeout(_listenTimer);
+  _listenTimer = setTimeout(() => btn.classList.remove('playing'), dur);
+}
+
+function trainNext() {
+  trainIdx++;
+  renderTrainCard();
+}
+
+function pickPhrase() {
+  // prefer the current location's theme; fall back to general pool if empty
+  const theme = LOCATIONS[state.currentLocation]?.theme;
+  const themedBucket = theme && PHRASES_BY_THEME[theme] && PHRASES_BY_THEME[theme][state.difficulty];
+  const pool = (themedBucket && themedBucket.length)
+    ? themedBucket
+    : PHRASES[state.difficulty];
+  const avail = pool.filter(p => !state.usedIds.has(p.id));
+  if (!avail.length) {
+    pool.forEach(p => state.usedIds.delete(p.id));
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  return avail[Math.floor(Math.random() * avail.length)];
+}
+
+// ─── TUTOR — show onboarding hints for first 4 battles ───
+function showTutor(emoji, title, text, onDone) {
+  const ov = document.getElementById('ov-tutor');
+  document.getElementById('tutor-emoji').textContent = emoji;
+  document.getElementById('tutor-title').textContent = title;
+  document.getElementById('tutor-text').textContent  = text;
+  ov.classList.add('on');
+  const dismiss = () => {
+    ov.classList.remove('on');
+    ov.removeEventListener('click', dismiss);
+    onDone && onDone();
+  };
+  ov.addEventListener('click', dismiss);
+}
+
+function getCompletedBattlesCount() {
+  const u = authCurrent();
+  if (!u) return 0;
+  return (u.wins || 0) + (u.losses || 0);
+}
+
+// Returns true if tutor was shown (caller should wait for it to dismiss)
+function maybeShowBattleTutor(onContinue) {
+  const battles = getCompletedBattlesCount();
+  if (battles >= 4) { onContinue && onContinue(); return false; }
+  const tutorials = [
+    {
+      emoji: '🗺',
+      title: 'КАК ИГРАТЬ',
+      text: 'Веди пальцем по карте к локациям. В каждой — бой с ботом и новый словарь. Победи всех чтобы качать силу 1→10.',
+    },
+    {
+      emoji: state.battleMode === 'cards' ? '🃏' : '🎤',
+      title: state.battleMode === 'cards' ? 'РЕЖИМ КАРТОЧЕК' : 'РЕЖИМ ГОЛОСА',
+      text: state.battleMode === 'cards'
+        ? 'Видишь русскую фразу — выбери правильный английский из 4 карточек. Правильно = твой удар. У тебя 8 секунд.'
+        : 'Видишь русскую фразу — скажи перевод по-английски. Микрофон включится сам. У тебя 8 секунд.',
+    },
+    {
+      emoji: '🥊',
+      title: 'УДАР И HP',
+      text: 'Каждый правильный ответ снимает 20 HP сопернику. Бот тоже отвечает на свои фразы. Кто первым обнулит HP — победил.',
+    },
+    {
+      emoji: '⚡',
+      title: 'СИЛА И ЛОКАЦИИ',
+      text: 'Победа = +1 к силе и открытие следующей локации. 🔒 Заперта пока не пройдёшь предыдущую. На карте видна твоя аватарка и шкала силы 0→10.',
+    },
+  ];
+  const t = tutorials[Math.min(battles, tutorials.length - 1)];
+  showTutor(t.emoji, t.title, t.text, onContinue);
+  return true;
+}
+
+// ─── CARDS MODE: build 4 options (1 correct + 3 distractors) ───
+function renderCardOptions() {
+  if (!state.currentPhrase) return;
+  const theme = LOCATIONS[state.currentLocation]?.theme;
+  let pool = [];
+  if (theme && PHRASES_BY_THEME[theme]) {
+    pool = [...(PHRASES_BY_THEME[theme].easy || []), ...(PHRASES_BY_THEME[theme].medium || [])];
+  }
+  if (pool.length < 4) {
+    pool = [...PHRASES.easy, ...PHRASES.medium, ...PHRASES.hard];
+  }
+  const distractors = pool
+    .filter(p => p.id !== state.currentPhrase.id)
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3)
+    .map(p => p.en);
+  const options = [state.currentPhrase.en, ...distractors].sort(() => Math.random() - 0.5);
+  const grid = document.getElementById('cards-grid');
+  Array.from(grid.querySelectorAll('.card-opt')).forEach((btn, i) => {
+    btn.textContent = options[i] || '';
+    btn.disabled = false;
+    btn.classList.remove('right','wrong');
+    btn.onclick = () => onCardChosen(btn, options[i]);
+  });
+}
+function onCardChosen(btn, picked) {
+  if (state.phase !== 'player_turn') return;
+  // disable all
+  Array.from(document.querySelectorAll('.card-opt')).forEach(b => b.disabled = true);
+  const correct = checkAnswer(picked, state.currentPhrase.answers);
+  btn.classList.add(correct ? 'right' : 'wrong');
+  // re-use battle's submit
+  submitMyAnswer([picked]);
+}
+
+function startTurn() {
+  state.currentPhrase = pickPhrase();
+  state.usedIds.add(state.currentPhrase.id);
+
+  // Reset phrase card from previous result state
+  document.getElementById('phrase-card').className = 'phrase-card';
+  document.getElementById('phrase-ru').className   = 'phrase-ru';
+  document.getElementById('phrase-sub').className  = 'phrase-sub';
+  document.getElementById('phrase-ru').textContent = state.currentPhrase.ru;
+
+  if (state.myTurn) {
+    state.phase = 'player_turn';
+    setActiveTurn('left');
+    setHeard('');
+    if (state.battleMode === 'cards') {
+      document.getElementById('phrase-sub').textContent = '🃏 Выбери правильный перевод';
+      setStatus('⚔ ТВОЙ ХОД — ВЫБИРАЙ!', 'mine');
+      renderCardOptions();
+      startTimer(8);
+    } else {
+      document.getElementById('phrase-sub').textContent = '🎤 Скажи перевод — микрофон уже слушает';
+      setStatus('⚔ ТВОЙ ХОД — ГОВОРИ!', 'mine');
+      updateMic(true);
+      startTimer(8);
+      setTimeout(() => {
+        if (state.phase === 'player_turn' && HAS_SR && !listening) startListen();
+      }, 500);
+    }
+  } else {
+    state.phase = 'bot_turn';
+    document.getElementById('phrase-sub').textContent = '🤖 Соперник переводит...';
+    setStatus(BOT_THINKS[Math.floor(Math.random() * BOT_THINKS.length)], '');
+    setActiveTurn('right');
+    updateMic(false);
+    // Bot "thinks" 1.5–3 seconds
+    setTimeout(() => botAnswer(), 1500 + Math.random() * 1500);
+  }
+}
+
+function botAnswer() {
+  if (state.phase !== 'bot_turn') return;
+
+  const correct = Math.random() < state.botSkill;
+  const said = correct
+    ? state.currentPhrase.answers[0]
+    : BOT_FAILS[Math.floor(Math.random() * BOT_FAILS.length)];
+
+  // Show what bot said in result flash
+  if (correct) {
+    state.botCorrectInRow = (state.botCorrectInRow || 0) + 1;
+    state.myCorrectInRow  = 0;
+    state.myHP = Math.max(0, state.myHP - 20);
+    setHP('left', state.myHP);
+    state.phase = 'hit';
+    doPunch('right', 'left');                  // BOT punches ME
+    showResult(true, said, state.currentPhrase.en, false);
+    if (state.myHP <= 0) { endGame(false); return; }
+    setTimeout(() => nextTurn(), 2400);
+  } else {
+    state.botCorrectInRow = 0;
+    state.phase = 'miss';
+    playMiss();
+    showResult(false, said, state.currentPhrase.en, false);
+    setTimeout(() => nextTurn(), 4000);
+  }
+}
+
+function submitMyAnswer(alts) {
+  if (state.phase !== 'player_turn') return;
+  stopTimer();
+  state.phase = 'evaluating';
+  updateMic(false);
+
+  const correct = (alts || []).some(a => checkAnswer(a, state.currentPhrase.answers));
+  const spoken  = (alts || [])[0] || '';
+
+  if (correct) {
+    state.correctCount++;
+    state.myCorrectInRow = (state.myCorrectInRow || 0) + 1;
+    state.botCorrectInRow = 0;
+    if (state.myCorrectInRow >= 2) bumpCombo(state.myCorrectInRow);
+    upgradeDiff();
+    state.botHP = Math.max(0, state.botHP - 20);
+    setHP('right', state.botHP);
+    state.phase = 'hit';
+    doPunch('left', 'right');                  // I punch BOT
+    showResult(true, spoken, state.currentPhrase.en, true);
+    if (state.botHP <= 0) { endGame(true); return; }
+    setTimeout(() => nextTurn(), 2400);
+  } else {
+    state.myCorrectInRow = 0;
+    resetCombo();
+    state.phase = 'miss';
+    playMiss();
+    showResult(false, spoken, state.currentPhrase.en, true);
+    setTimeout(() => nextTurn(), 4000);
+  }
+}
+
+function onTurnTimeout() {
+  if (state.phase !== 'player_turn') return;
+  state.myCorrectInRow = 0;
+  resetCombo();
+  state.phase = 'miss';
+  playMiss();
+  showResult(false, '(нет ответа)', state.currentPhrase.en, true);
+  setTimeout(() => nextTurn(), 4000);
+}
+
+function nextTurn() {
+  state.myTurn = !state.myTurn;
+  startTurn();   // startTurn resets the phrase card from result state
+}
+
+function endGame(iWin) {
+  state.phase = 'game_over';
+  stopTimer(); stopListen();
+  setActiveTurn(null);   // turn off both rings
+
+  if (iWin) {
+    state.playerLevel = Math.min(10, (state.playerLevel || 1) + 1);
+    const cur = authCurrent();
+    if (cur) {
+      // mark current location as completed (unlocks the next one)
+      const completed = Array.from(new Set([...(cur.completed || []), state.currentLocation]));
+      authUpdate({ level: state.playerLevel, wins: (cur.wins || 0) + 1, completed });
+    }
+  } else {
+    const cur = authCurrent();
+    if (cur) authUpdate({ losses: (cur.losses || 0) + 1 });
+  }
+
+  const winSide  = iWin ? 'left' : 'right';
+  const loseSide = iWin ? 'right' : 'left';
+  doKO(winSide, loseSide);
+
+  document.getElementById('over-title').textContent = iWin ? '🏆 ПОБЕДА!' : '💀 ПОРАЖЕНИЕ';
+  document.getElementById('over-title').className   = `over-title ${iWin ? 'win' : 'lose'}`;
+  document.getElementById('over-sub').textContent   = iWin
+    ? `Ты избил бота. Знание = сила.`
+    : `Бот знает английский лучше. Попробуй ещё.`;
+  const levelEl = document.getElementById('over-levelup');
+  if (levelEl) {
+    if (iWin) {
+      levelEl.style.display = '';
+      levelEl.innerHTML = `⚡ +1 К СИЛЕ — ТЫ УРОВНЯ ${state.playerLevel}/10`;
+    } else {
+      levelEl.style.display = 'none';
+    }
+  }
+
+  setTimeout(() => show('s-over'), 2400);
+}
+
+function goBackToMap() {
+  // reset battle state but keep level + character
+  state.myHP = 100;
+  state.botHP = 100;
+  state.usedIds = new Set();
+  state.correctCount = 0;
+  state.difficulty = 'easy';
+  state.myTurn = Math.random() < 0.5;
+  resetFighters();
+  setHP('left', 100);
+  setHP('right', 100);
+  document.getElementById('diff-badge').textContent = 'EASY';
+  document.getElementById('diff-badge').className   = 'diff-badge';
+  // pick a fresh bot character (any except player)
+  const others = Object.keys(CHARS).filter(id => id !== state.playerChar);
+  state.botChar = others[Math.floor(Math.random() * others.length)];
+  renderBattleFighters();
+  startMap();
+}
+
+function upgradeDiff() {
+  if (state.correctCount === 6 && state.difficulty === 'easy') {
+    state.difficulty = 'medium';
+    state.botSkill   = 0.62;
+    showDiffUp('medium');
+  } else if (state.correctCount === 14 && state.difficulty === 'medium') {
+    state.difficulty = 'hard';
+    state.botSkill   = 0.7;
+    showDiffUp('hard');
+  }
+}
+
+function showDiffUp(level) {
+  const badge = document.getElementById('diff-badge');
+  badge.textContent = level.toUpperCase();
+  badge.className   = `diff-badge ${level}`;
+  document.getElementById('diff-txt').textContent =
+    level === 'medium' ? '🔓 MEDIUM — СЛОЖНЕЕ!' : '🔥 HARD — ЖЁСТКО!';
+  showOv('ov-diff', 2300);
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  UI HELPERS
+// ═════════════════════════════════════════════════════════════════
+function setHP(side, hp) {
+  const bar = document.getElementById(`hp-${side}`);
+  bar.style.width = `${Math.max(0, hp)}%`;
+  bar.className   = `hbf${hp < 35 ? ' crit' : ''}`;
+}
+function setStatus(text, cls) {
+  const el = document.getElementById('status');
+  el.textContent = text;
+  el.className   = `status ${cls || ''}`;
+}
+function nameGlow(side, on) {
+  const el = document.getElementById(`n-${side}`);
+  el.className = `fname${on ? ' my-turn-glow' : ''}`;
+}
+function setActiveTurn(side) {
+  // side = 'left' | 'right' | null
+  ['left','right'].forEach(s => {
+    const r = document.getElementById(`ring-${s}`);
+    if (s === side) r.classList.add('active');
+    else r.classList.remove('active');
+  });
+  nameGlow('left',  side === 'left');
+  nameGlow('right', side === 'right');
+  // glow the mic meter frame when it's MY turn
+  const meter = document.getElementById('audio-meter');
+  if (side === 'left') meter.classList.add('my-turn');
+  else meter.classList.remove('my-turn');
+}
+function showResult(correct, spoken, expected, wasMine) {
+  // Morph the phrase card: Russian → English, colored
+  const cardEl   = document.getElementById('phrase-card');
+  const phraseEl = document.getElementById('phrase-ru');
+  const subEl    = document.getElementById('phrase-sub');
+
+  phraseEl.textContent = expected;
+
+  if (correct) {
+    cardEl.className   = 'phrase-card result-ok';
+    phraseEl.className = 'phrase-ru result-ok';
+    subEl.className    = 'phrase-sub result-ok';
+    subEl.textContent  = wasMine ? '✓ ПРАВИЛЬНО!' : '🤖 БОТ ОТВЕТИЛ';
+  } else {
+    cardEl.className   = 'phrase-card result-bad';
+    phraseEl.className = 'phrase-ru result-bad';
+    subEl.className    = 'phrase-sub result-bad';
+    subEl.textContent  = wasMine ? '✗ ОШИБКА' : '🤖 БОТ ПРОМАХНУЛСЯ';
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  COUNTDOWN
+// ═════════════════════════════════════════════════════════════════
+function runCountdown(onDone) {
+  let n = 3;
+  const el = document.getElementById('cdn-num');
+  function tick() {
+    if (n > 0) {
+      el.style.color = '#ffd100';
+      el.textContent = n;
+      document.getElementById('ov-cd').classList.add('on');
+      el.style.animation = 'none'; void el.offsetHeight; el.style.animation = '';
+      n--; setTimeout(tick, 900);
+    } else {
+      el.textContent = 'GO!'; el.style.color = '#40d840';
+      el.style.animation = 'none'; void el.offsetHeight; el.style.animation = '';
+      setTimeout(() => {
+        document.getElementById('ov-cd').classList.remove('on');
+        onDone && onDone();
+      }, 800);
+    }
+  }
+  tick();
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  PUNCH / IMPACT / SHAKE
+// ═════════════════════════════════════════════════════════════════
+function doPunch(atkSide, defSide) {
+  const atk = document.getElementById(`fi-${atkSide}`);
+  const def = document.getElementById(`fo-${defSide}`);
+
+  atk.classList.remove('idle');
+  atk.classList.add('punching');
+  playWhoosh();
+
+  // Slow-mo: 2x longer punch sequence
+  setTimeout(() => {
+    atk.classList.remove('punching');
+    def.classList.add('hit', `hit-from-${atkSide}`);
+    playImpact();
+    spawnImpact(defSide);
+
+    setTimeout(() => {
+      def.classList.remove('hit', `hit-from-${atkSide}`);
+      atk.classList.add('idle');
+    }, 1200);
+  }, 560);
+}
+
+function spawnImpact(defSide) {
+  const arena = document.getElementById('arena');
+  const fEl   = document.getElementById(`fo-${defSide}`);
+  if (!fEl) return;
+  const aR = arena.getBoundingClientRect();
+  const fR = fEl.getBoundingClientRect();
+  const cx = fR.left - aR.left + fR.width / 2;
+  const cy = fR.top  - aR.top  + 35;
+
+  const burst = document.createElement('div');
+  burst.className = 'impact-burst';
+  burst.style.left = `${cx}px`;
+  burst.style.top  = `${cy}px`;
+
+  const ring = document.createElement('div'); ring.className = 'ring'; burst.appendChild(ring);
+  const pow  = document.createElement('div'); pow.className  = 'pow';
+  pow.textContent = ['POW!','BAM!','HIT!','SMACK!','BOOM!','WHACK!'][Math.floor(Math.random() * 6)];
+  burst.appendChild(pow);
+
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + Math.random() * .3;
+    const r = 42 + Math.random() * 25;
+    const star = document.createElement('div');
+    star.className = 'star';
+    star.style.setProperty('--tx', `${Math.cos(a) * r}px`);
+    star.style.setProperty('--ty', `${Math.sin(a) * r}px`);
+    star.style.animationDelay = `${Math.random() * .04}s`;
+    burst.appendChild(star);
+  }
+  arena.appendChild(burst);
+  setTimeout(() => burst.remove(), 1700);
+}
+
+function doShake() {
+  const el = document.getElementById('arena');
+  el.classList.remove('shaking');
+  void el.offsetHeight;
+  el.classList.add('shaking');
+  setTimeout(() => el.classList.remove('shaking'), 430);
+}
+
+function screenFlash(color) {
+  const d = document.createElement('div');
+  d.className = 'scrf';
+  d.style.background = color;
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 500);
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  KO + VICTORY
+// ═════════════════════════════════════════════════════════════════
+function doKO(winSide, loseSide) {
+  const winFi  = document.getElementById(`fi-${winSide}`);
+  const loseFi = document.getElementById(`fi-${loseSide}`);
+
+  loseFi.classList.remove('idle');
+  loseFi.classList.add('ko-fallen');
+
+  const col = winFi.parentElement.parentElement;
+  if (!col.querySelector('.crown-over')) {
+    const crown = document.createElement('div');
+    crown.className = 'crown-over';
+    crown.textContent = '👑';
+    col.appendChild(crown);
+  }
+  setTimeout(() => {
+    winFi.classList.remove('idle');
+    winFi.classList.add('victory');
+  }, 600);
+
+  playKO();
+  document.getElementById('ov-ko').classList.add('on');
+  setTimeout(() => {
+    document.getElementById('ov-ko').classList.remove('on');
+    playVictoryFanfare();
+  }, 1100);
+}
+
+function resetFighters() {
+  ['left','right'].forEach(side => {
+    const fi = document.getElementById(`fi-${side}`);
+    fi.classList.remove('ko-fallen','victory','punching');
+    fi.classList.add('idle');
+    const col = fi.parentElement.parentElement;
+    col.querySelector('.crown-over')?.remove();
+    const fo = document.getElementById(`fo-${side}`);
+    fo.classList.remove('hit','hit-from-left','hit-from-right');
+  });
+  resetCombo();
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  COMBO COUNTER
+// ═════════════════════════════════════════════════════════════════
+let comboTimer = null;
+function bumpCombo(n) {
+  const badge = document.getElementById('combo-badge');
+  document.getElementById('combo-x').textContent = `x${n}`;
+  badge.classList.remove('on');
+  void badge.offsetHeight;
+  badge.classList.add('on');
+  if (comboTimer) clearTimeout(comboTimer);
+  comboTimer = setTimeout(() => badge.classList.remove('on'), 2400);
+}
+function resetCombo() {
+  document.getElementById('combo-badge').classList.remove('on');
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  TIMER
+// ═════════════════════════════════════════════════════════════════
+let timerInt = null;
+function startTimer(secs) {
+  stopTimer();
+  let sec = secs;
+  const el = document.getElementById('timer');
+  el.textContent = sec;
+  timerInt = setInterval(() => {
+    sec--;
+    if (sec < 0) {
+      stopTimer();
+      onTurnTimeout();
+      return;
+    }
+    el.textContent = sec;
+    el.className   = `timer-el${sec <= 4 ? ' urgent' : ''}`;
+  }, 1000);
+}
+function stopTimer() {
+  if (timerInt) { clearInterval(timerInt); timerInt = null; }
+  const el = document.getElementById('timer');
+  el.textContent = ''; el.className = 'timer-el';
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  AUDIO SYNTH
+// ═════════════════════════════════════════════════════════════════
+let _audioCtx = null;
+function getAC() {
+  try {
+    if (!_audioCtx) {
+      _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      console.log('[audio] AC created, state:', _audioCtx.state);
+    }
+    if (_audioCtx.state === 'suspended') {
+      _audioCtx.resume().then(() => console.log('[audio] AC resumed:', _audioCtx.state));
+    }
+    return _audioCtx;
+  } catch(e) { console.warn('[audio] getAC failed:', e); return null; }
+}
+function playWhoosh() {
+  const ctx = getAC(); if (!ctx) return;
+  const sr = ctx.sampleRate;
+  const buf = ctx.createBuffer(1, sr * .18, sr);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const t = i / sr;
+    d[i] = (Math.random() * 2 - 1) * Math.max(0, 1 - t * 7) * .35;
+  }
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const flt = ctx.createBiquadFilter(); flt.type = 'bandpass';
+  flt.frequency.setValueAtTime(1200, ctx.currentTime);
+  flt.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + .15);
+  src.connect(flt); flt.connect(ctx.destination);
+  src.start();
+}
+function playImpact() {
+  const ctx = getAC(); if (!ctx) return;
+  // BIG bass thump (chest hit feel)
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(170, ctx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(28, ctx.currentTime + .22);
+  g.gain.setValueAtTime(.9, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .28);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(); o.stop(ctx.currentTime + .28);
+  // Square crack (bone snap)
+  const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+  o2.type = 'square'; o2.frequency.value = 260;
+  g2.gain.setValueAtTime(.42, ctx.currentTime);
+  g2.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .07);
+  o2.connect(g2); g2.connect(ctx.destination);
+  o2.start(); o2.stop(ctx.currentTime + .07);
+  // Slap noise burst
+  const buf = ctx.createBuffer(1, ctx.sampleRate * .1, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    d[i] = (Math.random() * 2 - 1) * Math.max(0, 1 - i / d.length * 1.4) * .55;
+  }
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const flt = ctx.createBiquadFilter(); flt.type = 'bandpass';
+  flt.frequency.value = 900;
+  flt.Q.value = 1.5;
+  src.connect(flt); flt.connect(ctx.destination);
+  src.start();
+}
+
+// ─── iOS Audio Unlock — canonical 1-sample silent buffer technique ───
+function warmupAudio() {
+  const ctx = getAC(); if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  try {
+    // 1-sample empty buffer is THE iOS unlock trick
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch(e) { console.warn('[audio] unlock failed:', e); }
+}
+
+// ─── Diagnostic: play LOUD beep + show what AC is doing ───
+function testSound() {
+  warmupAudio();
+  const ctx = getAC();
+  const resultEl = document.getElementById('sound-test-result');
+  if (!ctx) {
+    resultEl.innerHTML = '<span style="color:#e84040">❌ AudioContext не создан</span>';
+    return;
+  }
+  // VERY loud 440Hz beep + 880Hz beep + impact
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = 'sine'; o.frequency.value = 440;
+  g.gain.setValueAtTime(0.7, ctx.currentTime);
+  g.gain.setValueAtTime(0.7, ctx.currentTime + 0.2);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(); o.stop(ctx.currentTime + 0.3);
+  setTimeout(() => playImpact(), 350);
+  setTimeout(() => playSubZeroCry(), 700);
+  resultEl.innerHTML =
+    `<span style="color:#40d840">AC: ${ctx.state}, ${ctx.sampleRate}Hz</span><br>` +
+    `Слышишь 3 звука (бип + удар + Sub-Zero)?<br>` +
+    `<span style="color:#888">Если нет — проверь:<br>📱 рокер беззвучного режима на iPhone<br>🔉 системную громкость<br>🔇 не замучена ли вкладка в браузере</span>`;
+}
+
+// Force-unlock on the very first user gesture anywhere on the page
+let _audioUnlocked = false;
+function _firstGestureUnlock() {
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+  warmupAudio();
+  console.log('[audio] unlocked on first gesture');
+}
+document.addEventListener('touchstart', _firstGestureUnlock, { once: true, passive: true });
+document.addEventListener('click',      _firstGestureUnlock, { once: true });
+document.addEventListener('pointerdown',_firstGestureUnlock, { once: true });
+
+// ─── UI CLICK SOUND ───
+function playClick() {
+  const ctx = getAC(); if (!ctx) return;
+  // boosted: triangle blip + sub-thump for substance
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(900, ctx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(380, ctx.currentTime + .06);
+  g.gain.setValueAtTime(.55, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .08);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(); o.stop(ctx.currentTime + .08);
+  // low blop adds body
+  const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+  o2.type = 'sine'; o2.frequency.value = 180;
+  g2.gain.setValueAtTime(.3, ctx.currentTime);
+  g2.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .07);
+  o2.connect(g2); g2.connect(ctx.destination);
+  o2.start(); o2.stop(ctx.currentTime + .07);
+}
+
+// ─── CHARACTER SELECTION CRIES ───
+
+// Sub-Zero: frosty hiss + ice ting + deep rumble
+function playSubZeroCry() {
+  const ctx = getAC(); if (!ctx) return;
+  const sr = ctx.sampleRate;
+  // frosty wind hiss
+  const buf = ctx.createBuffer(1, sr * .9, sr);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const t = i / sr;
+    const env = Math.exp(-t * 1.8) * (1 - Math.exp(-t * 30));
+    d[i] = (Math.random() * 2 - 1) * .5 * env;
+  }
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const flt = ctx.createBiquadFilter(); flt.type = 'highpass'; flt.frequency.value = 2800;
+  src.connect(flt); flt.connect(ctx.destination); src.start();
+  // deep cold rumble
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = 'sine'; o.frequency.value = 55;
+  g.gain.setValueAtTime(.5, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .9);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(); o.stop(ctx.currentTime + .9);
+  // crystalline tings (ice crystals forming)
+  [1400, 2100, 2800].forEach((f, i) => {
+    const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+    o2.type = 'triangle'; o2.frequency.value = f;
+    const s = ctx.currentTime + .15 + i * .07;
+    g2.gain.setValueAtTime(.16, s);
+    g2.gain.exponentialRampToValueAtTime(.001, s + .45);
+    o2.connect(g2); g2.connect(ctx.destination);
+    o2.start(s); o2.stop(s + .45);
+  });
+}
+
+// Kotal Kahn: war horn fanfare + drum thump
+function playKotalCry() {
+  const ctx = getAC(); if (!ctx) return;
+  // brass war horn (3 ascending notes)
+  [110, 165, 220].forEach((f, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sawtooth'; o.frequency.value = f;
+    const s = ctx.currentTime + i * .09;
+    g.gain.setValueAtTime(0, s);
+    g.gain.linearRampToValueAtTime(.28, s + .05);
+    g.gain.setValueAtTime(.28, s + .35);
+    g.gain.exponentialRampToValueAtTime(.001, s + .65);
+    const flt = ctx.createBiquadFilter();
+    flt.type = 'lowpass'; flt.frequency.value = 1400;
+    o.connect(flt); flt.connect(g); g.connect(ctx.destination);
+    o.start(s); o.stop(s + .65);
+  });
+  // ceremonial drum (kettle drum thump)
+  const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+  o2.type = 'sine';
+  o2.frequency.setValueAtTime(85, ctx.currentTime);
+  o2.frequency.exponentialRampToValueAtTime(38, ctx.currentTime + .2);
+  g2.gain.setValueAtTime(.75, ctx.currentTime);
+  g2.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .32);
+  o2.connect(g2); g2.connect(ctx.destination);
+  o2.start(); o2.stop(ctx.currentTime + .32);
+}
+
+// Sareena: ghostly chorus with vibrato + dark whisper noise
+function playSareenaCry() {
+  const ctx = getAC(); if (!ctx) return;
+  [185, 245, 310].forEach((f, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    // vibrato LFO
+    const lfo = ctx.createOscillator(), lfoG = ctx.createGain();
+    lfo.frequency.value = 5 + i * 1.5;
+    lfoG.gain.value = 10;
+    lfo.connect(lfoG); lfoG.connect(o.frequency);
+    const s = ctx.currentTime + i * .12;
+    lfo.start(s);
+    g.gain.setValueAtTime(0, s);
+    g.gain.linearRampToValueAtTime(.18, s + .35);
+    g.gain.exponentialRampToValueAtTime(.001, s + 1.3);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(s); o.stop(s + 1.3);
+    lfo.stop(s + 1.3);
+  });
+  // whispery breath through bandpass
+  const sr = ctx.sampleRate;
+  const buf = ctx.createBuffer(1, sr * 1.2, sr);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const t = i / sr;
+    const env = Math.sin(Math.PI * t / 1.2);
+    d[i] = (Math.random() * 2 - 1) * env * .18;
+  }
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const flt = ctx.createBiquadFilter(); flt.type = 'bandpass';
+  flt.frequency.value = 700; flt.Q.value = 2;
+  src.connect(flt); flt.connect(ctx.destination); src.start();
+}
+
+// Nightwolf: triple drum beat + wolf howl
+function playNightwolfCry() {
+  const ctx = getAC(); if (!ctx) return;
+  // tribal triple drum
+  [0, .15, .3].forEach(dt => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(105, ctx.currentTime + dt);
+    o.frequency.exponentialRampToValueAtTime(42, ctx.currentTime + dt + .14);
+    g.gain.setValueAtTime(.72, ctx.currentTime + dt);
+    g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + dt + .2);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(ctx.currentTime + dt); o.stop(ctx.currentTime + dt + .2);
+  });
+  // wolf howl after drums — rising tone with wide vibrato
+  setTimeout(() => {
+    const ctx2 = getAC(); if (!ctx2) return;
+    const o = ctx2.createOscillator(), g = ctx2.createGain();
+    o.type = 'sine';
+    const t0 = ctx2.currentTime;
+    o.frequency.setValueAtTime(280, t0);
+    o.frequency.exponentialRampToValueAtTime(520, t0 + .3);
+    o.frequency.exponentialRampToValueAtTime(360, t0 + .85);
+    const lfo = ctx2.createOscillator(), lfoG = ctx2.createGain();
+    lfo.frequency.value = 7; lfoG.gain.value = 35;
+    lfo.connect(lfoG); lfoG.connect(o.frequency);
+    lfo.start(t0);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(.32, t0 + .1);
+    g.gain.exponentialRampToValueAtTime(.001, t0 + .9);
+    o.connect(g); g.connect(ctx2.destination);
+    o.start(t0); o.stop(t0 + .9);
+    lfo.stop(t0 + .9);
+  }, 480);
+}
+
+const CHAR_CRIES = {
+  subzero:   playSubZeroCry,
+  kotal:     playKotalCry,
+  sareena:   playSareenaCry,
+  nightwolf: playNightwolfCry,
+};
+function playMiss() {
+  const ctx = getAC(); if (!ctx) return;
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(380, ctx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + .35);
+  g.gain.setValueAtTime(.18, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .35);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(); o.stop(ctx.currentTime + .35);
+}
+function playKO() {
+  const ctx = getAC(); if (!ctx) return;
+  [110, 70, 45].forEach((f, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    const s = ctx.currentTime + i * .04;
+    g.gain.setValueAtTime(.7, s);
+    g.gain.exponentialRampToValueAtTime(.001, s + 1.5);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(s); o.stop(s + 1.5);
+  });
+}
+function playVictoryFanfare() {
+  const ctx = getAC(); if (!ctx) return;
+  [523, 659, 784, 1047, 1319].forEach((f, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'triangle'; o.frequency.value = f;
+    const s = ctx.currentTime + i * .09;
+    g.gain.setValueAtTime(0, s);
+    g.gain.linearRampToValueAtTime(.18, s + .02);
+    g.gain.exponentialRampToValueAtTime(.001, s + .35);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(s); o.stop(s + .35);
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  AUDIO METER (mic level visualizer)
+// ═════════════════════════════════════════════════════════════════
+let audioCtx = null, analyser = null, audioStream = null, animId = null;
+async function startMeter() {
+  try {
+    audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    audioCtx    = new (window.AudioContext || window.webkitAudioContext)();
+    analyser    = audioCtx.createAnalyser();
+    analyser.fftSize = 128;
+    analyser.smoothingTimeConstant = 0.72;
+    audioCtx.createMediaStreamSource(audioStream).connect(analyser);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    const bars = document.querySelectorAll('.abar');
+    const step = Math.max(1, Math.floor(analyser.frequencyBinCount / 8));
+    function frame() {
+      analyser.getByteFrequencyData(data);
+      bars.forEach((b, i) => {
+        const v = data[i * step + 1] || 0;
+        const h = Math.max(4, (v / 255) * 36);
+        b.style.height = `${h}px`;
+        b.style.background = v > 180
+          ? 'linear-gradient(180deg,#ff5050,#c01010)'
+          : v > 90
+          ? 'linear-gradient(180deg,#ffd100,#c89538)'
+          : 'linear-gradient(180deg,#6a4818,#2a1808)';
+      });
+      animId = requestAnimationFrame(frame);
+    }
+    animId = requestAnimationFrame(frame);
+  } catch(e) { console.warn('meter:', e); }
+}
+function stopMeter() {
+  if (animId)      { cancelAnimationFrame(animId); animId = null; }
+  if (audioStream) { audioStream.getTracks().forEach(t => t.stop()); audioStream = null; }
+  if (audioCtx)    { try { audioCtx.close(); } catch {} audioCtx = null; }
+  analyser = null;
+  // reset bars to gray idle state (meter stays visible)
+  document.querySelectorAll('.abar').forEach(b => {
+    b.style.height = '6px';
+    b.style.background = 'linear-gradient(180deg,#3a2808 0%,#1a1208 100%)';
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  SPEECH RECOGNITION
+// ═════════════════════════════════════════════════════════════════
+const HAS_SR = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+let recognition = null, listening = false, lastInterim = '', answerSent = false;
+
+function updateMic(active) {
+  const btn = document.getElementById('mic-btn');
+  if (listening)   { btn.className = 'mic hot'; btn.disabled = false; }
+  else if (active) { btn.className = 'mic ready'; btn.disabled = false; }
+  else             { btn.className = 'mic off';   btn.disabled = true; }
+}
+function setHeard(txt, isFinal) {
+  const el = document.getElementById('heard-txt');
+  el.textContent = txt;
+  el.className = isFinal ? 'final' : '';
+}
+function micClick() {
+  if (state.phase !== 'player_turn') return;
+  if (listening) { stopListen(); return; }
+  if (HAS_SR) startListen();
+}
+function startListen() {
+  if (!HAS_SR) {
+    document.getElementById('no-voice').textContent = '⚠ Voice не поддерживается. Используй Chrome.';
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang            = 'en-US';
+  recognition.continuous      = true;
+  recognition.interimResults  = true;
+  recognition.maxAlternatives = 6;
+
+  lastInterim = '';
+  answerSent  = false;
+
+  recognition.onstart = () => {
+    listening = true;
+    updateMic(true);
+    startMeter();
+    setHeard('🎤 слушаю... (тапни 🎤 ещё раз когда закончил)');
+  };
+  recognition.onresult = e => {
+    let interim = '';
+    const alts = [];
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) {
+        for (let j = 0; j < e.results[i].length; j++) alts.push(e.results[i][j].transcript);
+      } else interim += e.results[i][0].transcript;
+    }
+    if (interim) {
+      lastInterim = interim.trim();
+      setHeard(`"${interim}"`);
+      // ── EARLY AUTO-SUBMIT: если interim уже правильный — засчитываем сразу
+      if (state.phase === 'player_turn' && state.currentPhrase
+          && checkAnswer(lastInterim, state.currentPhrase.answers)) {
+        submitAnswerOnce([lastInterim]);
+        try { recognition.stop(); } catch {}
+        return;
+      }
+    }
+    if (alts.length > 0) {
+      submitAnswerOnce(alts);
+      try { recognition.stop(); } catch {}
+    }
+  };
+  recognition.onerror = e => {
+    listening = false;
+    stopMeter();
+    updateMic(state.phase === 'player_turn');
+    const msgs = {
+      'not-allowed':   '⚠ Разреши доступ к микрофону',
+      'no-speech':     '⚠ Ничего не услышал — говори громче',
+      'network':       '⚠ Нет сети для распознавания',
+      'audio-capture': '⚠ Микрофон не найден',
+      'aborted':       '',
+    };
+    const msg = msgs[e.error] ?? `⚠ Ошибка: ${e.error}`;
+    if (msg) {
+      document.getElementById('no-voice').textContent = msg;
+      setTimeout(() => document.getElementById('no-voice').textContent = '', 3500);
+    }
+  };
+  recognition.onend = () => {
+    if (!answerSent && lastInterim) submitAnswerOnce([lastInterim]);
+    listening = false;
+    stopMeter();
+    updateMic(state.phase === 'player_turn');
+  };
+  try { recognition.start(); } catch (e) { console.warn('start failed:', e); }
+}
+function submitAnswerOnce(alts) {
+  if (answerSent) return;
+  answerSent = true;
+  setHeard(`→ "${alts[0]}"`, true);
+  setTimeout(() => setHeard(''), 1800);
+  // Route based on current screen — training has its own check
+  const screen = document.querySelector('.screen.on')?.id;
+  if (screen === 's-train') {
+    submitTrainAnswer(alts);
+  } else {
+    submitMyAnswer(alts);
+  }
+}
+
+// ─── TRAIN-MODE SPEECH CHECK ───
+function trainStartMic() {
+  if (!HAS_SR) {
+    document.getElementById('train-heard').style.display = '';
+    document.getElementById('train-heard').textContent = '⚠ Голосовой ввод не поддерживается. Используй Chrome.';
+    return;
+  }
+  if (listening) { stopListen(); return; }
+  document.getElementById('train-btn-speak').classList.add('listening');
+  document.getElementById('train-btn-speak').textContent = '🎙 СЛУШАЮ... (тапни ещё раз когда закончил)';
+  document.getElementById('train-heard').style.display = '';
+  document.getElementById('train-heard').style.color = '#c8a868';
+  document.getElementById('train-heard').textContent = '🎤 говори...';
+  startListen();
+}
+
+function submitTrainAnswer(alts) {
+  // reset speak button visual
+  const sb = document.getElementById('train-btn-speak');
+  sb.classList.remove('listening');
+  sb.textContent = '🎤 СКАЗАТЬ ПЕРЕВОД';
+
+  if (!trainCards.length || trainIdx >= trainCards.length) return;
+  const card    = trainCards[trainIdx];
+  const correct = (alts || []).some(a => checkAnswer(a, card.answers));
+  const spoken  = (alts || [])[0] || '';
+
+  const enEl    = document.getElementById('train-en');
+  const heardEl = document.getElementById('train-heard');
+
+  enEl.textContent = card.en;
+  enEl.classList.add('show');
+  enEl.classList.remove('train-wrong', 'train-correct');
+
+  if (correct) {
+    enEl.classList.add('train-correct');
+    heardEl.style.display = '';
+    heardEl.style.color = '#60ff60';
+    heardEl.textContent = `✓ услышал: "${spoken}"`;
+    speakEN(card.en);
+    // hide action buttons → just auto next
+    ['train-btn-listen','train-btn-speak','train-btn-know','train-btn-dunno']
+      .forEach(id => document.getElementById(id).style.display = 'none');
+    setTimeout(() => { trainIdx++; renderTrainCard(); }, 1800);
+  } else {
+    enEl.classList.add('train-wrong');
+    heardEl.style.display = '';
+    heardEl.style.color = '#ff8080';
+    heardEl.textContent = `✗ услышал: "${spoken || '—'}" — правильно так:`;
+    speakEN(card.en);
+    // hide intermediate buttons; show "Дальше"
+    ['train-btn-listen','train-btn-speak','train-btn-know','train-btn-dunno']
+      .forEach(id => document.getElementById(id).style.display = 'none');
+    document.getElementById('train-btn-next').style.display = '';
+  }
+}
+function stopListen() {
+  try { recognition?.stop(); } catch {}
+  listening = false;
+  updateMic(state.phase === 'player_turn');
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  LAYOUT
+// ═════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════
+//  PVP — Online 1v1 via Colyseus
+//  Setup: deploy pvp-server/ to Fly.io, then paste server URL below
+//  Without URL: PvP button shows error
+// ═════════════════════════════════════════════════════════════════
+const PVP_SERVER_URL = ''; // e.g. 'wss://english-kombat-pvp.fly.dev'
+let _colyseus = null, _pvpRoom = null;
+
+async function startPvP() {
+  if (!PVP_SERVER_URL) {
+    alert('🌐 PvP сервер ещё не настроен.\n\nРазверни pvp-server/ на Fly.io (см. инструкцию) и пропиши PVP_SERVER_URL в index.html.');
+    return;
+  }
+  const u = authCurrent();
+  if (!u) { show('s-login'); return; }
+  if (!u.character) {
+    alert('Сначала выбери персонажа');
+    startSelect();
+    return;
+  }
+  warmupAudio();
+  state.playerLevel = u.level || 1;
+  state.playerChar  = u.character;
+  setStatus('🌐 Подключаюсь к серверу...', 'mine');
+  show('s-battle');
+  document.getElementById('phrase-ru').textContent = '...';
+  document.getElementById('phrase-sub').textContent = 'Поиск соперника';
+
+  if (!window.Colyseus) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://unpkg.com/colyseus.js@^0.16.0/dist/colyseus.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  _colyseus = new Colyseus.Client(PVP_SERVER_URL);
+  try {
+    _pvpRoom = await _colyseus.joinOrCreate('fight', {
+      name:  u.username,
+      char:  u.character,
+      level: u.level || 1,
+    });
+    state.battleMode = 'voice';
+    state.isPvP = true;
+    document.querySelector('.meter-zone').style.display = '';
+    document.getElementById('cards-row').style.display  = 'none';
+    setupPvPHandlers();
+  } catch(e) {
+    console.warn('[pvp] connect failed:', e);
+    alert('Не удалось подключиться к PvP-серверу. Возвращаюсь в меню.');
+    goHome();
+  }
+}
+
+function setupPvPHandlers() {
+  if (!_pvpRoom) return;
+  // initial render + sync on state change
+  _pvpRoom.onStateChange(s => renderPvPState(s));
+  _pvpRoom.onMessage('result', m => {
+    const wasMine = m.playerId === _pvpRoom.sessionId;
+    showResult(m.correct, m.spoken, m.answer, wasMine);
+    if (m.correct) {
+      const ids = Array.from(_pvpRoom.state.players.keys());
+      const atkSide = (m.playerId === ids[0]) ? 'left' : 'right';
+      const defSide = atkSide === 'left' ? 'right' : 'left';
+      doPunch(atkSide, defSide);
+    } else {
+      playMiss();
+    }
+  });
+  _pvpRoom.onMessage('diff_up', m => showDiffUp(m.level));
+  _pvpRoom.onMessage('game_over', m => {
+    const iWin = m.winnerId === _pvpRoom.sessionId;
+    if (iWin) {
+      state.playerLevel = Math.min(10, state.playerLevel + 1);
+      const cur = authCurrent();
+      if (cur) authUpdate({ level: state.playerLevel, wins: (cur.wins || 0) + 1 });
+    } else {
+      const cur = authCurrent();
+      if (cur) authUpdate({ losses: (cur.losses || 0) + 1 });
+    }
+    const ids = Array.from(_pvpRoom.state.players.keys());
+    const winSide = m.winnerId === ids[0] ? 'left' : 'right';
+    doKO(winSide, winSide === 'left' ? 'right' : 'left');
+    document.getElementById('over-title').textContent = iWin ? '🏆 ПОБЕДА!' : '💀 ПОРАЖЕНИЕ';
+    document.getElementById('over-title').className   = `over-title ${iWin ? 'win' : 'lose'}`;
+    document.getElementById('over-sub').textContent   = iWin ? `${m.winnerName} избил соперника. Real talk.` : `${m.winnerName} оказался сильнее`;
+    setTimeout(() => show('s-over'), 2400);
+    _pvpRoom.leave();
+    _pvpRoom = null;
+  });
+  _pvpRoom.onLeave(() => { _pvpRoom = null; });
+}
+
+function renderPvPState(s) {
+  if (!s.players || s.players.size === 0) return;
+  const ids = Array.from(s.players.keys());
+  const me  = _pvpRoom.sessionId;
+  const myIdx = ids.indexOf(me);
+  const oppIdx = myIdx === 0 ? 1 : 0;
+  const myId  = ids[myIdx], oppId = ids[oppIdx];
+  const mp = s.players.get(myId);
+  const op = s.players.get(oppId);
+  if (!mp) return;
+  // mount my fighter on left, opp on right (uses already-rendered fighters with replacements)
+  document.getElementById('fi-left').innerHTML  = makeFighterSVG(mp.char || 'subzero');
+  document.getElementById('fi-right').innerHTML = op ? makeFighterSVG(op.char || 'kotal') : '';
+  document.getElementById('n-left').textContent  = mp.name;
+  document.getElementById('n-right').textContent = op ? (op.isBot ? `🤖 ${op.name}` : `🌐 ${op.name}`) : '...';
+  setHP('left',  mp.hp);
+  if (op) setHP('right', op.hp);
+  state.myHP = mp.hp;
+  state.botHP = op ? op.hp : 100;
+  // phase-driven UI
+  if (s.phase === 'waiting') {
+    setStatus('🌐 Жду соперника... (бот через 30с)', '');
+    document.getElementById('phrase-ru').textContent = '...';
+    document.getElementById('phrase-sub').textContent = '';
+  } else if (s.phase === 'countdown') {
+    document.getElementById('ov-cd').classList.add('on');
+    runPvPCountdown();
+  } else if (s.phase === 'turn') {
+    state.phase = 'player_turn';
+    state.currentPhrase = { ru: s.phraseRu, en: s.phraseEn, answers: [s.phraseEn] };
+    document.getElementById('phrase-card').className = 'phrase-card';
+    document.getElementById('phrase-ru').className   = 'phrase-ru';
+    document.getElementById('phrase-sub').className  = 'phrase-sub';
+    document.getElementById('phrase-ru').textContent = s.phraseRu;
+    if (mp.isActive) {
+      setStatus('⚔ ТВОЙ ХОД — ГОВОРИ!', 'mine');
+      document.getElementById('phrase-sub').textContent = '🎤 Скажи перевод';
+      setActiveTurn('left');
+      updateMic(true);
+      startTimer(8);
+      setTimeout(() => {
+        if (mp.isActive && !listening && HAS_SR) startListen();
+      }, 400);
+    } else {
+      setStatus(`🌐 Ход ${op?.name || 'соперника'}...`, '');
+      document.getElementById('phrase-sub').textContent = '⏳ Жди ответа';
+      setActiveTurn('right');
+      updateMic(false);
+      stopTimer();
+    }
+  }
+}
+
+function runPvPCountdown() {
+  // brief countdown overlay
+  let n = 3;
+  const el = document.getElementById('cdn-num');
+  const tick = () => {
+    if (n > 0) { el.textContent = n; n--; setTimeout(tick, 700); }
+    else { el.textContent = 'GO!'; setTimeout(() => document.getElementById('ov-cd').classList.remove('on'), 600); }
+  };
+  tick();
+}
+
+// in PvP mode submit goes to server, not local logic
+const _origSubmitMy = submitMyAnswer;
+submitMyAnswer = function(alts) {
+  if (state.isPvP && _pvpRoom) {
+    stopTimer();
+    _pvpRoom.send('answer', { alts, text: alts[0] || '' });
+    setStatus('⏳ Сервер проверяет...', '');
+    return;
+  }
+  _origSubmitMy(alts);
+};
+
+// ─── INIT — decide whether to show login or home on page load ───
+(function initAuth() {
+  const u = authCurrent();
+  if (u) {
+    // Check vitality first — if 0, show death modal BEFORE home
+    const vit = vitalityFor(u);
+    if (vit <= 0) {
+      show('s-home');
+      triggerDeath(u.username, u);
+    } else {
+      applyLoginState();
+      show('s-home');
+    }
+  } else {
+    show('s-login');
+  }
+})();
+
+// Also re-check vitality when tab regains focus (e.g. user comes back days later)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    const u = authCurrent();
+    if (u) {
+      const vit = vitalityFor(u);
+      if (vit <= 0) triggerDeath(u.username, u);
+      else renderVitality();
+    }
+  }
+});
+
+// goHome should refresh the user card with latest stats
+const _origGoHome = goHome;
+goHome = function() {
+  _origGoHome();
+  renderUserCard();
+  applyLoginState();
+};
+
+function layoutArena() {
+  const isMobile = window.innerWidth < 480;
+  const botH    = isMobile ? 230 : 260;
+  const maxH    = isMobile ? 380 : 440;
+  const minH    = isMobile ? 200 : 220;
+  const avail   = window.innerHeight - botH;
+  document.getElementById('arena').style.height = `${Math.min(maxH, Math.max(minH, avail))}px`;
+}
+layoutArena();
+window.addEventListener('resize', layoutArena);
+
+// preview fighters move in home screen too — they share .idle class
+</script>
+</body>
+</html>
