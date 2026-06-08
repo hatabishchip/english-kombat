@@ -1567,10 +1567,10 @@
 <div id="s-login" class="screen on">
   <div class="login-box">
     <div class="login-title">⚔ ENGLISH<br>KOMBAT</div>
-    <div class="login-sub">ВОЙДИ — ПРОГРЕСС СОХРАНИТСЯ</div>
-    <input id="login-name" class="field" type="text" placeholder="ИМЯ" maxlength="14" autocomplete="username">
-    <input id="login-pwd"  class="field" type="password" placeholder="ПАРОЛЬ" maxlength="20" autocomplete="current-password">
-    <button class="btn btn-gold" style="margin-top:6px" onclick="doLogin()">⚔ ВОЙТИ / РЕГИСТРАЦИЯ</button>
+    <div class="login-sub">ВВЕДИ ИМЯ — ПРОГРЕСС СОХРАНИТСЯ</div>
+    <input id="login-name" class="field" type="text" placeholder="ТВОЁ ИМЯ" maxlength="14" autocomplete="username">
+    <input id="login-pwd"  class="field" type="hidden" value="">
+    <button class="btn btn-gold" style="margin-top:10px" onclick="doLogin()">⚔ ИГРАТЬ</button>
     <div id="login-err" class="login-err"></div>
     <div id="login-saved-info" class="login-saved-info"></div>
   </div>
@@ -2383,13 +2383,12 @@ async function serverAuthPushProfile() {
 
 async function doLogin() {
   const u = document.getElementById('login-name').value.trim().toLowerCase();
-  const p = document.getElementById('login-pwd').value;
   const errEl = document.getElementById('login-err');
   errEl.textContent = '';
   if (u.length < 2) { errEl.textContent = '⚠ Имя минимум 2 символа'; return; }
-  if (!p)           { errEl.textContent = '⚠ Введи пароль'; return; }
   const data = authLoad();
-  const hash = await authHash(p);
+  // NO PASSWORD MODE — identity by name only, fixed hash
+  const hash = await authHash('nopass-v1');
 
   // 1. Try our SERVER first (Postgres-backed cross-device auth)
   const localProfile = data.users[u] || null;
@@ -2987,10 +2986,9 @@ function forceCharSelect() {
   startSelect();
 }
 
-// On Enter in login fields → submit
-document.getElementById('login-pwd').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+// On Enter in name field → enter the game
 document.getElementById('login-name').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('login-pwd').focus();
+  if (e.key === 'Enter') doLogin();
 });
 
 // ═════════════════════════════════════════════════════════════════

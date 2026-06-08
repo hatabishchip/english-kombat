@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>⚔ Kombat — слова (секрет)</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,Arial,sans-serif;background:#0a0814;color:#f0e8d0;padding:20px;min-height:100vh;}
+    h1{font-family:Impact,sans-serif;color:#ffd100;letter-spacing:2px;font-size:28px;margin-bottom:6px;text-shadow:0 0 12px rgba(255,209,0,.4);}
+    .sub{color:#888;font-size:13px;margin-bottom:20px;}
+    .container{max-width:1100px;margin:0 auto;}
+    input,select,textarea,button{font-family:inherit;font-size:14px;padding:8px 10px;background:rgba(0,0,0,.5);border:1.5px solid #6a4818;color:#f0e8d0;border-radius:4px;outline:none;}
+    input:focus,select:focus,textarea:focus{border-color:#ffd100;}
+    button{cursor:pointer;background:linear-gradient(180deg,#ffd100,#8a6010);color:#1a0e04;font-weight:bold;border:none;letter-spacing:.5px;transition:transform .08s;}
+    button:active{transform:scale(.97);}
+    button.danger{background:linear-gradient(180deg,#c83030,#5a0e0e);color:#fff;}
+    button.sm{padding:4px 8px;font-size:12px;}
+    .panel{background:rgba(20,12,4,.7);border:1.5px solid #6a4818;border-radius:6px;padding:16px;margin-bottom:14px;}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+    label{display:block;font-size:11px;color:#c8a868;margin-bottom:3px;letter-spacing:.5px;}
+    table{width:100%;border-collapse:collapse;font-size:13px;}
+    th{text-align:left;padding:8px;background:rgba(0,0,0,.6);color:#ffd100;font-weight:normal;letter-spacing:.5px;}
+    td{padding:8px;border-bottom:1px solid #2a1808;vertical-align:top;}
+    tr:hover td{background:rgba(255,209,0,.04);}
+    .filter-row{display:flex;gap:10px;margin-bottom:10px;align-items:center;flex-wrap:wrap;}
+    .filter-row input,.filter-row select{flex:0 0 auto;}
+    .filter-row input[type=search]{flex:1;min-width:160px;}
+    .stat{color:#888;font-size:12px;margin-left:8px;}
+    .err{color:#ff6060;font-size:12px;margin-top:8px;}
+    .ok{color:#60ff60;font-size:12px;margin-top:8px;}
+    @media (max-width:640px){.form-row{grid-template-columns:1fr;}th,td{padding:5px;font-size:12px;}}
+  </style>
+</head>
+<body>
+<div class="container">
+  <div id="main">
+    <h1>⚔ Слова игры</h1>
+    <div class="sub">Добавляй, редактируй и удаляй фразы для боёв. Вход без пароля — по секретной ссылке.</div>
+
+    <div class="panel">
+      <strong style="color:#ffd100">+ Новая фраза</strong>
+      <div style="height:8px"></div>
+      <div class="form-row">
+        <div><label>Русский</label><input id="add-ru" placeholder="Я хочу есть" /></div>
+        <div><label>English</label><input id="add-en" placeholder="I want to eat" /></div>
+      </div>
+      <div class="form-row">
+        <div><label>Альтернативы ответов (через `|`)</label><input id="add-alts" placeholder="i want to eat | i wanna eat | i want food" /></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><label>Сложность</label>
+            <select id="add-diff" style="width:100%">
+              <option value="easy">easy</option><option value="medium">medium</option><option value="hard">hard</option>
+            </select>
+          </div>
+          <div><label>Тема</label>
+            <select id="add-theme" style="width:100%">
+              <option value="general">general</option><option value="food">food</option><option value="clothes">clothes</option><option value="grooming">grooming</option><option value="home">home</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <button onclick="addPhrase()">ДОБАВИТЬ</button>
+      <div id="add-status" class="ok"></div>
+    </div>
+
+    <div class="panel" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:rgba(0,0,0,.35)">
+      <strong style="color:#ffd100">CSV</strong>
+      <button class="sm" onclick="exportCsv()">📥 Скачать все</button>
+      <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="importCsv(event)"/>
+      <button class="sm" onclick="document.getElementById('csv-file').click()">📤 Загрузить</button>
+      <span style="color:#888;font-size:11px">Колонки: ru, en, answers (через `|`), difficulty, theme</span>
+      <span id="csv-status" style="margin-left:auto;font-size:12px"></span>
+    </div>
+
+    <div class="filter-row">
+      <input type="search" id="search" placeholder="🔍 Поиск (русский или английский)" oninput="renderList()"/>
+      <select id="fdiff" onchange="renderList()">
+        <option value="">все сложности</option>
+        <option value="easy">easy</option><option value="medium">medium</option><option value="hard">hard</option>
+      </select>
+      <select id="ftheme" onchange="renderList()">
+        <option value="">все темы</option>
+        <option value="general">general</option><option value="food">food</option><option value="clothes">clothes</option><option value="grooming">grooming</option><option value="home">home</option>
+      </select>
+      <span class="stat" id="stat"></span>
+      <button class="sm" onclick="loadPhrases()" style="margin-left:auto">⟳ обновить</button>
+    </div>
+
+    <table>
+      <thead><tr><th style="width:40px">#</th><th>Русский</th><th>Английский</th><th>Альт.</th><th style="width:90px">Сложн.</th><th style="width:90px">Тема</th><th style="width:100px">Действия</th></tr></thead>
+      <tbody id="list"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// ── секретная ссылка вместо пароля ──
+const API = 'https://english-kombat-pvp.onrender.com';
+const PWD = 'kombat_fb26caa02d22b839';   // зашит, юзер ничего не вводит
+let ALL = [];
+
+window.addEventListener('load', loadPhrases);
+
+async function loadPhrases() {
+  document.getElementById('stat').textContent = 'загрузка...';
+  try {
+    const r = await fetch(`${API}/api/phrases`, { headers: { 'x-admin-password': PWD } });
+    const data = await r.json();
+    ALL = data.rows || [];
+    renderList();
+  } catch(e) {
+    document.getElementById('stat').textContent = '⚠ сервер недоступен (просыпается ~30с) — обнови';
+  }
+}
+
+function renderList() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const fd = document.getElementById('fdiff').value;
+  const ft = document.getElementById('ftheme').value;
+  const filtered = ALL.filter(p => {
+    if (fd && p.difficulty !== fd) return false;
+    if (ft && p.theme !== ft) return false;
+    if (q && !p.ru.toLowerCase().includes(q) && !p.en.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  document.getElementById('stat').textContent = `${filtered.length} из ${ALL.length}`;
+  document.getElementById('list').innerHTML = filtered.map(p => `
+    <tr data-id="${p.id}">
+      <td style="color:#888">${p.id}</td>
+      <td><input value="${esc(p.ru)}" data-f="ru" style="width:100%"/></td>
+      <td><input value="${esc(p.en)}" data-f="en" style="width:100%"/></td>
+      <td><input value="${esc((p.answers||[]).join(' | '))}" data-f="answers" style="width:100%"/></td>
+      <td><select data-f="difficulty" style="width:100%">
+        ${['easy','medium','hard'].map(d => `<option ${d===p.difficulty?'selected':''}>${d}</option>`).join('')}
+      </select></td>
+      <td><select data-f="theme" style="width:100%">
+        ${['general','food','clothes','grooming','home'].map(t => `<option ${t===p.theme?'selected':''}>${t}</option>`).join('')}
+      </select></td>
+      <td>
+        <button class="sm" onclick="saveRow(${p.id})">💾</button>
+        <button class="sm danger" onclick="delRow(${p.id})">🗑</button>
+      </td>
+    </tr>
+  `).join('');
+}
+function esc(s){return String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+
+function rowData(id){
+  const tr=document.querySelector(`tr[data-id="${id}"]`);const data={};
+  tr.querySelectorAll('[data-f]').forEach(el=>{
+    const k=el.dataset.f;let v=el.value;
+    if(k==='answers')v=v.split('|').map(s=>s.trim()).filter(Boolean);
+    data[k]=v;
+  });
+  return data;
+}
+async function saveRow(id){
+  const data=rowData(id);
+  const r=await fetch(`${API}/api/phrases/${id}`,{method:'PUT',headers:{'Content-Type':'application/json','x-admin-password':PWD},body:JSON.stringify(data)});
+  if(r.ok)loadPhrases();
+}
+async function delRow(id){
+  if(!confirm('Удалить фразу #'+id+'?'))return;
+  await fetch(`${API}/api/phrases/${id}`,{method:'DELETE',headers:{'x-admin-password':PWD}});
+  loadPhrases();
+}
+function exportCsv(){window.location=`${API}/api/phrases/export.csv?pwd=`+encodeURIComponent(PWD);}
+async function importCsv(e){
+  const file=e.target.files[0];if(!file)return;
+  const csv=await file.text();
+  const lineCount=csv.split('\n').filter(l=>l.trim()).length-1;
+  if(!confirm(`Импортировать ${lineCount} фраз из CSV?`)){e.target.value='';return;}
+  const status=document.getElementById('csv-status');
+  status.textContent='⏳ Загрузка...';status.style.color='#c8a868';
+  const r=await fetch(`${API}/api/phrases/import`,{method:'POST',headers:{'Content-Type':'application/json','x-admin-password':PWD},body:JSON.stringify({csv})});
+  const data=await r.json();
+  if(r.ok){
+    status.textContent=`✓ Добавлено: ${data.inserted} из ${data.totalRows}`+(data.errors?.length?` · ошибок: ${data.errors.length}`:'');
+    status.style.color=data.errors?.length?'#ffb040':'#60ff60';
+    loadPhrases();
+  }else{status.textContent=`⚠ ${data.error||'ошибка'}`;status.style.color='#ff6060';}
+  e.target.value='';
+}
+async function addPhrase(){
+  const ru=document.getElementById('add-ru').value.trim();
+  const en=document.getElementById('add-en').value.trim();
+  const alts=document.getElementById('add-alts').value.split('|').map(s=>s.trim()).filter(Boolean);
+  const diff=document.getElementById('add-diff').value;
+  const theme=document.getElementById('add-theme').value;
+  const status=document.getElementById('add-status');status.textContent='';
+  if(!ru||!en){status.textContent='⚠ ru и en обязательны';status.className='err';return;}
+  const r=await fetch(`${API}/api/phrases`,{method:'POST',headers:{'Content-Type':'application/json','x-admin-password':PWD},body:JSON.stringify({ru,en,answers:alts.length?alts:[en.toLowerCase()],difficulty:diff,theme})});
+  if(r.ok){
+    status.textContent='✓ добавлено';status.className='ok';
+    document.getElementById('add-ru').value='';
+    document.getElementById('add-en').value='';
+    document.getElementById('add-alts').value='';
+    loadPhrases();
+  }else{status.textContent='⚠ ошибка';status.className='err';}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07050d">
+<title>⚔ English Kombat — что внутри</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;500;700&family=Cinzel:wght@700;900&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  :root{
+    --gold:#ffd100; --gold-2:#c89538; --gold-dim:#8a6a2a;
+    --bg:#07050d; --ink:#ece4d2; --muted:#8a8270;
+    --red:#c83030; --green:#2aa84a;
+  }
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:'Oswald',system-ui,sans-serif;
+    background:
+      radial-gradient(ellipse at 50% -10%,rgba(120,70,180,.18) 0%,transparent 55%),
+      radial-gradient(ellipse at 50% 110%,rgba(200,149,56,.10) 0%,transparent 55%),
+      var(--bg);
+    background-attachment:fixed;
+    color:var(--ink);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:0 20px;}
+
+  /* ── HERO ── */
+  .hero{text-align:center;padding:72px 20px 40px;position:relative;}
+  .hero::before{
+    content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
+    width:600px;height:600px;max-width:120vw;
+    background:radial-gradient(circle,rgba(255,209,0,.10) 0%,transparent 60%);
+    pointer-events:none;z-index:-1;
+  }
+  .crest{font-size:46px;line-height:1;margin-bottom:8px;
+    filter:drop-shadow(0 0 18px rgba(255,209,0,.5));}
+  h1{
+    font-family:'Cinzel',serif;font-weight:900;
+    font-size:clamp(38px,9vw,76px);letter-spacing:.04em;line-height:.95;
+    color:var(--gold);
+    text-shadow:0 0 28px rgba(255,209,0,.45),0 4px 0 #5a4010,0 6px 12px rgba(0,0,0,.8);
+  }
+  .tagline{
+    font-size:clamp(13px,3.4vw,17px);letter-spacing:.28em;text-transform:uppercase;
+    color:var(--muted);margin-top:14px;font-weight:300;
+  }
+  .hero-cta{margin-top:30px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;
+    font-family:'Oswald',sans-serif;font-weight:700;font-size:15px;letter-spacing:.06em;
+    text-transform:uppercase;text-decoration:none;
+    padding:13px 24px;border-radius:6px;
+    transition:transform .12s ease,box-shadow .12s ease;
+  }
+  .btn:active{transform:translateY(2px);}
+  .btn-gold{
+    background:linear-gradient(180deg,var(--gold),var(--gold-dim));color:#1a0e04;
+    box-shadow:0 4px 0 #5a4010,0 8px 22px rgba(255,209,0,.25);
+  }
+  .btn-ghost{
+    background:rgba(255,255,255,.04);color:var(--gold);
+    border:1.5px solid rgba(200,149,56,.45);box-shadow:0 4px 18px rgba(0,0,0,.4);
+  }
+
+  /* ── DIVIDER ── */
+  .rule{
+    width:100%;max-width:520px;margin:18px auto;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(200,149,56,.5),transparent);
+  }
+
+  /* ── SECTION GRID ── */
+  .sections{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    gap:18px;padding:30px 0 10px;
+  }
+  .card{
+    background:linear-gradient(180deg,rgba(26,18,10,.85),rgba(10,6,3,.92));
+    border:1.5px solid rgba(106,74,24,.7);
+    border-radius:12px;padding:22px 22px 20px;
+    box-shadow:inset 0 0 0 1px rgba(200,149,56,.18),0 8px 26px rgba(0,0,0,.5);
+    position:relative;overflow:hidden;
+    opacity:0;transform:translateY(18px);
+    transition:opacity .6s ease,transform .6s ease;
+  }
+  .card.in{opacity:1;transform:none;}
+  .card::before{
+    content:'';position:absolute;inset:0 0 auto 0;height:2px;
+    background:linear-gradient(90deg,transparent,var(--gold),transparent);
+    opacity:.6;
+  }
+  .card-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .card-ico{
+    font-size:26px;width:46px;height:46px;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 35% 30%,rgba(255,209,0,.18),transparent 70%);
+    border:1.5px solid rgba(200,149,56,.5);border-radius:50%;
+    filter:drop-shadow(0 0 6px rgba(255,209,0,.3));
+  }
+  .card-title{
+    font-family:'Cinzel',serif;font-weight:700;font-size:19px;letter-spacing:.04em;
+    color:var(--gold);text-shadow:0 1px 2px #000;
+  }
+  ul.feat{list-style:none;display:flex;flex-direction:column;gap:9px;}
+  ul.feat li{
+    position:relative;padding-left:22px;font-size:15px;color:var(--ink);font-weight:300;
+  }
+  ul.feat li::before{
+    content:'';position:absolute;left:2px;top:9px;
+    width:7px;height:7px;border-radius:50%;
+    background:var(--gold);box-shadow:0 0 6px rgba(255,209,0,.7);
+  }
+  ul.feat li b{font-weight:700;color:#fff;}
+
+  /* span full width for the two-column big ones if needed */
+  .card.wide{grid-column:1/-1;}
+
+  /* ── LINKS BLOCK ── */
+  .links{
+    margin:34px 0 10px;padding:26px;border-radius:14px;text-align:center;
+    background:linear-gradient(180deg,rgba(40,26,12,.6),rgba(10,6,3,.85));
+    border:1.5px solid rgba(200,149,56,.4);
+    box-shadow:inset 0 0 30px rgba(0,0,0,.5);
+  }
+  .links h2{
+    font-family:'Cinzel',serif;font-weight:900;font-size:24px;color:var(--gold);
+    letter-spacing:.05em;margin-bottom:6px;
+  }
+  .links p{color:var(--muted);font-size:14px;margin-bottom:18px;font-weight:300;}
+  .link-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+  .link-card{
+    text-decoration:none;display:flex;flex-direction:column;gap:2px;
+    padding:14px 22px;border-radius:8px;min-width:240px;
+    background:rgba(0,0,0,.4);border:1.5px solid rgba(106,74,24,.7);
+    transition:border-color .15s,transform .12s;
+  }
+  .link-card:hover{border-color:var(--gold);transform:translateY(-2px);}
+  .link-card .lc-label{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+  .link-card .lc-url{font-size:16px;font-weight:700;color:var(--gold);}
+
+  /* ── FOOTER ── */
+  footer{text-align:center;padding:40px 20px 60px;color:var(--muted);font-size:13px;font-weight:300;}
+  footer .crest-sm{font-size:20px;filter:drop-shadow(0 0 8px rgba(255,209,0,.4));margin-bottom:6px;}
+
+  /* float dust */
+  @keyframes drift{
+    0%{transform:translateY(0) translateX(0);opacity:0;}
+    10%{opacity:.5;}90%{opacity:.5;}
+    100%{transform:translateY(-120px) translateX(var(--dx,20px));opacity:0;}
+  }
+  .dust{position:fixed;bottom:-10px;width:3px;height:3px;border-radius:50%;
+    background:rgba(200,149,56,.6);pointer-events:none;z-index:-1;
+    animation:drift linear infinite;}
+</style>
+</head>
+<body>
+
+<!-- floating dust -->
+<div class="dust" style="left:12%;--dx:30px;animation-duration:11s;animation-delay:0s"></div>
+<div class="dust" style="left:34%;--dx:-20px;animation-duration:14s;animation-delay:3s"></div>
+<div class="dust" style="left:58%;--dx:25px;animation-duration:12s;animation-delay:6s"></div>
+<div class="dust" style="left:78%;--dx:-30px;animation-duration:15s;animation-delay:2s"></div>
+<div class="dust" style="left:90%;--dx:15px;animation-duration:13s;animation-delay:8s"></div>
+
+<header class="hero">
+  <div class="crest">⚔</div>
+  <h1>ENGLISH<br>KOMBAT</h1>
+  <div class="tagline">Учишь английский — или получаешь по голове</div>
+  <div class="hero-cta">
+    <a class="btn btn-gold" href="https://english-kombat.vercel.app">▶ Играть</a>
+    <a class="btn btn-ghost" href="#features">Что внутри</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="rule"></div>
+
+  <section id="features" class="sections">
+
+    <div class="card">
+      <div class="card-head"><div class="card-ico">🥊</div><div class="card-title">Бой</div></div>
+      <ul class="feat">
+        <li>Живая драка вместо ходов по очереди: задание висит на экране, <b>перевёл — сразу бьёшь</b></li>
+        <li>Таймера на перевод нет — думаешь сколько нужно</li>
+        <li>Соперник думает пару секунд перед ударом, видно как замахивается — <b>можно успеть первым</b></li>
+        <li>После удара над персонажем кружат птички и секунду он приходит в себя</li>
+        <li>Чем сложнее уровень — тем быстрее бьёт соперник</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-ico">🗺️</div><div class="card-title">Карта и локации</div></div>
+      <ul class="feat">
+        <li>Карта города с четырьмя местами: <b>столовая, магазин одежды, парикмахерская, дом</b></li>
+        <li>Места открываются по очереди, закрытые — с замком</li>
+        <li>Идёшь по карте пальцем — ведёшь, и человечек шагает</li>
+        <li>В каждом месте свои слова по теме: еда, одежда, стрижка, свидание</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-ico">🧑‍🎤</div><div class="card-title">Герой и обучение</div></div>
+      <ul class="feat">
+        <li>Экран выбора бойца: <b>четыре персонажа в стиле Мортал Комбата</b>, листаешь вбок</li>
+        <li>Перед боем можно потренироваться: послушать слово и повторить голосом</li>
+        <li>Два способа играть: говорить голосом или выбирать карточки</li>
+        <li>Подсказки на первые четыре боя для новичков</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-ico">📈</div><div class="card-title">Профиль и прогресс</div></div>
+      <ul class="feat">
+        <li>Вход по логину и паролю</li>
+        <li>Сохраняется уровень, герой и статистика</li>
+        <li><b>Один прогресс на всех устройствах</b> — телефон и компьютер совпадают</li>
+        <li>Долго не заходишь — герой слабеет и в итоге обнуляется, надо возвращаться</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-ico">🌐</div><div class="card-title">Игра против живых людей</div></div>
+      <ul class="feat">
+        <li>Бои один на один с реальными игроками; нет соперника полминуты — ставим компьютерного</li>
+        <li>Подбор по силе: <b>новички с новичками, опытные с опытными</b></li>
+        <li>Личный рейтинг</li>
+        <li>Общая таблица лучших игроков</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-ico">🤝</div><div class="card-title">Друзья и команды</div></div>
+      <ul class="feat">
+        <li>Добавить друга по нику, видеть его в списке с рейтингом</li>
+        <li>Создать команду, вступить или выйти</li>
+        <li>Таблица лучших команд</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-ico">🔊</div><div class="card-title">Звук</div></div>
+      <ul class="feat">
+        <li>Свой звук при выборе каждого героя</li>
+        <li>Звуки ударов, шагов, скрип двери при входе</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-ico">⚙️</div><div class="card-title">Что под капотом</div></div>
+      <ul class="feat">
+        <li>Запущен игровой сервер за границей</li>
+        <li>Хранилище для рейтингов, заданий и профилей</li>
+        <li><b>Панель</b>, где можно добавлять новые слова и задания самому, без программиста, и загружать их пачкой</li>
+      </ul>
+    </div>
+
+  </section>
+
+  <section class="links">
+    <h2>Ссылки</h2>
+    <p>Заходи и кидай партнёру</p>
+    <div class="link-row">
+      <a class="link-card" href="https://english-kombat.vercel.app">
+        <span class="lc-label">Игра</span>
+        <span class="lc-url">english-kombat.vercel.app</span>
+      </a>
+      <a class="link-card" href="https://english-kombat-pvp.onrender.com/admin">
+        <span class="lc-label">Панель для слов</span>
+        <span class="lc-url">…onrender.com/admin</span>
+      </a>
+    </div>
+  </section>
+</div>
+
+<footer>
+  <div class="crest-sm">⚔</div>
+  English Kombat · Duolingo × Mortal Kombat × Kahoot
+</footer>
+
+<script>
+  // reveal cards on scroll
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach((e,i)=>{ if(e.isIntersecting){ e.target.style.transitionDelay=(i%3*0.06)+'s'; e.target.classList.add('in'); io.unobserve(e.target);} });
+  },{threshold:.12});
+  document.querySelectorAll('.card').forEach(c=>io.observe(c));
+</script>
+</body>
+</html>
