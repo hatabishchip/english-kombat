@@ -4142,7 +4142,7 @@ function stopListen() {
 //  Setup: deploy pvp-server/ to Fly.io, then paste server URL below
 //  Without URL: PvP button shows error
 // ═════════════════════════════════════════════════════════════════
-const PVP_SERVER_URL = ''; // e.g. 'wss://english-kombat-pvp.fly.dev'
+const PVP_SERVER_URL = 'wss://english-kombat-pvp.onrender.com';
 let _colyseus = null, _pvpRoom = null;
 
 async function startPvP() {
@@ -4174,11 +4174,17 @@ async function startPvP() {
     });
   }
   _colyseus = new Colyseus.Client(PVP_SERVER_URL);
+  const computeBracket = (lvl) => lvl >= 6 ? 2 : 1;
+  const lvl = u.level || 1;
+  const bracket = computeBracket(lvl);
+  const bracketName = bracket === 1 ? 'НОВИЧКИ (1-5)' : 'ОПЫТНЫЕ (6-10)';
+  setStatus(`🌐 Подключаюсь к лиге ${bracketName}...`, 'mine');
   try {
     _pvpRoom = await _colyseus.joinOrCreate('fight', {
-      name:  u.username,
-      char:  u.character,
-      level: u.level || 1,
+      name:    u.username,
+      char:    u.character,
+      level:   lvl,
+      bracket: bracket,
     });
     state.battleMode = 'voice';
     state.isPvP = true;
@@ -4253,7 +4259,10 @@ function renderPvPState(s) {
   state.botHP = op ? op.hp : 100;
   // phase-driven UI
   if (s.phase === 'waiting') {
-    setStatus('🌐 Жду соперника... (бот через 30с)', '');
+    const u = authCurrent();
+    const lvl = u?.level || 1;
+    const bracket = lvl >= 6 ? 'ОПЫТНЫЕ' : 'НОВИЧКИ';
+    setStatus(`🌐 Лига ${bracket} · жду соперника (бот через 30с)`, '');
     document.getElementById('phrase-ru').textContent = '...';
     document.getElementById('phrase-sub').textContent = '';
   } else if (s.phase === 'countdown') {

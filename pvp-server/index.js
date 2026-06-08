@@ -33,19 +33,24 @@ type('string')(FightState.prototype, 'winnerId');
 class FightRoom extends Room {
   onCreate(opts) {
     this.maxClients = 2;
+    this.bracket = opts.bracket || 1;          // skill bracket — see computeBracket
     this.state = new FightState();
     this.state.phase = 'waiting';
     this.state.difficulty = 'easy';
+    // ELO seed: easier difficulty for bracket 1, harder for bracket 2
+    if (this.bracket >= 2) this.state.difficulty = 'medium';
     this.usedIds = new Set();
     this.correctCount = 0;
     this.turnTimeout = null;
     this.botFillTimeout = null;
+    this.setMetadata({ bracket: this.bracket });
     this.onMessage('answer', (client, msg) => this.handleAnswer(client, msg));
     this.onMessage('leave', (client) => this.disconnect());
+    console.log(`[room ${this.roomId}] created (bracket ${this.bracket})`);
 
     // bot-fill after 30 seconds if no opponent joins
     this.botFillTimeout = setTimeout(() => {
-      if (Object.keys(this.state.players).length < 2 && this.state.phase === 'waiting') {
+      if (this.state.players.size < 2 && this.state.phase === 'waiting') {
         this.addBot();
       }
     }, 30000);
@@ -236,7 +241,8 @@ const gameServer = new Server({
   transport: new WebSocketTransport({ server: httpServer }),
 });
 
-gameServer.define('fight', FightRoom);
+// .filterBy(['bracket']) → Colyseus auto-matches clients to rooms with same bracket
+gameServer.define('fight', FightRoom).filterBy(['bracket']);
 
 const PORT = process.env.PORT || 2567;
 gameServer.listen(PORT).then(() => {
