@@ -217,27 +217,28 @@ type('string')(FightState.prototype, 'winnerId');
 class FightRoom extends Room {
   onCreate(opts) {
     this.maxClients = 2;
-    this.bracket = opts.bracket || 1;          // skill bracket — see computeBracket
+    this.bracket = opts.bracket || 1;
+    this.code    = opts.code || null;     // private-challenge code (6 chars)
     this.state = new FightState();
     this.state.phase = 'waiting';
     this.state.difficulty = 'easy';
-    // ELO seed: easier difficulty for bracket 1, harder for bracket 2
     if (this.bracket >= 2) this.state.difficulty = 'medium';
     this.usedIds = new Set();
     this.correctCount = 0;
     this.turnTimeout = null;
     this.botFillTimeout = null;
-    this.setMetadata({ bracket: this.bracket });
+    this.setMetadata({ bracket: this.bracket, code: this.code });
     this.onMessage('answer', (client, msg) => this.handleAnswer(client, msg));
     this.onMessage('leave', (client) => this.disconnect());
-    console.log(`[room ${this.roomId}] created (bracket ${this.bracket})`);
+    console.log(`[room ${this.roomId}] created (bracket=${this.bracket}, code=${this.code || '-'})`);
 
-    // bot-fill after 30 seconds if no opponent joins
+    // bot-fill: 30s for public, 90s for private challenge (give friend time to click link)
+    const botFillMs = this.code ? 90000 : 30000;
     this.botFillTimeout = setTimeout(() => {
       if (this.state.players.size < 2 && this.state.phase === 'waiting') {
         this.addBot();
       }
-    }, 30000);
+    }, botFillMs);
   }
 
   onJoin(client, opts) {
@@ -879,8 +880,8 @@ const gameServer = new Server({
   transport: new WebSocketTransport({ server: httpServer }),
 });
 
-// .filterBy(['bracket']) → Colyseus auto-matches clients to rooms with same bracket
-gameServer.define('fight', FightRoom).filterBy(['bracket']);
+// filterBy bracket + code: public rooms match by bracket, private rooms match by code
+gameServer.define('fight', FightRoom).filterBy(['bracket', 'code']);
 
 const PORT = process.env.PORT || 2567;
 (async () => {

@@ -2694,12 +2694,13 @@ async function loadFriends() {
       return;
     }
     listEl.innerHTML = friends.map(f => `
-      <div style="display:flex;gap:8px;align-items:center;padding:6px 8px;background:rgba(0,0,0,.4);border-radius:4px">
-        <div style="flex:1">
+      <div style="display:flex;gap:6px;align-items:center;padding:6px 8px;background:rgba(0,0,0,.4);border-radius:4px">
+        <div style="flex:1;min-width:0">
           <div style="font-family:'Impact',sans-serif;color:#ffd100;font-size:13px">${f.name?.toUpperCase()}</div>
           <div style="color:#888;font-size:10px">${CHARS[f.character]?.name || ''} · LVL ${f.level} · 🏆 ${f.wins}</div>
         </div>
-        <div style="color:#ffd100;font-family:Impact,sans-serif;font-size:14px">${f.elo}</div>
+        <div style="color:#ffd100;font-family:Impact,sans-serif;font-size:14px;margin-right:4px">${f.elo}</div>
+        <button class="btn btn-red" style="font-size:11px;padding:4px 8px;margin:0;width:auto" onclick="challengeFriend('${f.name}')">⚔</button>
         <button class="btn btn-dark" style="font-size:11px;padding:4px 8px;margin:0;width:auto" onclick="friendRemove('${f.name}')">✕</button>
       </div>
     `).join('');
@@ -2707,6 +2708,45 @@ async function loadFriends() {
     listEl.innerHTML = '<div style="color:#ff6060;font-size:12px">⚠ Сервер недоступен</div>';
   }
 }
+function genChallengeCode() {
+  // 6 char alphanumeric (no ambiguous: 0/O/1/I)
+  const ch = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({length:6}, () => ch[Math.floor(Math.random()*ch.length)]).join('');
+}
+
+async function challengeFriend(friendName) {
+  const code = genChallengeCode();
+  stopChatPolling();
+  await startPvP({ code });
+}
+
+function copyChallengeLink(url) {
+  navigator.clipboard?.writeText(url).then(() => {
+    alert('Ссылка скопирована — отправь другу');
+  }).catch(() => {
+    prompt('Скопируй вручную:', url);
+  });
+}
+
+// Auto-join from URL parameter ?join=CODE
+(function checkJoinParam() {
+  const params = new URLSearchParams(location.search);
+  const code = params.get('join');
+  if (!code) return;
+  // wait for auth + character to be ready
+  setTimeout(() => {
+    const u = authCurrent();
+    if (!u) return;
+    if (!u.character) {
+      alert('Войди и выбери персонажа, чтобы принять вызов');
+      return;
+    }
+    // clear param from URL so reload doesn't re-trigger
+    history.replaceState({}, '', location.pathname);
+    startPvP({ code });
+  }, 800);
+})();
+
 async function friendAdd() {
   const name = document.getElementById('social-friend-input').value.trim().toLowerCase();
   if (!name) return;
@@ -4539,7 +4579,7 @@ function stopListen() {
 const PVP_SERVER_URL = 'wss://english-kombat-pvp.onrender.com';
 let _colyseus = null, _pvpRoom = null;
 
-async function startPvP() {
+async function startPvP(opts = {}) {
   if (!PVP_SERVER_URL) {
     alert('🌐 PvP сервер ещё не настроен.\n\nРазверни pvp-server/ на Fly.io (см. инструкцию) и пропиши PVP_SERVER_URL в index.html.');
     return;
@@ -4554,10 +4594,13 @@ async function startPvP() {
   warmupAudio();
   state.playerLevel = u.level || 1;
   state.playerChar  = u.character;
-  setStatus('🌐 Подключаюсь к серверу...', 'mine');
+  const challengeCode = opts.code || null;
+  setStatus(challengeCode
+    ? `⚔ Приватный вызов · код ${challengeCode}`
+    : '🌐 Подключаюсь к серверу...', 'mine');
   show('s-battle');
   document.getElementById('phrase-ru').textContent = '...';
-  document.getElementById('phrase-sub').textContent = 'Поиск соперника';
+  document.getElementById('phrase-sub').textContent = challengeCode ? 'Ждём друга' : 'Поиск соперника';
 
   if (!window.Colyseus) {
     await new Promise((res, rej) => {
@@ -4574,13 +4617,24 @@ async function startPvP() {
   const bracketName = bracket === 1 ? 'НОВИЧКИ (1-5)' : 'ОПЫТНЫЕ (6-10)';
   setStatus(`🌐 Подключаюсь к лиге ${bracketName}...`, 'mine');
   try {
-    _pvpRoom = await _colyseus.joinOrCreate('fight', {
+    const joinOpts = {
       name:    u.username,
       char:    u.character,
       level:   lvl,
       elo:     u.elo || 1000,
-      bracket: bracket,
-    });
+    };
+    if (challengeCode) {
+      joinOpts.code = challengeCode;     // private filter — only matches another player with same code
+    } else {
+      joinOpts.bracket = bracket;        // public matchmaking by skill bracket
+    }
+    _pvpRoom = await _colyseus.joinOrCreate('fight', joinOpts);
+    // private challenge: show share-link UI while waiting
+    if (challengeCode) {
+      const shareUrl = `${location.origin}${location.pathname}?join=${challengeCode}`;
+      const overlay = document.getElementById('phrase-sub');
+      overlay.innerHTML = `Поделись ссылкой с другом:<br><span style="color:#ffd100;font-family:monospace;font-size:11px">${shareUrl}</span><br><button class="btn btn-gold" style="font-size:11px;padding:4px 10px;width:auto;margin-top:4px" onclick="copyChallengeLink('${shareUrl}')">📋 Копировать</button>`;
+    }
     state.battleMode = 'voice';
     state.isPvP = true;
     document.querySelector('.meter-zone').style.display = '';
