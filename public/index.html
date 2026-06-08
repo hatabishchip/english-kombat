@@ -3771,8 +3771,7 @@ function startTurn() {           // entry point from countdown — starts the br
   state.resolving = false;
   stopTimer();
   document.getElementById('timer').textContent = '';
-  presentPhrase();
-  scheduleBotAttack();
+  presentPhrase();              // presentPhrase arms the single bot-attack timer
 }
 
 function presentPhrase() {
@@ -3803,6 +3802,7 @@ function presentPhrase() {
       if (state.acceptingAnswer && HAS_SR && !listening) startListen();
     }, 300);
   }
+  scheduleBotAttack();           // single source of truth — re-armed on every fresh phrase
 }
 
 function scheduleBotAttack() {
@@ -3838,8 +3838,7 @@ function botStrike() {
 
   setTimeout(() => {
     if (state.phase === 'game_over') return;
-    presentPhrase();
-    scheduleBotAttack();
+    presentPhrase();              // re-arms bot timer itself
   }, 560 + 1000);     // punch windup + 1s stun
 }
 
