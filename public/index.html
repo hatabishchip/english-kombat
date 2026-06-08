@@ -1468,6 +1468,22 @@
 </head>
 <body>
 
+<!-- ── GLOBAL CHAT ────────────────────────────────── -->
+<div id="s-global-chat" class="screen">
+  <div style="font-family:'Impact',sans-serif;font-size:28px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 12px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-bottom:4px">🌐 ГЛОБАЛЬНЫЙ ЧАТ</div>
+  <div style="font-family:sans-serif;font-size:11px;color:#888;letter-spacing:1.5px;margin-bottom:14px">ВСЕ ИГРОКИ В ОДНОМ КАНАЛЕ</div>
+
+  <div style="width:100%;max-width:480px;padding:12px;background:rgba(20,12,4,.7);border:1.5px solid #6a4818;border-radius:6px;margin-bottom:10px">
+    <div id="global-chat-messages" style="max-height:55vh;min-height:300px;overflow-y:auto;background:rgba(0,0,0,.55);border:1px solid #2a1808;border-radius:4px;padding:8px;display:flex;flex-direction:column;gap:6px;font-size:13px"></div>
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <input id="global-chat-input" type="text" maxlength="300" placeholder="написать всем..." style="flex:1;padding:8px 10px;background:rgba(0,0,0,.5);border:1.5px solid #6a4818;color:#f0e8d0;border-radius:4px;font-family:inherit;font-size:13px" onkeydown="if(event.key==='Enter')sendGlobalMsg()"/>
+      <button class="btn btn-gold" style="padding:8px 16px;font-size:13px;width:auto;margin:0" onclick="sendGlobalMsg()">→</button>
+    </div>
+  </div>
+
+  <button class="btn btn-dark" style="font-size:14px;max-width:200px" onclick="goHome()">← НАЗАД</button>
+</div>
+
 <!-- ── SOCIAL — friends & clans ──────────────────── -->
 <div id="s-social" class="screen">
   <div style="font-family:'Impact',sans-serif;font-size:28px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 12px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-bottom:4px">👥 ДРУЗЬЯ И КЛАН</div>
@@ -1571,6 +1587,7 @@
   <button id="btn-pvp" class="btn btn-listen" onclick="startPvP()">🌐 ОНЛАЙН-БОЙ (PvP)</button>
   <button class="btn btn-dark" style="font-size:13px" onclick="showLeaderboard()">🏆 ЛИДЕРБОРД</button>
   <button class="btn btn-dark" style="font-size:13px" onclick="showSocial()">👥 ДРУЗЬЯ И КЛАН</button>
+  <button class="btn btn-dark" style="font-size:13px" onclick="showGlobalChat()">🌐 ГЛОБАЛЬНЫЙ ЧАТ</button>
   <button id="btn-change-char" class="btn btn-dark" style="font-size:13px;display:none" onclick="forceCharSelect()">СМЕНИТЬ ПЕРСОНАЖА</button>
   <button class="btn" style="background:rgba(255,255,255,.08);color:#c8a868;font-size:13px;padding:9px;max-width:280px;border:1.5px solid rgba(200,149,56,.4)" onclick="testSound()">🔊 ПРОВЕРИТЬ ЗВУК</button>
   <button class="btn" style="background:transparent;color:#666;font-size:11px;padding:4px;max-width:280px;border:none;text-decoration:underline;margin-top:6px" onclick="doLogout()">выйти</button>
@@ -2597,6 +2614,73 @@ function appendChatMessages(msgs) {
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+
+// ─── GLOBAL CHAT ───
+let _globalChatLastId = 0;
+let _globalChatPollTimer = null;
+
+async function showGlobalChat() {
+  show('s-global-chat');
+  document.getElementById('global-chat-messages').innerHTML = '';
+  _globalChatLastId = 0;
+  await pollGlobalChat();
+  startGlobalChatPolling();
+}
+function stopGlobalChatPolling() {
+  if (_globalChatPollTimer) { clearInterval(_globalChatPollTimer); _globalChatPollTimer = null; }
+}
+function startGlobalChatPolling() {
+  stopGlobalChatPolling();
+  _globalChatPollTimer = setInterval(async () => {
+    if (document.querySelector('.screen.on')?.id !== 's-global-chat') {
+      stopGlobalChatPolling();
+      return;
+    }
+    await pollGlobalChat();
+  }, 3000);
+}
+async function pollGlobalChat() {
+  if (!pvpHttpUrl()) return;
+  try {
+    const r = await fetch(`${pvpHttpUrl()}/api/chat/global?since=${_globalChatLastId}`);
+    if (!r.ok) return;
+    const data = await r.json();
+    if (data.messages?.length) {
+      appendGlobalMessages(data.messages);
+      _globalChatLastId = Math.max(_globalChatLastId, ...data.messages.map(m => m.id));
+    }
+  } catch(e) {}
+}
+function appendGlobalMessages(msgs) {
+  const box = document.getElementById('global-chat-messages');
+  if (!box) return;
+  const me = authCurrent()?.username;
+  const wasAtBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 30;
+  for (const m of msgs) {
+    const mine = m.username === me;
+    const time = new Date(m.created_at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+    const html = `<div style="display:flex;gap:6px;align-items:flex-start;${mine ? 'background:rgba(255,209,0,.08);border-radius:4px;padding:3px 5px' : ''}">
+      <span style="color:${mine ? '#ffd100' : '#c8a868'};font-weight:bold;font-family:'Impact',sans-serif;letter-spacing:.5px;flex-shrink:0">${m.username?.toUpperCase()}:</span>
+      <span style="flex:1;color:#f0e8d0;word-break:break-word">${escapeHtml(m.text)}</span>
+      <span style="color:#555;font-size:10px;flex-shrink:0">${time}</span>
+    </div>`;
+    box.insertAdjacentHTML('beforeend', html);
+  }
+  if (wasAtBottom) box.scrollTop = box.scrollHeight;
+}
+async function sendGlobalMsg() {
+  const inp = document.getElementById('global-chat-input');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  const r = await authedFetch('/api/chat/global', { body: JSON.stringify({ text }) });
+  if (r.status === 429) {
+    inp.placeholder = '⏳ помедленнее...';
+    setTimeout(() => { inp.placeholder = 'написать всем...'; }, 1500);
+    return;
+  }
+  pollGlobalChat();
 }
 
 async function sendClanMsg() {

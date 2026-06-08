@@ -80,6 +80,15 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS clan_messages_clan_idx ON clan_messages (clan_id, id DESC);
+
+    -- global chat
+    CREATE TABLE IF NOT EXISTS global_messages (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL,
+      text TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS global_messages_idx ON global_messages (id DESC);
   `);
   // seed if empty
   const { rows } = await pgPool.query('SELECT COUNT(*)::int AS c FROM phrases');
@@ -819,6 +828,33 @@ app.get('/api/clans/:tag/members', async (req, res) => {
   );
   res.json({ members: rows });
 });
+// ─── GLOBAL CHAT (HTTP polling) ───
+const lastGlobalMsg = new Map();
+app.post('/api/chat/global', async (req, res) => {
+  const me = await authUserFromReq(req);
+  if (!me) return res.status(401).json({ error: 'auth' });
+  const text = (req.body.text || '').trim().slice(0, 300);
+  if (!text) return res.status(400).json({ error: 'empty' });
+  const now = Date.now();
+  if (now - (lastGlobalMsg.get(me) || 0) < 1500) return res.status(429).json({ error: 'slow' });
+  lastGlobalMsg.set(me, now);
+  const { rows } = await pgPool.query(
+    `INSERT INTO global_messages (username, text) VALUES ($1, $2) RETURNING *`,
+    [me, text]
+  );
+  res.json({ ok: true, message: rows[0] });
+});
+app.get('/api/chat/global', async (req, res) => {
+  if (!pgPool) return res.json({ messages: [] });
+  const since = parseInt(req.query.since) || 0;
+  const { rows } = await pgPool.query(
+    `SELECT id, username, text, created_at FROM global_messages
+     WHERE id > $1 ORDER BY id DESC LIMIT 100`,
+    [since]
+  );
+  res.json({ messages: rows.reverse() });
+});
+
 // ─── CLAN CHAT (HTTP polling) ───
 // Simple rate-limit per user (1 message per 1.5s)
 const lastMsgTime = new Map();
