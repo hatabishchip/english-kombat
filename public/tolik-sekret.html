@@ -30,6 +30,31 @@
     .err{color:#ff6060;font-size:12px;margin-top:8px;}
     .ok{color:#60ff60;font-size:12px;margin-top:8px;}
     @media (max-width:640px){.form-row{grid-template-columns:1fr;}th,td{padding:5px;font-size:12px;}}
+
+    /* ── features / what's done ── */
+    .feat-head{font-family:Impact,sans-serif;color:#ffd100;letter-spacing:2px;font-size:24px;
+      margin:40px 0 4px;text-shadow:0 0 12px rgba(255,209,0,.4);}
+    .feat-head-sub{color:#888;font-size:13px;margin-bottom:18px;}
+    .feat-rule{height:1px;background:linear-gradient(90deg,transparent,rgba(200,149,56,.5),transparent);margin:0 0 22px;}
+    .feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;}
+    .feat-card{
+      background:linear-gradient(180deg,rgba(26,18,10,.85),rgba(10,6,3,.92));
+      border:1.5px solid rgba(106,74,24,.7);border-radius:12px;padding:20px;
+      box-shadow:inset 0 0 0 1px rgba(200,149,56,.18),0 8px 26px rgba(0,0,0,.5);
+      position:relative;overflow:hidden;
+    }
+    .feat-card::before{content:'';position:absolute;inset:0 0 auto 0;height:2px;
+      background:linear-gradient(90deg,transparent,#ffd100,transparent);opacity:.6;}
+    .feat-card-head{display:flex;align-items:center;gap:11px;margin-bottom:13px;}
+    .feat-ico{font-size:24px;width:44px;height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+      background:radial-gradient(circle at 35% 30%,rgba(255,209,0,.18),transparent 70%);
+      border:1.5px solid rgba(200,149,56,.5);border-radius:50%;filter:drop-shadow(0 0 6px rgba(255,209,0,.3));}
+    .feat-title{font-family:Impact,sans-serif;font-size:18px;letter-spacing:.04em;color:#ffd100;text-shadow:0 1px 2px #000;}
+    .feat-list{list-style:none;display:flex;flex-direction:column;gap:8px;}
+    .feat-list li{position:relative;padding-left:20px;font-size:14px;color:#ece4d2;font-weight:300;line-height:1.45;}
+    .feat-list li::before{content:'';position:absolute;left:2px;top:8px;width:6px;height:6px;border-radius:50%;
+      background:#ffd100;box-shadow:0 0 6px rgba(255,209,0,.7);}
+    .feat-list li b{font-weight:700;color:#fff;}
   </style>
 </head>
 <body>
@@ -91,6 +116,92 @@
       <thead><tr><th style="width:40px">#</th><th>Русский</th><th>Английский</th><th>Альт.</th><th style="width:90px">Сложн.</th><th style="width:90px">Тема</th><th style="width:100px">Действия</th></tr></thead>
       <tbody id="list"></tbody>
     </table>
+
+    <!-- ══ ЧТО СДЕЛАНО (капот) ══ -->
+    <div class="feat-head">⚙️ Что сделано</div>
+    <div class="feat-head-sub">Весь функционал игры под капотом</div>
+    <div class="feat-rule"></div>
+
+    <div class="feat-grid">
+
+      <div class="feat-card">
+        <div class="feat-card-head"><div class="feat-ico">🥊</div><div class="feat-title">Бой</div></div>
+        <ul class="feat-list">
+          <li>Живая драка вместо ходов по очереди: задание висит на экране, <b>перевёл — сразу бьёшь</b></li>
+          <li>Таймера на перевод нет — думаешь сколько нужно</li>
+          <li>Соперник думает пару секунд перед ударом, видно как замахивается — <b>можно успеть первым</b></li>
+          <li>После удара над персонажем кружат птички и секунду он приходит в себя</li>
+          <li>Чем сложнее уровень — тем быстрее бьёт соперник</li>
+        </ul>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-card-head"><div class="feat-ico">🗺️</div><div class="feat-title">Карта и локации</div></div>
+        <ul class="feat-list">
+          <li>Карта города с четырьмя местами: <b>столовая, магазин одежды, парикмахерская, дом</b></li>
+          <li>Места открываются по очереди, закрытые — с замком</li>
+          <li>Идёшь по карте пальцем — ведёшь, и человечек шагает</li>
+          <li>В каждом месте свои слова по теме: еда, одежда, стрижка, свидание</li>
+        </ul>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-card-head"><div class="feat-ico">🧑‍🎤</div><div class="feat-title">Герой и обучение</div></div>
+        <ul class="feat-list">
+          <li>Экран выбора бойца: <b>четыре персонажа в стиле Мортал Комбата</b>, листаешь вбок</li>
+          <li>Перед боем можно потренироваться: послушать слово и повторить голосом</li>
+          <li>Два способа играть: говорить голосом или выбирать карточки</li>
+          <li>Подсказки на первые четыре боя для новичков</li>
+        </ul>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-card-head"><div class="feat-ico">📈</div><div class="feat-title">Профиль и прогресс</div></div>
+        <ul class="feat-list">
+          <li>Вход по имени (пароль временно убран)</li>
+          <li>Сохраняется уровень, герой и статистика</li>
+          <li><b>Один прогресс на всех устройствах</b> — телефон и компьютер совпадают</li>
+          <li>Долго не заходишь — герой слабеет и в итоге обнуляется, надо возвращаться</li>
+        </ul>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-card-head"><div class="feat-ico">🌐</div><div class="feat-title">Игра против живых людей</div></div>
+        <ul class="feat-list">
+          <li>Бои один на один с реальными игроками; нет соперника полминуты — ставим компьютерного</li>
+          <li>Подбор по силе: <b>новички с новичками, опытные с опытными</b></li>
+          <li>Личный рейтинг</li>
+          <li>Общая таблица лучших игроков</li>
+        </ul>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-card-head"><div class="feat-ico">🤝</div><div class="feat-title">Друзья и команды</div></div>
+        <ul class="feat-list">
+          <li>Добавить друга по нику, видеть его в списке с рейтингом</li>
+          <li>Создать команду, вступить или выйти</li>
+          <li>Таблица лучших команд</li>
+        </ul>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-card-head"><div class="feat-ico">🔊</div><div class="feat-title">Звук</div></div>
+        <ul class="feat-list">
+          <li>Свой звук при выборе каждого героя</li>
+          <li>Звуки ударов, шагов, скрип двери при входе</li>
+        </ul>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-card-head"><div class="feat-ico">⚙️</div><div class="feat-title">Что под капотом</div></div>
+        <ul class="feat-list">
+          <li>Запущен игровой сервер за границей</li>
+          <li>Хранилище для рейтингов, заданий и профилей</li>
+          <li><b>Эта панель</b> — добавляй слова и задания сам, без программиста, и загружай пачкой через CSV</li>
+        </ul>
+      </div>
+
+    </div>
   </div>
 </div>
 
