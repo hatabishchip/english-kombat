@@ -4,7 +4,79 @@ const { Server, Room } = require('@colyseus/core');
 const { WebSocketTransport } = require('@colyseus/ws-transport');
 const { Schema, MapSchema, type } = require('@colyseus/schema');
 const { monitor } = require('@colyseus/monitor');
+const { Pool } = require('pg');
 const { PHRASES, checkAnswer } = require('./phrases');
+
+// ─── POSTGRES ───
+const pgPool = process.env.DATABASE_URL
+  ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+  : null;
+
+async function initDb() {
+  if (!pgPool) {
+    console.log('[db] DATABASE_URL not set — leaderboard will be in-memory only');
+    return;
+  }
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS players (
+      username TEXT PRIMARY KEY,
+      elo INTEGER DEFAULT 1000,
+      wins INTEGER DEFAULT 0,
+      losses INTEGER DEFAULT 0,
+      character TEXT,
+      level INTEGER DEFAULT 1,
+      last_played TIMESTAMPTZ DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS players_elo_idx ON players (elo DESC);
+  `);
+  console.log('[db] schema ready');
+}
+
+async function dbUpsertPlayer(username, payload) {
+  if (!pgPool || !username || username === 'BOT') return;
+  try {
+    await pgPool.query(
+      `INSERT INTO players (username, elo, wins, losses, character, level, last_played)
+       VALUES ($1, $2, $3, $4, $5, $6, now())
+       ON CONFLICT (username) DO UPDATE SET
+         elo = EXCLUDED.elo,
+         wins = players.wins + COALESCE($7, 0),
+         losses = players.losses + COALESCE($8, 0),
+         character = EXCLUDED.character,
+         level = EXCLUDED.level,
+         last_played = now()`,
+      [
+        username,
+        payload.elo || 1000,
+        payload.wins || 0,
+        payload.losses || 0,
+        payload.character || null,
+        payload.level || 1,
+        payload.winsDelta || 0,
+        payload.lossesDelta || 0,
+      ]
+    );
+  } catch(e) {
+    console.warn('[db] upsert failed:', e.message);
+  }
+}
+
+async function dbGetTopLeaderboard(limit = 50) {
+  if (!pgPool) return null;
+  try {
+    const res = await pgPool.query(
+      `SELECT username AS name, elo, wins, losses, character AS char, level
+       FROM players
+       ORDER BY elo DESC, wins DESC
+       LIMIT $1`,
+      [limit]
+    );
+    return res.rows;
+  } catch(e) {
+    console.warn('[db] leaderboard query failed:', e.message);
+    return null;
+  }
+}
 
 // ─── ELO ───
 function eloDelta(myElo, oppElo, won, k = 32) {
@@ -240,10 +312,21 @@ class FightRoom extends Room {
       loserNewElo  = Math.max(0, loser.elo  + deltaLoser);
       // persist to in-memory leaderboard (skip bots)
       if (!winner.isBot) {
-        updateLeaderboard(winner.name, { elo: winnerNewElo, char: winner.char, level: winner.level, wins: (LEADERBOARD.get(winner.name)?.wins || 0) + 1 });
+        const prev = LEADERBOARD.get(winner.name) || {};
+        updateLeaderboard(winner.name, { elo: winnerNewElo, char: winner.char, level: winner.level, wins: (prev.wins || 0) + 1 });
+        // persist to Postgres
+        dbUpsertPlayer(winner.name, {
+          elo: winnerNewElo, character: winner.char, level: winner.level,
+          winsDelta: 1, lossesDelta: 0,
+        });
       }
       if (!loser.isBot) {
-        updateLeaderboard(loser.name, { elo: loserNewElo, char: loser.char, level: loser.level, losses: (LEADERBOARD.get(loser.name)?.losses || 0) + 1 });
+        const prev = LEADERBOARD.get(loser.name) || {};
+        updateLeaderboard(loser.name, { elo: loserNewElo, char: loser.char, level: loser.level, losses: (prev.losses || 0) + 1 });
+        dbUpsertPlayer(loser.name, {
+          elo: loserNewElo, character: loser.char, level: loser.level,
+          winsDelta: 0, lossesDelta: 1,
+        });
       }
     }
     this.broadcast('game_over', {
@@ -285,12 +368,18 @@ app.use((req, res, next) => {
 });
 app.get('/', (_, res) => res.send('English Kombat PvP server — ok'));
 app.get('/health', (_, res) => res.send('ok'));
-app.get('/leaderboard', (_, res) => {
+app.get('/leaderboard', async (_, res) => {
+  // try Postgres first, fall back to in-memory
+  const dbTop = await dbGetTopLeaderboard(50);
+  if (dbTop) {
+    res.json({ top: dbTop, source: 'db' });
+    return;
+  }
   const top = [...LEADERBOARD.entries()]
     .map(([name, p]) => ({ name, ...p }))
     .sort((a, b) => (b.elo || 0) - (a.elo || 0))
     .slice(0, 50);
-  res.json({ top });
+  res.json({ top, source: 'memory' });
 });
 app.use('/colyseus', monitor());
 
@@ -303,6 +392,8 @@ const gameServer = new Server({
 gameServer.define('fight', FightRoom).filterBy(['bracket']);
 
 const PORT = process.env.PORT || 2567;
-gameServer.listen(PORT).then(() => {
+(async () => {
+  await initDb();
+  await gameServer.listen(PORT);
   console.log(`⚔  Colyseus PvP server listening on :${PORT}`);
-});
+})();
