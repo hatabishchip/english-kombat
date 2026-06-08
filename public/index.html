@@ -1574,6 +1574,7 @@
     <div class="user-stats" id="user-card-stats">🏆 0 · 💀 0</div>
     <div class="user-pwbar"><div id="user-card-fill" class="user-pwbar-fill" style="width:10%"></div></div>
     <div id="user-card-elo" style="margin-top:6px;font-family:'Impact',sans-serif;font-size:14px;color:#ffd100;letter-spacing:1px">⚔ ELO 1000</div>
+    <div id="online-count" style="margin-top:4px;font-family:sans-serif;font-size:11px;color:#888;letter-spacing:.5px">🌐 — игроков онлайн</div>
     <div class="user-vitality">
       <span>❤ Жизнеспособность</span>
       <span id="vit-num">7/7</span>
@@ -2423,6 +2424,7 @@ function authUpdate(updates) {
   cloudUpsertProfile(data.currentUser, data.users[data.currentUser]).catch(()=>{});
 }
 function doLogout() {
+  stopHeartbeat();
   const data = authLoad();
   data.currentUser = null;
   authSave(data);
@@ -2489,8 +2491,8 @@ function applyLoginState() {
   renderUserCard();
   renderVitality();
   document.getElementById('btn-change-char').style.display = u.character ? '' : 'none';
-  // bump lastPlayed each time user opens app — proves "alive"
   authUpdate({});
+  startHeartbeat();
 }
 
 function renderVitality() {
@@ -2530,6 +2532,43 @@ function renderUserCard() {
   document.getElementById('user-card-fill').style.width  = `${(u.level || 1) * 10}%`;
   const eloEl = document.getElementById('user-card-elo');
   if (eloEl) eloEl.textContent = `⚔ ELO ${u.elo || 1000}`;
+}
+
+// ─── PRESENCE / HEARTBEAT ───
+let _heartbeatTimer = null;
+function startHeartbeat() {
+  stopHeartbeat();
+  sendHeartbeat();
+  _heartbeatTimer = setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    sendHeartbeat();
+  }, 30000);
+}
+function stopHeartbeat() {
+  if (_heartbeatTimer) { clearInterval(_heartbeatTimer); _heartbeatTimer = null; }
+}
+async function sendHeartbeat() {
+  const u = authCurrent();
+  if (!u || !u.hash || !pvpHttpUrl()) return;
+  try {
+    const r = await fetch(pvpHttpUrl() + '/api/heartbeat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u.username, hash: u.hash }),
+    });
+    if (r.ok) {
+      const data = await r.json();
+      const el = document.getElementById('online-count');
+      if (el && typeof data.onlineCount === 'number') {
+        el.textContent = `🌐 ${data.onlineCount} ${data.onlineCount === 1 ? 'игрок' : 'игроков'} онлайн`;
+      }
+    }
+  } catch(e) {}
+}
+
+// little green/grey dot HTML
+function onlineDot(isOnline) {
+  return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${isOnline ? '#40d840' : '#555'};${isOnline ? 'box-shadow:0 0 6px #40d840' : ''};margin-right:5px;vertical-align:middle"></span>`;
 }
 
 // ─── SOCIAL (friends + clans) ───
@@ -2722,7 +2761,7 @@ async function loadMyClan() {
       memEl.innerHTML = (md.members || []).map(p => {
         const roleIcon = p.role === 'owner' ? '👑 ' : '';
         return `<div style="display:flex;gap:8px;padding:5px 8px;background:rgba(0,0,0,.4);border-radius:4px;align-items:center">
-          <div style="flex:1;font-family:'Impact',sans-serif;color:#ffd100;font-size:13px">${roleIcon}${p.name?.toUpperCase()}</div>
+          <div style="flex:1;font-family:'Impact',sans-serif;color:#ffd100;font-size:13px">${onlineDot(p.online)}${roleIcon}${p.name?.toUpperCase()}</div>
           <div style="color:#888;font-size:11px">${CHARS[p.character]?.name || ''}</div>
           <div style="color:#ffd100;font-size:13px">${p.elo}</div>
         </div>`;
@@ -2780,11 +2819,11 @@ async function loadFriends() {
     listEl.innerHTML = friends.map(f => `
       <div style="display:flex;gap:6px;align-items:center;padding:6px 8px;background:rgba(0,0,0,.4);border-radius:4px">
         <div style="flex:1;min-width:0">
-          <div style="font-family:'Impact',sans-serif;color:#ffd100;font-size:13px">${f.name?.toUpperCase()}</div>
+          <div style="font-family:'Impact',sans-serif;color:#ffd100;font-size:13px">${onlineDot(f.online)}${f.name?.toUpperCase()}</div>
           <div style="color:#888;font-size:10px">${CHARS[f.character]?.name || ''} · LVL ${f.level} · 🏆 ${f.wins}</div>
         </div>
         <div style="color:#ffd100;font-family:Impact,sans-serif;font-size:14px;margin-right:4px">${f.elo}</div>
-        <button class="btn btn-red" style="font-size:11px;padding:4px 8px;margin:0;width:auto" onclick="challengeFriend('${f.name}')">⚔</button>
+        <button class="btn btn-red" style="font-size:11px;padding:4px 8px;margin:0;width:auto;${f.online ? '' : 'opacity:.5'}" onclick="challengeFriend('${f.name}')" title="${f.online ? 'Вызвать на бой' : 'Игрок не онлайн — вызов будет ждать'}">⚔</button>
         <button class="btn btn-dark" style="font-size:11px;padding:4px 8px;margin:0;width:auto" onclick="friendRemove('${f.name}')">✕</button>
       </div>
     `).join('');
@@ -2901,7 +2940,7 @@ async function showLeaderboard() {
       return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:${isMe ? 'rgba(255,209,0,.18)' : 'rgba(0,0,0,.55)'};border:1.5px solid ${isMe ? '#ffd100' : '#6a4818'};border-radius:6px;${isMe ? 'box-shadow:0 0 12px rgba(255,209,0,.4)' : ''}">
         <div style="width:28px;text-align:center;font-family:'Impact',sans-serif;font-size:16px">${medal}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-family:'Impact',sans-serif;color:#ffd100;font-size:14px;letter-spacing:.5px;text-shadow:0 1px 1px #000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name?.toUpperCase() || '?'}</div>
+          <div style="font-family:'Impact',sans-serif;color:#ffd100;font-size:14px;letter-spacing:.5px;text-shadow:0 1px 1px #000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${onlineDot(p.online)}${p.name?.toUpperCase() || '?'}</div>
           <div style="font-family:sans-serif;font-size:10px;color:#9a8868">${charName} · 🏆 ${p.wins || 0} · 💀 ${p.losses || 0}</div>
         </div>
         <div style="font-family:'Impact',sans-serif;font-size:18px;color:#ffd100;text-shadow:0 0 8px rgba(255,209,0,.45),0 1px 2px #000">${p.elo || 1000}</div>

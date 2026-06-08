@@ -260,6 +260,7 @@ class FightRoom extends Room {
     p.isActive = false;
     p.isBot = false;
     this.state.players.set(client.sessionId, p);
+    markOnline(p.name.toLowerCase());      // active player → mark online
     console.log(`[room ${this.roomId}] joined: ${p.name} elo=${p.elo}`);
     if (this.state.players.size === 2) {
       clearTimeout(this.botFillTimeout);
@@ -471,17 +472,17 @@ app.use((req, res, next) => {
 app.get('/', (_, res) => res.send('English Kombat PvP server — ok'));
 app.get('/health', (_, res) => res.send('ok'));
 app.get('/leaderboard', async (_, res) => {
-  // try Postgres first, fall back to in-memory
+  const online = onlineSet();
   const dbTop = await dbGetTopLeaderboard(50);
   if (dbTop) {
-    res.json({ top: dbTop, source: 'db' });
+    res.json({ top: dbTop.map(r => ({ ...r, online: online.has(r.name) })), source: 'db', onlineCount: online.size });
     return;
   }
   const top = [...LEADERBOARD.entries()]
-    .map(([name, p]) => ({ name, ...p }))
+    .map(([name, p]) => ({ name, ...p, online: online.has(name) }))
     .sort((a, b) => (b.elo || 0) - (a.elo || 0))
     .slice(0, 50);
-  res.json({ top, source: 'memory' });
+  res.json({ top, source: 'memory', onlineCount: online.size });
 });
 app.use(express.json({ limit: '2mb' }));
 app.use('/colyseus', monitor());
@@ -709,6 +710,27 @@ app.post('/api/phrases/import', checkAdmin, async (req, res) => {
   res.json({ inserted, totalRows: parsed.length, errors });
 });
 
+// ─── ONLINE PRESENCE ───
+const ONLINE = new Map(); // username -> lastSeen ms
+const ONLINE_TTL = 90 * 1000; // 90 sec = still online
+function markOnline(username) {
+  if (!username || username === 'BOT') return;
+  ONLINE.set(username, Date.now());
+}
+function isOnline(username) {
+  const t = ONLINE.get(username);
+  return !!(t && Date.now() - t < ONLINE_TTL);
+}
+function onlineSet() {
+  const now = Date.now();
+  const set = new Set();
+  for (const [u, t] of ONLINE) {
+    if (now - t < ONLINE_TTL) set.add(u);
+    else ONLINE.delete(u);
+  }
+  return set;
+}
+
 // ─── USER AUTH HELPER (for friends/clans endpoints) ───
 async function authUserFromReq(req) {
   const username = (req.body?.username || req.query.username || '').toLowerCase();
@@ -716,8 +738,21 @@ async function authUserFromReq(req) {
   if (!username || !hash || !pgPool) return null;
   const r = await pgPool.query('SELECT hash FROM players WHERE username = $1', [username]);
   if (!r.rows.length || r.rows[0].hash !== hash) return null;
+  markOnline(username);   // any authed request = activity
   return username;
 }
+
+// Heartbeat endpoint — keeps user "online"
+app.post('/api/heartbeat', async (req, res) => {
+  const me = await authUserFromReq(req);
+  if (!me) return res.status(401).json({ error: 'auth' });
+  res.json({ ok: true, onlineCount: onlineSet().size });
+});
+
+// Public: count of online users
+app.get('/api/online/count', (_, res) => {
+  res.json({ count: onlineSet().size });
+});
 
 // ─── FRIENDS ───
 app.post('/api/friends/add', async (req, res) => {
@@ -755,7 +790,8 @@ app.get('/api/friends/list', async (req, res) => {
      ORDER BY p.elo DESC`,
     [me]
   );
-  res.json({ friends: rows });
+  const online = onlineSet();
+  res.json({ friends: rows.map(r => ({ ...r, online: online.has(r.name) })) });
 });
 
 // ─── CLANS ───
@@ -826,7 +862,8 @@ app.get('/api/clans/:tag/members', async (req, res) => {
      ORDER BY cm.role = 'owner' DESC, p.elo DESC`,
     [tag]
   );
-  res.json({ members: rows });
+  const online = onlineSet();
+  res.json({ members: rows.map(r => ({ ...r, online: online.has(r.name) })) });
 });
 // ─── GLOBAL CHAT (HTTP polling) ───
 const lastGlobalMsg = new Map();
