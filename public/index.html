@@ -3807,15 +3807,38 @@ function presentPhrase() {
 
 function scheduleBotAttack() {
   clearTimeout(state.botAttackTimer);
-  const ranges = { easy: [6000, 9000], medium: [5000, 7000], hard: [4000, 6000] };
+  showBotThinking(false);     // clear any stale telegraph
+  // gap before the bot starts "thinking" (then +2-4s think telegraph in botThink)
+  const ranges = { easy: [4000, 6000], medium: [3000, 5000], hard: [2000, 3500] };
   const [lo, hi] = ranges[state.difficulty] || ranges.easy;
-  state.botAttackTimer = setTimeout(() => botStrike(), lo + Math.random() * (hi - lo));
+  state.botAttackTimer = setTimeout(() => botThink(), lo + Math.random() * (hi - lo));
+}
+
+// Bot telegraphs an incoming attack: 2-4s of "thinking" over its head, then strikes.
+function botThink() {
+  if (state.phase === 'game_over') return;
+  if (state.resolving) { state.botAttackTimer = setTimeout(() => botThink(), 1000); return; }
+  showBotThinking(true);
+  const thinkMs = 2000 + Math.random() * 2000;     // random 2-4 seconds
+  state.botAttackTimer = setTimeout(() => { showBotThinking(false); botStrike(); }, thinkMs);
+}
+
+function showBotThinking(on) {
+  const fc = document.getElementById('fi-right')?.parentElement?.parentElement; // .fc of bot
+  if (!fc) return;
+  fc.querySelector('.bot-think')?.remove();
+  if (!on) return;
+  const bubble = document.createElement('div');
+  bubble.className = 'bot-think';
+  bubble.style.cssText = 'position:absolute;top:-30px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);border:1px solid #6a4a18;border-radius:12px;padding:3px 10px;font-family:sans-serif;font-size:13px;color:#ffd100;white-space:nowrap;z-index:7;animation:hint-pulse 1s ease-in-out infinite';
+  bubble.textContent = BOT_THINKS[Math.floor(Math.random() * BOT_THINKS.length)];
+  fc.appendChild(bubble);
 }
 
 function botStrike() {
   if (state.phase === 'game_over') return;
   // if a hit is mid-resolution, wait a moment and retry
-  if (state.resolving) { state.botAttackTimer = setTimeout(() => botStrike(), 1200); return; }
+  if (state.resolving) { state.botAttackTimer = setTimeout(() => botThink(), 1200); return; }
   state.resolving = true;
   state.acceptingAnswer = false;
   stopListen();
@@ -3882,6 +3905,7 @@ function endGame(iWin) {
   state.phase = 'game_over';
   stopTimer(); stopListen();
   clearTimeout(state.botAttackTimer);   // stop brawl bot attacks
+  showBotThinking(false);
   setActiveTurn(null);   // turn off both rings
 
   if (iWin) {
