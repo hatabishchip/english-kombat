@@ -43,6 +43,33 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS phrases_theme_idx ON phrases (theme, difficulty);
+
+    -- friends (symmetric: when A adds B, two rows created)
+    CREATE TABLE IF NOT EXISTS friends (
+      user_id TEXT NOT NULL,
+      friend_id TEXT NOT NULL,
+      added_at TIMESTAMPTZ DEFAULT now(),
+      PRIMARY KEY (user_id, friend_id)
+    );
+
+    -- clans
+    CREATE TABLE IF NOT EXISTS clans (
+      id SERIAL PRIMARY KEY,
+      tag TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      owner TEXT NOT NULL,
+      color TEXT DEFAULT '#ffd100',
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS clan_members (
+      clan_id INTEGER REFERENCES clans(id) ON DELETE CASCADE,
+      username TEXT NOT NULL,
+      role TEXT DEFAULT 'member',
+      joined_at TIMESTAMPTZ DEFAULT now(),
+      PRIMARY KEY (clan_id, username),
+      UNIQUE (username)
+    );
+    CREATE INDEX IF NOT EXISTS clans_tag_idx ON clans (tag);
   `);
   // seed if empty
   const { rows } = await pgPool.query('SELECT COUNT(*)::int AS c FROM phrases');
@@ -660,6 +687,137 @@ app.post('/api/phrases/import', checkAdmin, async (req, res) => {
   }
   await loadPhrases();
   res.json({ inserted, totalRows: parsed.length, errors });
+});
+
+// ─── USER AUTH HELPER (for friends/clans endpoints) ───
+async function authUserFromReq(req) {
+  const username = (req.body?.username || req.query.username || '').toLowerCase();
+  const hash     = req.body?.hash || req.query.hash || '';
+  if (!username || !hash || !pgPool) return null;
+  const r = await pgPool.query('SELECT hash FROM players WHERE username = $1', [username]);
+  if (!r.rows.length || r.rows[0].hash !== hash) return null;
+  return username;
+}
+
+// ─── FRIENDS ───
+app.post('/api/friends/add', async (req, res) => {
+  const me = await authUserFromReq(req);
+  if (!me) return res.status(401).json({ error: 'auth' });
+  const friendName = (req.body.friendName || '').toLowerCase().trim();
+  if (!friendName || friendName === me) return res.status(400).json({ error: 'bad name' });
+  const exists = await pgPool.query('SELECT 1 FROM players WHERE username = $1', [friendName]);
+  if (!exists.rows.length) return res.status(404).json({ error: 'no such user' });
+  // symmetric — both directions
+  await pgPool.query(
+    `INSERT INTO friends (user_id, friend_id) VALUES ($1,$2),($2,$1) ON CONFLICT DO NOTHING`,
+    [me, friendName]
+  );
+  res.json({ ok: true });
+});
+app.delete('/api/friends/remove', async (req, res) => {
+  const me = await authUserFromReq(req);
+  if (!me) return res.status(401).json({ error: 'auth' });
+  const friendName = (req.body.friendName || '').toLowerCase().trim();
+  await pgPool.query(
+    `DELETE FROM friends WHERE (user_id=$1 AND friend_id=$2) OR (user_id=$2 AND friend_id=$1)`,
+    [me, friendName]
+  );
+  res.json({ ok: true });
+});
+app.get('/api/friends/list', async (req, res) => {
+  const me = await authUserFromReq(req);
+  if (!me) return res.status(401).json({ error: 'auth' });
+  const { rows } = await pgPool.query(
+    `SELECT p.username AS name, p.elo, p.wins, p.losses, p.character, p.level, p.last_played
+     FROM friends f
+     JOIN players p ON p.username = f.friend_id
+     WHERE f.user_id = $1
+     ORDER BY p.elo DESC`,
+    [me]
+  );
+  res.json({ friends: rows });
+});
+
+// ─── CLANS ───
+app.post('/api/clans/create', async (req, res) => {
+  const me = await authUserFromReq(req);
+  if (!me) return res.status(401).json({ error: 'auth' });
+  const tag = (req.body.tag || '').toUpperCase().trim().slice(0, 5);
+  const name = (req.body.name || '').trim().slice(0, 32);
+  if (!/^[A-Z0-9]{2,5}$/.test(tag)) return res.status(400).json({ error: 'tag must be 2-5 A-Z/0-9 chars' });
+  if (!name) return res.status(400).json({ error: 'name required' });
+  // is the user already in a clan?
+  const inClan = await pgPool.query('SELECT clan_id FROM clan_members WHERE username = $1', [me]);
+  if (inClan.rows.length) return res.status(400).json({ error: 'already in a clan — leave first' });
+  try {
+    const { rows } = await pgPool.query(
+      `INSERT INTO clans (tag, name, owner) VALUES ($1, $2, $3) RETURNING *`,
+      [tag, name, me]
+    );
+    const clan = rows[0];
+    await pgPool.query(
+      `INSERT INTO clan_members (clan_id, username, role) VALUES ($1, $2, 'owner')`,
+      [clan.id, me]
+    );
+    res.json({ clan });
+  } catch(e) {
+    if (e.code === '23505') res.status(409).json({ error: 'tag already taken' });
+    else res.status(500).json({ error: e.message });
+  }
+});
+app.post('/api/clans/join', async (req, res) => {
+  const me = await authUserFromReq(req);
+  if (!me) return res.status(401).json({ error: 'auth' });
+  const tag = (req.body.tag || '').toUpperCase().trim();
+  const c = await pgPool.query('SELECT id FROM clans WHERE tag = $1', [tag]);
+  if (!c.rows.length) return res.status(404).json({ error: 'no clan with that tag' });
+  // leave existing first
+  await pgPool.query('DELETE FROM clan_members WHERE username = $1', [me]);
+  await pgPool.query(
+    `INSERT INTO clan_members (clan_id, username, role) VALUES ($1, $2, 'member')`,
+    [c.rows[0].id, me]
+  );
+  res.json({ ok: true });
+});
+app.post('/api/clans/leave', async (req, res) => {
+  const me = await authUserFromReq(req);
+  if (!me) return res.status(401).json({ error: 'auth' });
+  await pgPool.query('DELETE FROM clan_members WHERE username = $1', [me]);
+  res.json({ ok: true });
+});
+app.get('/api/clans/me', async (req, res) => {
+  const me = await authUserFromReq(req);
+  if (!me) return res.status(401).json({ error: 'auth' });
+  const { rows } = await pgPool.query(
+    `SELECT c.*, cm.role, (SELECT COUNT(*)::int FROM clan_members WHERE clan_id = c.id) AS members
+     FROM clan_members cm JOIN clans c ON c.id = cm.clan_id WHERE cm.username = $1`,
+    [me]
+  );
+  res.json({ clan: rows[0] || null });
+});
+app.get('/api/clans/:tag/members', async (req, res) => {
+  const tag = (req.params.tag || '').toUpperCase();
+  const { rows } = await pgPool.query(
+    `SELECT p.username AS name, p.elo, p.wins, p.losses, p.character, p.level, cm.role
+     FROM clan_members cm
+     JOIN clans c ON c.id = cm.clan_id
+     JOIN players p ON p.username = cm.username
+     WHERE c.tag = $1
+     ORDER BY cm.role = 'owner' DESC, p.elo DESC`,
+    [tag]
+  );
+  res.json({ members: rows });
+});
+app.get('/api/clans/top', async (_, res) => {
+  const { rows } = await pgPool.query(
+    `SELECT c.id, c.tag, c.name, c.color, c.owner,
+       (SELECT COUNT(*)::int FROM clan_members cm WHERE cm.clan_id = c.id) AS members,
+       (SELECT COALESCE(SUM(p.elo),0)::int FROM clan_members cm JOIN players p ON p.username = cm.username WHERE cm.clan_id = c.id) AS total_elo
+     FROM clans c
+     ORDER BY total_elo DESC NULLS LAST
+     LIMIT 50`
+  );
+  res.json({ clans: rows });
 });
 
 app.use('/admin', express.static(__dirname + '/admin'));

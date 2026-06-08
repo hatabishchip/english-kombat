@@ -1468,6 +1468,42 @@
 </head>
 <body>
 
+<!-- ── SOCIAL — friends & clans ──────────────────── -->
+<div id="s-social" class="screen">
+  <div style="font-family:'Impact',sans-serif;font-size:28px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 12px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-bottom:4px">👥 ДРУЗЬЯ И КЛАН</div>
+  <div style="font-family:sans-serif;font-size:11px;color:#888;letter-spacing:1.5px;margin-bottom:14px">СОЦИАЛЬНЫЙ СЛОЙ</div>
+
+  <!-- CLAN block -->
+  <div style="width:100%;max-width:420px;padding:12px;background:rgba(20,12,4,.7);border:1.5px solid #6a4818;border-radius:6px;margin-bottom:12px">
+    <div style="font-family:'Impact',sans-serif;color:#ffd100;font-size:14px;letter-spacing:1px;margin-bottom:8px">⚔ КЛАН</div>
+    <div id="social-clan-info" style="font-size:13px;color:#c8a868;margin-bottom:8px">—</div>
+    <div id="social-clan-members"></div>
+    <div id="social-clan-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"></div>
+  </div>
+
+  <!-- FRIENDS block -->
+  <div style="width:100%;max-width:420px;padding:12px;background:rgba(20,12,4,.7);border:1.5px solid #6a4818;border-radius:6px;margin-bottom:12px">
+    <div style="font-family:'Impact',sans-serif;color:#ffd100;font-size:14px;letter-spacing:1px;margin-bottom:8px">👥 ДРУЗЬЯ</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <input id="social-friend-input" type="text" placeholder="имя пользователя" style="flex:1;padding:8px 10px;background:rgba(0,0,0,.5);border:1.5px solid #6a4818;color:#f0e8d0;border-radius:4px;font-family:inherit;font-size:13px"/>
+      <button class="btn btn-gold" style="padding:6px 14px;font-size:13px;width:auto" onclick="friendAdd()">+ Добавить</button>
+    </div>
+    <div id="social-friends-list" style="display:flex;flex-direction:column;gap:6px"></div>
+  </div>
+
+  <!-- CLAN LEADERBOARD button -->
+  <button class="btn btn-dark" style="font-size:13px;max-width:300px" onclick="showClansTop()">🏰 ТОП КЛАНОВ</button>
+  <button class="btn btn-dark" style="font-size:13px;max-width:200px;margin-top:6px" onclick="goHome()">← НАЗАД</button>
+</div>
+
+<!-- ── CLAN LEADERBOARD ──────────────────────────── -->
+<div id="s-clans-top" class="screen">
+  <div style="font-family:'Impact',sans-serif;font-size:28px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 12px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-bottom:4px">🏰 ТОП КЛАНОВ</div>
+  <div style="font-family:sans-serif;font-size:11px;color:#888;letter-spacing:1.5px;margin-bottom:14px">ПО СУММАРНОМУ ELO ИГРОКОВ</div>
+  <div id="clans-top-list" style="width:100%;max-width:420px;display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow-y:auto;padding:4px"></div>
+  <button class="btn btn-dark" style="margin-top:14px;font-size:14px;max-width:200px" onclick="showSocial()">← НАЗАД</button>
+</div>
+
 <!-- ── LEADERBOARD ────────────────────────────────── -->
 <div id="s-lb" class="screen">
   <div style="font-family:'Impact',sans-serif;font-size:32px;color:#ffd100;letter-spacing:3px;text-shadow:0 0 14px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-bottom:6px">🏆 ЛИДЕРБОРД</div>
@@ -1523,6 +1559,7 @@
   <button class="btn btn-gold" onclick="startGame()">⚔ В БОЙ С БОТОМ</button>
   <button id="btn-pvp" class="btn btn-listen" onclick="startPvP()">🌐 ОНЛАЙН-БОЙ (PvP)</button>
   <button class="btn btn-dark" style="font-size:13px" onclick="showLeaderboard()">🏆 ЛИДЕРБОРД</button>
+  <button class="btn btn-dark" style="font-size:13px" onclick="showSocial()">👥 ДРУЗЬЯ И КЛАН</button>
   <button id="btn-change-char" class="btn btn-dark" style="font-size:13px;display:none" onclick="forceCharSelect()">СМЕНИТЬ ПЕРСОНАЖА</button>
   <button class="btn" style="background:rgba(255,255,255,.08);color:#c8a868;font-size:13px;padding:9px;max-width:280px;border:1.5px solid rgba(200,149,56,.4)" onclick="testSound()">🔊 ПРОВЕРИТЬ ЗВУК</button>
   <button class="btn" style="background:transparent;color:#666;font-size:11px;padding:4px;max-width:280px;border:none;text-decoration:underline;margin-top:6px" onclick="doLogout()">выйти</button>
@@ -2465,6 +2502,157 @@ function renderUserCard() {
   document.getElementById('user-card-fill').style.width  = `${(u.level || 1) * 10}%`;
   const eloEl = document.getElementById('user-card-elo');
   if (eloEl) eloEl.textContent = `⚔ ELO ${u.elo || 1000}`;
+}
+
+// ─── SOCIAL (friends + clans) ───
+async function authedFetch(path, opts = {}) {
+  const u = authCurrent();
+  if (!u || !pvpHttpUrl()) return null;
+  const body = opts.body ? JSON.parse(opts.body) : {};
+  body.username = u.username;
+  body.hash     = u.hash;
+  return fetch(pvpHttpUrl() + path, {
+    method: opts.method || 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+async function authedGet(path) {
+  const u = authCurrent();
+  if (!u || !pvpHttpUrl()) return null;
+  const qs = `?username=${encodeURIComponent(u.username)}&hash=${encodeURIComponent(u.hash)}`;
+  return fetch(pvpHttpUrl() + path + qs);
+}
+
+async function showSocial() {
+  show('s-social');
+  await Promise.all([loadMyClan(), loadFriends()]);
+}
+
+async function loadMyClan() {
+  const infoEl = document.getElementById('social-clan-info');
+  const memEl  = document.getElementById('social-clan-members');
+  const actEl  = document.getElementById('social-clan-actions');
+  infoEl.textContent = 'Загрузка...';
+  memEl.innerHTML = '';
+  actEl.innerHTML = '';
+  try {
+    const r = await authedGet('/api/clans/me');
+    const data = await r.json();
+    if (data.clan) {
+      infoEl.innerHTML = `<b style="color:${data.clan.color || '#ffd100'}">[${data.clan.tag}]</b> ${data.clan.name} · ${data.clan.members} участн.`;
+      const m = await fetch(`${pvpHttpUrl()}/api/clans/${data.clan.tag}/members`);
+      const md = await m.json();
+      memEl.innerHTML = (md.members || []).map(p => {
+        const roleIcon = p.role === 'owner' ? '👑 ' : '';
+        return `<div style="display:flex;gap:8px;padding:5px 8px;background:rgba(0,0,0,.4);border-radius:4px;align-items:center">
+          <div style="flex:1;font-family:'Impact',sans-serif;color:#ffd100;font-size:13px">${roleIcon}${p.name?.toUpperCase()}</div>
+          <div style="color:#888;font-size:11px">${CHARS[p.character]?.name || ''}</div>
+          <div style="color:#ffd100;font-size:13px">${p.elo}</div>
+        </div>`;
+      }).join('');
+      actEl.innerHTML = `<button class="btn btn-dark" style="font-size:12px;padding:6px 14px;width:auto" onclick="leaveClan()">🚪 Покинуть клан</button>`;
+    } else {
+      infoEl.textContent = 'Ты ещё не в клане';
+      actEl.innerHTML = `
+        <input id="clan-tag-input" placeholder="ТЭГ" maxlength="5" style="flex:0 0 100px;padding:6px 8px;background:rgba(0,0,0,.5);border:1.5px solid #6a4818;color:#f0e8d0;border-radius:4px;font-family:Impact,sans-serif;text-transform:uppercase;font-size:14px;letter-spacing:1px"/>
+        <input id="clan-name-input" placeholder="Название" maxlength="32" style="flex:1;padding:6px 8px;background:rgba(0,0,0,.5);border:1.5px solid #6a4818;color:#f0e8d0;border-radius:4px;font-size:13px"/>
+        <button class="btn btn-gold" style="font-size:12px;padding:6px 14px;width:auto" onclick="createClan()">⚔ Создать клан</button>
+        <input id="clan-join-input" placeholder="Тэг для входа" maxlength="5" style="flex:1;padding:6px 8px;background:rgba(0,0,0,.5);border:1.5px solid #6a4818;color:#f0e8d0;border-radius:4px;text-transform:uppercase;font-size:14px;letter-spacing:1px"/>
+        <button class="btn btn-listen" style="font-size:12px;padding:6px 14px;width:auto" onclick="joinClan()">→ Вступить</button>
+      `;
+    }
+  } catch(e) {
+    infoEl.textContent = '⚠ Сервер недоступен';
+  }
+}
+
+async function createClan() {
+  const tag  = document.getElementById('clan-tag-input').value.trim().toUpperCase();
+  const name = document.getElementById('clan-name-input').value.trim();
+  const r = await authedFetch('/api/clans/create', { body: JSON.stringify({ tag, name }) });
+  const data = await r.json();
+  if (!r.ok) { alert(data.error || 'ошибка'); return; }
+  loadMyClan();
+}
+async function joinClan() {
+  const tag = document.getElementById('clan-join-input').value.trim().toUpperCase();
+  const r = await authedFetch('/api/clans/join', { body: JSON.stringify({ tag }) });
+  const data = await r.json();
+  if (!r.ok) { alert(data.error || 'ошибка'); return; }
+  loadMyClan();
+}
+async function leaveClan() {
+  if (!confirm('Покинуть клан?')) return;
+  await authedFetch('/api/clans/leave');
+  loadMyClan();
+}
+
+async function loadFriends() {
+  const listEl = document.getElementById('social-friends-list');
+  listEl.innerHTML = 'Загрузка...';
+  try {
+    const r = await authedGet('/api/friends/list');
+    const data = await r.json();
+    const friends = data.friends || [];
+    if (!friends.length) {
+      listEl.innerHTML = '<div style="color:#888;font-size:12px;text-align:center;padding:10px">Пусто. Добавь друзей по имени.</div>';
+      return;
+    }
+    listEl.innerHTML = friends.map(f => `
+      <div style="display:flex;gap:8px;align-items:center;padding:6px 8px;background:rgba(0,0,0,.4);border-radius:4px">
+        <div style="flex:1">
+          <div style="font-family:'Impact',sans-serif;color:#ffd100;font-size:13px">${f.name?.toUpperCase()}</div>
+          <div style="color:#888;font-size:10px">${CHARS[f.character]?.name || ''} · LVL ${f.level} · 🏆 ${f.wins}</div>
+        </div>
+        <div style="color:#ffd100;font-family:Impact,sans-serif;font-size:14px">${f.elo}</div>
+        <button class="btn btn-dark" style="font-size:11px;padding:4px 8px;margin:0;width:auto" onclick="friendRemove('${f.name}')">✕</button>
+      </div>
+    `).join('');
+  } catch(e) {
+    listEl.innerHTML = '<div style="color:#ff6060;font-size:12px">⚠ Сервер недоступен</div>';
+  }
+}
+async function friendAdd() {
+  const name = document.getElementById('social-friend-input').value.trim().toLowerCase();
+  if (!name) return;
+  const r = await authedFetch('/api/friends/add', { body: JSON.stringify({ friendName: name }) });
+  if (r.status === 404) { alert('Игрок не найден'); return; }
+  if (!r.ok) { alert('Ошибка'); return; }
+  document.getElementById('social-friend-input').value = '';
+  loadFriends();
+}
+async function friendRemove(name) {
+  if (!confirm('Удалить из друзей?')) return;
+  await authedFetch('/api/friends/remove', { method: 'DELETE', body: JSON.stringify({ friendName: name }) });
+  loadFriends();
+}
+
+async function showClansTop() {
+  show('s-clans-top');
+  const list = document.getElementById('clans-top-list');
+  list.innerHTML = 'Загрузка...';
+  try {
+    const r = await fetch(pvpHttpUrl() + '/api/clans/top');
+    const data = await r.json();
+    if (!data.clans?.length) {
+      list.innerHTML = '<div style="text-align:center;color:#888;padding:20px">Пока нет кланов. Создай первый!</div>';
+      return;
+    }
+    list.innerHTML = data.clans.map((c, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span style="color:#888;font-size:12px">#${i+1}</span>`;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(0,0,0,.55);border:1.5px solid #6a4818;border-radius:6px">
+        <div style="width:28px;text-align:center;font-family:'Impact',sans-serif;font-size:16px">${medal}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Impact',sans-serif;font-size:14px"><span style="color:${c.color || '#ffd100'}">[${c.tag}]</span> <span style="color:#ffd100">${c.name?.toUpperCase()}</span></div>
+          <div style="font-family:sans-serif;font-size:10px;color:#9a8868">👑 ${c.owner?.toUpperCase()} · ${c.members} участн.</div>
+        </div>
+        <div style="font-family:'Impact',sans-serif;font-size:16px;color:#ffd100">${c.total_elo || 0}</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="color:#ff6060;font-size:12px;text-align:center">⚠ Не удалось загрузить</div>';
+  }
 }
 
 // ─── LEADERBOARD ───
