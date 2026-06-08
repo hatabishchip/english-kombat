@@ -79,6 +79,15 @@
       <div id="add-status" class="ok"></div>
     </div>
 
+    <div class="panel" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:rgba(0,0,0,.35)">
+      <strong style="color:#ffd100">CSV</strong>
+      <button class="sm" onclick="exportCsv()">📥 Скачать все</button>
+      <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="importCsv(event)"/>
+      <button class="sm" onclick="document.getElementById('csv-file').click()">📤 Загрузить</button>
+      <span style="color:#888;font-size:11px">Колонки: ru, en, answers (через `|`), difficulty, theme</span>
+      <span id="csv-status" style="margin-left:auto;font-size:12px"></span>
+    </div>
+
     <div class="filter-row">
       <input type="search" id="search" placeholder="🔍 Поиск (русский или английский)" oninput="renderList()"/>
       <select id="fdiff" onchange="renderList()">
@@ -209,6 +218,38 @@ async function delRow(id) {
     headers: { 'x-admin-password': PWD },
   });
   loadPhrases();
+}
+
+function exportCsv() {
+  // GET с авторизацией по query (browser скачивание)
+  window.location = '/api/phrases/export.csv?pwd=' + encodeURIComponent(PWD);
+}
+
+async function importCsv(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const csv = await file.text();
+  const lineCount = csv.split('\n').filter(l => l.trim()).length - 1; // minus header
+  if (!confirm(`Импортировать ${lineCount} фраз из CSV?`)) { e.target.value = ''; return; }
+  const status = document.getElementById('csv-status');
+  status.textContent = '⏳ Загрузка...';
+  status.style.color = '#c8a868';
+  const r = await fetch('/api/phrases/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-password': PWD },
+    body: JSON.stringify({ csv }),
+  });
+  const data = await r.json();
+  if (r.ok) {
+    status.textContent = `✓ Добавлено: ${data.inserted} из ${data.totalRows}` + (data.errors?.length ? ` · ошибок: ${data.errors.length}` : '');
+    status.style.color = data.errors?.length ? '#ffb040' : '#60ff60';
+    if (data.errors?.length) console.log('CSV import errors:', data.errors);
+    loadPhrases();
+  } else {
+    status.textContent = `⚠ ${data.error || 'ошибка'}`;
+    status.style.color = '#ff6060';
+  }
+  e.target.value = '';
 }
 
 async function addPhrase() {

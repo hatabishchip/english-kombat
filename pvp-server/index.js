@@ -436,7 +436,7 @@ app.get('/leaderboard', async (_, res) => {
     .slice(0, 50);
   res.json({ top, source: 'memory' });
 });
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 app.use('/colyseus', monitor());
 
 // ─── ACCOUNT SYNC (cross-device login + progress) ───
@@ -583,6 +583,85 @@ app.delete('/api/phrases/:id', checkAdmin, async (req, res) => {
   await loadPhrases();
   res.json({ ok: true });
 });
+// CSV export — admin-protected
+app.get('/api/phrases/export.csv', checkAdmin, async (_, res) => {
+  if (!pgPool) return res.status(503).send('no db');
+  const { rows } = await pgPool.query('SELECT ru, en, answers, difficulty, theme FROM phrases ORDER BY id');
+  const esc = (s) => {
+    const str = String(s || '');
+    if (/[",\n\r]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+    return str;
+  };
+  const lines = ['ru,en,answers,difficulty,theme'];
+  for (const r of rows) {
+    lines.push([
+      esc(r.ru), esc(r.en),
+      esc((r.answers || []).join('|')),
+      esc(r.difficulty), esc(r.theme),
+    ].join(','));
+  }
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="phrases-${Date.now()}.csv"`);
+  res.send(lines.join('\n'));
+});
+
+// Simple CSV parser supporting quoted fields, escaped quotes, multi-line
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i+1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i+1] === '\n') i++;
+        row.push(field); field = '';
+        if (row.some(x => x.length)) rows.push(row);
+        row = [];
+      } else field += c;
+    }
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  if (!rows.length) return [];
+  const header = rows[0].map(h => h.trim());
+  return rows.slice(1).map(r => {
+    const o = {};
+    header.forEach((h, i) => { o[h] = (r[i] || '').trim(); });
+    return o;
+  });
+}
+
+app.post('/api/phrases/import', checkAdmin, async (req, res) => {
+  if (!pgPool) return res.status(503).json({ error: 'no db' });
+  const csv = (req.body && req.body.csv) || '';
+  if (!csv) return res.status(400).json({ error: 'empty csv' });
+  let parsed;
+  try { parsed = parseCSV(csv); }
+  catch(e) { return res.status(400).json({ error: 'parse: ' + e.message }); }
+  let inserted = 0; const errors = [];
+  for (const row of parsed) {
+    if (!row.ru || !row.en) { errors.push({ row, why: 'missing ru/en' }); continue; }
+    const answers = row.answers ? row.answers.split('|').map(s => s.trim()).filter(Boolean) : [row.en.toLowerCase()];
+    try {
+      await pgPool.query(
+        `INSERT INTO phrases (ru, en, answers, difficulty, theme) VALUES ($1, $2, $3, $4, $5)`,
+        [row.ru, row.en, answers, row.difficulty || 'easy', row.theme || 'general']
+      );
+      inserted++;
+    } catch(e) {
+      errors.push({ row, why: e.message });
+    }
+  }
+  await loadPhrases();
+  res.json({ inserted, totalRows: parsed.length, errors });
+});
+
 app.use('/admin', express.static(__dirname + '/admin'));
 
 const httpServer = http.createServer(app);
