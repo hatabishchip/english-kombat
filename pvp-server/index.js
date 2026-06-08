@@ -6,11 +6,32 @@ const { Schema, MapSchema, type } = require('@colyseus/schema');
 const { monitor } = require('@colyseus/monitor');
 const { PHRASES, checkAnswer } = require('./phrases');
 
+// ─── ELO ───
+function eloDelta(myElo, oppElo, won, k = 32) {
+  const expected = 1 / (1 + Math.pow(10, (oppElo - myElo) / 400));
+  const actual = won ? 1 : 0;
+  return Math.round(k * (actual - expected));
+}
+// in-memory leaderboard: username → { elo, char, level, wins, losses, lastSeen }
+const LEADERBOARD = new Map();
+function updateLeaderboard(username, payload) {
+  if (!username || username === 'BOT') return;
+  const prev = LEADERBOARD.get(username) || {};
+  LEADERBOARD.set(username, { ...prev, ...payload, lastSeen: Date.now() });
+  // cap to top 500 by elo (memory hygiene)
+  if (LEADERBOARD.size > 500) {
+    const sorted = [...LEADERBOARD.entries()].sort((a, b) => (b[1].elo || 0) - (a[1].elo || 0));
+    LEADERBOARD.clear();
+    sorted.slice(0, 500).forEach(([k, v]) => LEADERBOARD.set(k, v));
+  }
+}
+
 // ─── STATE SCHEMAS ───
 class Player extends Schema {}
 type('string')(Player.prototype, 'name');
 type('string')(Player.prototype, 'char');
 type('number')(Player.prototype, 'level');
+type('number')(Player.prototype, 'elo');
 type('number')(Player.prototype, 'hp');
 type('boolean')(Player.prototype, 'isActive');
 type('boolean')(Player.prototype, 'isBot');
@@ -61,11 +82,12 @@ class FightRoom extends Room {
     p.name  = (opts.name || 'Anon').slice(0, 16);
     p.char  = opts.char || 'subzero';
     p.level = Math.max(1, Math.min(10, opts.level || 1));
+    p.elo   = Math.max(0, Math.min(3000, opts.elo || 1000));
     p.hp    = 100;
     p.isActive = false;
     p.isBot = false;
     this.state.players.set(client.sessionId, p);
-    console.log(`[room ${this.roomId}] joined: ${p.name} (${client.sessionId})`);
+    console.log(`[room ${this.roomId}] joined: ${p.name} elo=${p.elo}`);
     if (this.state.players.size === 2) {
       clearTimeout(this.botFillTimeout);
       this.startCountdown();
@@ -77,14 +99,16 @@ class FightRoom extends Room {
     const botChars = ['subzero','kotal','sareena','nightwolf'];
     bot.name  = 'BOT';
     bot.char  = botChars[Math.floor(Math.random() * botChars.length)];
-    bot.level = 1;
+    bot.level = this.bracket >= 2 ? 7 : 3;
+    // bot elo scales with bracket
+    bot.elo   = this.bracket >= 2 ? 1300 : 1000;
     bot.hp    = 100;
     bot.isActive = false;
     bot.isBot = true;
     const botId = 'bot_' + Math.random().toString(36).slice(2, 8);
     this.state.players.set(botId, bot);
     this.botId = botId;
-    console.log(`[room ${this.roomId}] bot fill: ${bot.char}`);
+    console.log(`[room ${this.roomId}] bot fill: ${bot.char} elo=${bot.elo}`);
     this.startCountdown();
   }
 
@@ -205,8 +229,31 @@ class FightRoom extends Room {
     this.state.phase = 'game_over';
     this.state.winnerId = winnerId;
     const winner = this.state.players.get(winnerId);
-    this.broadcast('game_over', { winnerId, winnerName: winner ? winner.name : '?' });
-    // close room after 5s
+    const loserId = this.getOpponentId(winnerId);
+    const loser = this.state.players.get(loserId);
+    // compute ELO delta (server-authoritative)
+    let deltaWinner = 0, deltaLoser = 0, winnerNewElo = 0, loserNewElo = 0;
+    if (winner && loser) {
+      deltaWinner = eloDelta(winner.elo, loser.elo, true);
+      deltaLoser  = eloDelta(loser.elo, winner.elo, false);
+      winnerNewElo = Math.max(0, winner.elo + deltaWinner);
+      loserNewElo  = Math.max(0, loser.elo  + deltaLoser);
+      // persist to in-memory leaderboard (skip bots)
+      if (!winner.isBot) {
+        updateLeaderboard(winner.name, { elo: winnerNewElo, char: winner.char, level: winner.level, wins: (LEADERBOARD.get(winner.name)?.wins || 0) + 1 });
+      }
+      if (!loser.isBot) {
+        updateLeaderboard(loser.name, { elo: loserNewElo, char: loser.char, level: loser.level, losses: (LEADERBOARD.get(loser.name)?.losses || 0) + 1 });
+      }
+    }
+    this.broadcast('game_over', {
+      winnerId,
+      winnerName: winner ? winner.name : '?',
+      elo: {
+        [winnerId]: { delta: deltaWinner, newElo: winnerNewElo },
+        [loserId]:  { delta: deltaLoser,  newElo: loserNewElo },
+      },
+    });
     setTimeout(() => this.disconnect(), 5000);
   }
 
@@ -232,8 +279,19 @@ class FightRoom extends Room {
 
 // ─── BOOT ───
 const app = express();
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  next();
+});
 app.get('/', (_, res) => res.send('English Kombat PvP server — ok'));
 app.get('/health', (_, res) => res.send('ok'));
+app.get('/leaderboard', (_, res) => {
+  const top = [...LEADERBOARD.entries()]
+    .map(([name, p]) => ({ name, ...p }))
+    .sort((a, b) => (b.elo || 0) - (a.elo || 0))
+    .slice(0, 50);
+  res.json({ top });
+});
 app.use('/colyseus', monitor());
 
 const httpServer = http.createServer(app);
