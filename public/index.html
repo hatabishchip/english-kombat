@@ -591,6 +591,29 @@
       50%{transform:translateX(-50%) translateY(-4px) rotate(3deg);}
     }
 
+    /* ─── STUN BIRDS (dizzy effect after being hit) ─── */
+    .stun-birds{
+      position:absolute;top:-26px;left:50%;transform:translateX(-50%);
+      width:80px;height:30px;z-index:7;pointer-events:none;
+    }
+    .stun-birds .bird{
+      position:absolute;top:50%;left:50%;font-size:16px;
+      animation:bird-orbit 1.1s linear infinite;
+      transform-origin:0 0;
+    }
+    .stun-birds .bird:nth-child(1){animation-delay:0s;}
+    .stun-birds .bird:nth-child(2){animation-delay:-.37s;}
+    .stun-birds .bird:nth-child(3){animation-delay:-.74s;}
+    @keyframes bird-orbit{
+      0%  {transform:rotate(0deg) translateX(26px) rotate(0deg) scaleX(1);}
+      49% {transform:rotate(176deg) translateX(26px) rotate(-176deg) scaleX(1);}
+      50% {transform:rotate(180deg) translateX(26px) rotate(-180deg) scaleX(-1);}
+      99% {transform:rotate(356deg) translateX(26px) rotate(-356deg) scaleX(-1);}
+      100%{transform:rotate(360deg) translateX(26px) rotate(-360deg) scaleX(1);}
+    }
+    /* squashed-Y orbit so birds circle in an ellipse over the head */
+    .stun-birds-inner{transform:scaleY(.45);}
+
     /* atmospheric dust */
     @keyframes dust-float{
       0%  {transform:translate(0,0);opacity:0;}
@@ -3732,132 +3755,134 @@ function renderCardOptions() {
   });
 }
 function onCardChosen(btn, picked) {
-  if (state.phase !== 'player_turn') return;
-  // disable all
+  if (!state.acceptingAnswer || state.phase === 'game_over') return;
   Array.from(document.querySelectorAll('.card-opt')).forEach(b => b.disabled = true);
   const correct = checkAnswer(picked, state.currentPhrase.answers);
   btn.classList.add(correct ? 'right' : 'wrong');
-  // re-use battle's submit
   submitMyAnswer([picked]);
 }
 
-function startTurn() {
+// ═══ REAL-TIME BRAWL (offline vs bot) ═══
+// No alternating turns. Player always has a phrase; correct translation = instant hit.
+// Bot attacks on its own timer. Getting hit = 1s stun (birds) before a fresh phrase.
+
+function startTurn() {           // entry point from countdown — starts the brawl
+  state.stunned = false;
+  state.resolving = false;
+  stopTimer();
+  document.getElementById('timer').textContent = '';
+  presentPhrase();
+  scheduleBotAttack();
+}
+
+function presentPhrase() {
+  if (state.phase === 'game_over') return;
   state.currentPhrase = pickPhrase();
   state.usedIds.add(state.currentPhrase.id);
+  state.resolving = false;
+  state.acceptingAnswer = true;
+  state.phase = 'player_turn';
 
-  // Reset phrase card from previous result state
-  document.getElementById('phrase-card').className = 'phrase-card';
-  document.getElementById('phrase-ru').className   = 'phrase-ru';
-  document.getElementById('phrase-sub').className  = 'phrase-sub';
+  const card = document.getElementById('phrase-card');
+  card.className = 'phrase-card';
+  document.getElementById('phrase-ru').className  = 'phrase-ru';
+  document.getElementById('phrase-sub').className = 'phrase-sub';
   document.getElementById('phrase-ru').textContent = state.currentPhrase.ru;
+  setActiveTurn('left');
+  setHeard('');
 
-  if (state.myTurn) {
-    state.phase = 'player_turn';
-    setActiveTurn('left');
-    setHeard('');
-    if (state.battleMode === 'cards') {
-      document.getElementById('phrase-sub').textContent = '🃏 Выбери правильный перевод';
-      setStatus('⚔ ТВОЙ ХОД — ВЫБИРАЙ!', 'mine');
-      renderCardOptions();
-      startTimer(8);
-    } else {
-      document.getElementById('phrase-sub').textContent = '🎤 Скажи перевод — микрофон уже слушает';
-      setStatus('⚔ ТВОЙ ХОД — ГОВОРИ!', 'mine');
-      updateMic(true);
-      startTimer(8);
-      setTimeout(() => {
-        if (state.phase === 'player_turn' && HAS_SR && !listening) startListen();
-      }, 500);
-    }
+  if (state.battleMode === 'cards') {
+    document.getElementById('phrase-sub').textContent = '🃏 Выбери перевод — бей врага';
+    setStatus('⚔ ПЕРЕВОДИ — БЕЙ!', 'mine');
+    renderCardOptions();
   } else {
-    state.phase = 'bot_turn';
-    document.getElementById('phrase-sub').textContent = '🤖 Соперник переводит...';
-    setStatus(BOT_THINKS[Math.floor(Math.random() * BOT_THINKS.length)], '');
-    setActiveTurn('right');
-    updateMic(false);
-    // Bot "thinks" 1.5–3 seconds
-    setTimeout(() => botAnswer(), 1500 + Math.random() * 1500);
+    document.getElementById('phrase-sub').textContent = '🎤 Скажи перевод — бей врага';
+    setStatus('⚔ ПЕРЕВОДИ — БЕЙ!', 'mine');
+    updateMic(true);
+    setTimeout(() => {
+      if (state.acceptingAnswer && HAS_SR && !listening) startListen();
+    }, 300);
   }
 }
 
-function botAnswer() {
-  if (state.phase !== 'bot_turn') return;
+function scheduleBotAttack() {
+  clearTimeout(state.botAttackTimer);
+  const ranges = { easy: [6000, 9000], medium: [5000, 7000], hard: [4000, 6000] };
+  const [lo, hi] = ranges[state.difficulty] || ranges.easy;
+  state.botAttackTimer = setTimeout(() => botStrike(), lo + Math.random() * (hi - lo));
+}
 
-  const correct = Math.random() < state.botSkill;
-  const said = correct
-    ? state.currentPhrase.answers[0]
-    : BOT_FAILS[Math.floor(Math.random() * BOT_FAILS.length)];
+function botStrike() {
+  if (state.phase === 'game_over') return;
+  // if a hit is mid-resolution, wait a moment and retry
+  if (state.resolving) { state.botAttackTimer = setTimeout(() => botStrike(), 1200); return; }
+  state.resolving = true;
+  state.acceptingAnswer = false;
+  stopListen();
+  resetCombo();
+  state.myCorrectInRow = 0;
 
-  // Show what bot said in result flash
-  if (correct) {
-    state.botCorrectInRow = (state.botCorrectInRow || 0) + 1;
-    state.myCorrectInRow  = 0;
-    state.myHP = Math.max(0, state.myHP - 20);
-    setHP('left', state.myHP);
-    state.phase = 'hit';
-    doPunch('right', 'left');                  // BOT punches ME
-    showResult(true, said, state.currentPhrase.en, false);
-    if (state.myHP <= 0) { endGame(false); return; }
-    setTimeout(() => nextTurn(), 2400);
-  } else {
-    state.botCorrectInRow = 0;
-    state.phase = 'miss';
-    playMiss();
-    showResult(false, said, state.currentPhrase.en, false);
-    setTimeout(() => nextTurn(), 4000);
-  }
+  state.myHP = Math.max(0, state.myHP - 20);
+  setHP('left', state.myHP);
+  doPunch('right', 'left');                       // BOT punches ME
+
+  // birds appear when the punch lands (~560ms windup)
+  setTimeout(() => spawnStunBirds('left', 1000), 560);
+
+  if (state.myHP <= 0) { setTimeout(() => endGame(false), 600); return; }
+
+  // stun: hide phrase for 1 second after the hit lands
+  document.getElementById('phrase-ru').textContent  = '😵';
+  document.getElementById('phrase-sub').textContent = 'оглушён...';
+  setStatus('💫 ОГЛУШЁН!', 'bad');
+
+  setTimeout(() => {
+    if (state.phase === 'game_over') return;
+    presentPhrase();
+    scheduleBotAttack();
+  }, 560 + 1000);     // punch windup + 1s stun
 }
 
 function submitMyAnswer(alts) {
-  if (state.phase !== 'player_turn') return;
-  stopTimer();
-  state.phase = 'evaluating';
-  updateMic(false);
-
+  if (!state.acceptingAnswer || state.phase === 'game_over') return;
   const correct = (alts || []).some(a => checkAnswer(a, state.currentPhrase.answers));
   const spoken  = (alts || [])[0] || '';
 
   if (correct) {
+    if (state.resolving) return;
+    state.resolving = true;
+    state.acceptingAnswer = false;
+    stopListen();
     state.correctCount++;
     state.myCorrectInRow = (state.myCorrectInRow || 0) + 1;
-    state.botCorrectInRow = 0;
     if (state.myCorrectInRow >= 2) bumpCombo(state.myCorrectInRow);
     upgradeDiff();
     state.botHP = Math.max(0, state.botHP - 20);
     setHP('right', state.botHP);
-    state.phase = 'hit';
-    doPunch('left', 'right');                  // I punch BOT
+    doPunch('left', 'right');                     // I punch BOT
+    setTimeout(() => spawnStunBirds('right', 800), 560);
     showResult(true, spoken, state.currentPhrase.en, true);
-    if (state.botHP <= 0) { endGame(true); return; }
-    setTimeout(() => nextTurn(), 2400);
+    if (state.botHP <= 0) { setTimeout(() => endGame(true), 600); return; }
+    // next phrase after the punch resolves
+    setTimeout(() => { if (state.phase !== 'game_over') presentPhrase(); }, 1400);
   } else {
-    state.myCorrectInRow = 0;
-    resetCombo();
-    state.phase = 'miss';
+    // wrong — quick feedback, keep the same phrase, re-listen
     playMiss();
-    showResult(false, spoken, state.currentPhrase.en, true);
-    setTimeout(() => nextTurn(), 4000);
+    setHeard(`✗ "${spoken || '—'}" — ещё раз`);
+    if (state.battleMode === 'cards') {
+      renderCardOptions();
+    } else {
+      setTimeout(() => {
+        if (state.acceptingAnswer && HAS_SR && !listening) startListen();
+      }, 500);
+    }
   }
-}
-
-function onTurnTimeout() {
-  if (state.phase !== 'player_turn') return;
-  state.myCorrectInRow = 0;
-  resetCombo();
-  state.phase = 'miss';
-  playMiss();
-  showResult(false, '(нет ответа)', state.currentPhrase.en, true);
-  setTimeout(() => nextTurn(), 4000);
-}
-
-function nextTurn() {
-  state.myTurn = !state.myTurn;
-  startTurn();   // startTurn resets the phrase card from result state
 }
 
 function endGame(iWin) {
   state.phase = 'game_over';
   stopTimer(); stopListen();
+  clearTimeout(state.botAttackTimer);   // stop brawl bot attacks
   setActiveTurn(null);   // turn off both rings
 
   if (iWin) {
@@ -4038,6 +4063,20 @@ function doPunch(atkSide, defSide) {
   }, 560);
 }
 
+// Stun birds circling over the hit fighter's head, lasts `ms`
+function spawnStunBirds(side, ms = 1000) {
+  const fc = document.getElementById(`fi-${side}`)?.parentElement?.parentElement; // .fc
+  if (!fc) return;
+  fc.querySelector('.stun-birds')?.remove();
+  const wrap = document.createElement('div');
+  wrap.className = 'stun-birds';
+  wrap.innerHTML = `<div class="stun-birds-inner" style="position:absolute;inset:0">
+    <span class="bird">🐦</span><span class="bird">🐤</span><span class="bird">🐦</span>
+  </div>`;
+  fc.appendChild(wrap);
+  setTimeout(() => wrap.remove(), ms);
+}
+
 function spawnImpact(defSide) {
   const arena = document.getElementById('arena');
   const fEl   = document.getElementById(`fo-${defSide}`);
@@ -4160,7 +4199,8 @@ function startTimer(secs) {
     sec--;
     if (sec < 0) {
       stopTimer();
-      onTurnTimeout();
+      // PvP turn timeout: submit empty so server moves on; brawl doesn't use timer
+      if (state.isPvP && _pvpRoom) submitMyAnswer(['(no answer)']);
       return;
     }
     el.textContent = sec;
@@ -4793,6 +4833,7 @@ function setupPvPHandlers() {
       const atkSide = (m.playerId === ids[0]) ? 'left' : 'right';
       const defSide = atkSide === 'left' ? 'right' : 'left';
       doPunch(atkSide, defSide);
+      setTimeout(() => spawnStunBirds(defSide, 900), 560);
     } else {
       playMiss();
     }
