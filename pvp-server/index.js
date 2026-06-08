@@ -28,8 +28,58 @@ async function initDb() {
       last_played TIMESTAMPTZ DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS players_elo_idx ON players (elo DESC);
+
+    CREATE TABLE IF NOT EXISTS phrases (
+      id SERIAL PRIMARY KEY,
+      ru TEXT NOT NULL,
+      en TEXT NOT NULL,
+      answers TEXT[] DEFAULT '{}',
+      difficulty TEXT DEFAULT 'easy',
+      theme TEXT DEFAULT 'general',
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS phrases_theme_idx ON phrases (theme, difficulty);
   `);
+  // seed if empty
+  const { rows } = await pgPool.query('SELECT COUNT(*)::int AS c FROM phrases');
+  if (rows[0].c === 0) {
+    console.log('[db] seeding phrases from code...');
+    for (const diff of ['easy','medium','hard']) {
+      const arr = PHRASES[diff] || [];
+      for (const p of arr) {
+        await pgPool.query(
+          `INSERT INTO phrases (ru, en, answers, difficulty, theme)
+           VALUES ($1, $2, $3, $4, 'general')`,
+          [p.ru, p.en, p.answers || [p.en.toLowerCase()], diff]
+        );
+      }
+    }
+    console.log('[db] seeded phrases');
+  }
   console.log('[db] schema ready');
+}
+
+// Cache of phrases loaded from DB
+let PHRASES_CACHE = null;
+async function loadPhrases() {
+  if (!pgPool) return null;
+  try {
+    const { rows } = await pgPool.query('SELECT id, ru, en, answers, difficulty, theme FROM phrases ORDER BY id');
+    const grouped = { easy: [], medium: [], hard: [] };
+    for (const r of rows) {
+      const arr = grouped[r.difficulty] || (grouped[r.difficulty] = []);
+      arr.push({ id: r.id, ru: r.ru, en: r.en, answers: r.answers || [], theme: r.theme });
+    }
+    PHRASES_CACHE = grouped;
+    console.log('[db] phrases loaded:', rows.length);
+    return grouped;
+  } catch(e) {
+    console.warn('[db] load phrases failed:', e.message);
+    return null;
+  }
+}
+function getPhrases() {
+  return PHRASES_CACHE || PHRASES;
 }
 
 async function dbUpsertPlayer(username, payload) {
@@ -197,7 +247,8 @@ class FightRoom extends Room {
   }
 
   pickPhrase() {
-    const pool = PHRASES[this.state.difficulty] || PHRASES.easy;
+    const allPhrases = getPhrases();
+    const pool = allPhrases[this.state.difficulty] || allPhrases.easy;
     const avail = pool.filter(p => !this.usedIds.has(p.id));
     const src = avail.length ? avail : pool;
     if (!avail.length) this.usedIds.clear();
@@ -381,7 +432,66 @@ app.get('/leaderboard', async (_, res) => {
     .slice(0, 50);
   res.json({ top, source: 'memory' });
 });
+app.use(express.json());
 app.use('/colyseus', monitor());
+
+// ─── ADMIN PHRASES API ───
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme';
+function checkAdmin(req, res, next) {
+  const token = req.headers['x-admin-password'] || req.query.pwd;
+  if (token !== ADMIN_PASSWORD) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+  next();
+}
+app.post('/api/admin/login', (req, res) => {
+  const { password } = req.body || {};
+  if (password === ADMIN_PASSWORD) res.json({ ok: true });
+  else res.status(401).json({ error: 'wrong password' });
+});
+app.get('/api/phrases', checkAdmin, async (_, res) => {
+  if (!pgPool) return res.json({ rows: [] });
+  const { rows } = await pgPool.query('SELECT id, ru, en, answers, difficulty, theme FROM phrases ORDER BY id DESC');
+  res.json({ rows });
+});
+app.post('/api/phrases', checkAdmin, async (req, res) => {
+  if (!pgPool) return res.status(500).json({ error: 'no db' });
+  const { ru, en, answers, difficulty = 'easy', theme = 'general' } = req.body || {};
+  if (!ru || !en) return res.status(400).json({ error: 'ru/en required' });
+  const ansArr = Array.isArray(answers) && answers.length ? answers.map(a => a.toLowerCase()) : [en.toLowerCase()];
+  const { rows } = await pgPool.query(
+    `INSERT INTO phrases (ru, en, answers, difficulty, theme)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [ru, en, ansArr, difficulty, theme]
+  );
+  await loadPhrases();
+  res.json({ row: rows[0] });
+});
+app.put('/api/phrases/:id', checkAdmin, async (req, res) => {
+  if (!pgPool) return res.status(500).json({ error: 'no db' });
+  const { ru, en, answers, difficulty, theme } = req.body || {};
+  const ansArr = Array.isArray(answers) ? answers.map(a => a.toLowerCase()) : null;
+  const { rows } = await pgPool.query(
+    `UPDATE phrases SET
+       ru = COALESCE($1, ru),
+       en = COALESCE($2, en),
+       answers = COALESCE($3::text[], answers),
+       difficulty = COALESCE($4, difficulty),
+       theme = COALESCE($5, theme)
+     WHERE id = $6 RETURNING *`,
+    [ru, en, ansArr, difficulty, theme, req.params.id]
+  );
+  await loadPhrases();
+  res.json({ row: rows[0] });
+});
+app.delete('/api/phrases/:id', checkAdmin, async (req, res) => {
+  if (!pgPool) return res.status(500).json({ error: 'no db' });
+  await pgPool.query('DELETE FROM phrases WHERE id = $1', [req.params.id]);
+  await loadPhrases();
+  res.json({ ok: true });
+});
+app.use('/admin', express.static(__dirname + '/admin'));
 
 const httpServer = http.createServer(app);
 const gameServer = new Server({
@@ -394,6 +504,7 @@ gameServer.define('fight', FightRoom).filterBy(['bracket']);
 const PORT = process.env.PORT || 2567;
 (async () => {
   await initDb();
+  await loadPhrases();
   await gameServer.listen(PORT);
   console.log(`⚔  Colyseus PvP server listening on :${PORT}`);
 })();
