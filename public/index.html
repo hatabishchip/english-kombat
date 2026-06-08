@@ -2766,7 +2766,10 @@ async function loadMyClan() {
           <div style="color:#ffd100;font-size:13px">${p.elo}</div>
         </div>`;
       }).join('');
-      actEl.innerHTML = `<button class="btn btn-dark" style="font-size:12px;padding:6px 14px;width:auto" onclick="leaveClan()">🚪 Покинуть клан</button>`;
+      actEl.innerHTML = `
+        <button class="btn btn-red" style="font-size:12px;padding:6px 14px;width:auto" onclick="startClanFight()">🛡 КЛАНОВЫЙ БОЙ 2v2</button>
+        <button class="btn btn-dark" style="font-size:12px;padding:6px 14px;width:auto" onclick="leaveClan()">🚪 Покинуть клан</button>
+      `;
     } else {
       infoEl.textContent = 'Ты ещё не в клане';
       const chatBlock = document.getElementById('clan-chat-block');
@@ -2841,6 +2844,11 @@ async function challengeFriend(friendName) {
   const code = genChallengeCode();
   stopChatPolling();
   await startPvP({ code });
+}
+
+async function startClanFight() {
+  stopChatPolling();
+  await startPvP({ mode: '2v2' });
 }
 
 function copyChallengeLink(url) {
@@ -4740,16 +4748,19 @@ async function startPvP(opts = {}) {
   const bracketName = bracket === 1 ? 'НОВИЧКИ (1-5)' : 'ОПЫТНЫЕ (6-10)';
   setStatus(`🌐 Подключаюсь к лиге ${bracketName}...`, 'mine');
   try {
+    const mode = opts.mode || '1v1';
+    state.pvpMode = mode;
     const joinOpts = {
       name:    u.username,
       char:    u.character,
       level:   lvl,
       elo:     u.elo || 1000,
+      mode:    mode,
     };
     if (challengeCode) {
-      joinOpts.code = challengeCode;     // private filter — only matches another player with same code
+      joinOpts.code = challengeCode;
     } else {
-      joinOpts.bracket = bracket;        // public matchmaking by skill bracket
+      joinOpts.bracket = bracket;
     }
     _pvpRoom = await _colyseus.joinOrCreate('fight', joinOpts);
     // private challenge: show share-link UI while waiting
@@ -4788,8 +4799,15 @@ function setupPvPHandlers() {
   });
   _pvpRoom.onMessage('diff_up', m => showDiffUp(m.level));
   _pvpRoom.onMessage('game_over', m => {
-    const iWin = m.winnerId === _pvpRoom.sessionId;
+    // 2v2 has winnerTeam, 1v1 has winnerId (with my session matching = win)
     const mySession = _pvpRoom.sessionId;
+    let iWin;
+    if (typeof m.winnerTeam === 'number') {
+      const myPlayer = _pvpRoom.state.players.get(mySession);
+      iWin = myPlayer && myPlayer.team === m.winnerTeam;
+    } else {
+      iWin = m.winnerId === mySession;
+    }
     const myEloRes = m.elo && m.elo[mySession];
     const cur = authCurrent();
     if (iWin) {
@@ -4829,23 +4847,61 @@ function setupPvPHandlers() {
 
 function renderPvPState(s) {
   if (!s.players || s.players.size === 0) return;
-  const ids = Array.from(s.players.keys());
   const me  = _pvpRoom.sessionId;
-  const myIdx = ids.indexOf(me);
-  const oppIdx = myIdx === 0 ? 1 : 0;
-  const myId  = ids[myIdx], oppId = ids[oppIdx];
-  const mp = s.players.get(myId);
-  const op = s.players.get(oppId);
+  const mp = s.players.get(me);
   if (!mp) return;
-  // mount my fighter on left, opp on right (uses already-rendered fighters with replacements)
-  document.getElementById('fi-left').innerHTML  = makeFighterSVG(mp.char || 'subzero');
+  // 2v2 view: figure out who is the "active fighter" displayed per team
+  let myId = me;
+  let oppId = null;
+  if (state.pvpMode === '2v2') {
+    // me: active on my team (or me if any active), opp: active on opp team
+    const myTeam  = mp.team;
+    const oppTeam = myTeam === 0 ? 1 : 0;
+    const teamMembers = (t) => Array.from(s.players.entries()).filter(([_, p]) => p.team === t);
+    // prefer the currently-active fighter on each side; otherwise highest HP
+    const pickActive = (arr) => arr.find(([_,p]) => p.isActive) || arr.sort((a,b) => b[1].hp - a[1].hp)[0];
+    const myPick = pickActive(teamMembers(myTeam));
+    const oppPick = pickActive(teamMembers(oppTeam));
+    myId  = myPick ? myPick[0]  : me;
+    oppId = oppPick ? oppPick[0] : null;
+  } else {
+    const ids = Array.from(s.players.keys());
+    const oppIdx = ids.indexOf(me) === 0 ? 1 : 0;
+    oppId = ids[oppIdx];
+  }
+  const op = oppId ? s.players.get(oppId) : null;
+  // active-fighter SVG
+  const activeMy  = s.players.get(myId);
+  document.getElementById('fi-left').innerHTML  = makeFighterSVG((activeMy?.char) || mp.char || 'subzero');
   document.getElementById('fi-right').innerHTML = op ? makeFighterSVG(op.char || 'kotal') : '';
-  document.getElementById('n-left').textContent  = mp.name;
+  document.getElementById('n-left').textContent  = activeMy ? activeMy.name : mp.name;
   document.getElementById('n-right').textContent = op ? (op.isBot ? `🤖 ${op.name}` : `🌐 ${op.name}`) : '...';
-  setHP('left',  mp.hp);
+  setHP('left',  activeMy ? activeMy.hp : mp.hp);
   if (op) setHP('right', op.hp);
   state.myHP = mp.hp;
   state.botHP = op ? op.hp : 100;
+  // 2v2 team summary row (teammates list above phrase)
+  if (state.pvpMode === '2v2') {
+    let summary = document.getElementById('team-summary');
+    if (!summary) {
+      summary = document.createElement('div');
+      summary.id = 'team-summary';
+      summary.style.cssText = 'width:100%;display:flex;justify-content:space-between;padding:4px 8px;background:rgba(0,0,0,.6);font-family:sans-serif;font-size:11px;border-bottom:1px solid #3a2812';
+      document.querySelector('.bot')?.parentNode?.insertBefore(summary, document.querySelector('.bot'));
+    }
+    summary.style.display = '';
+    const teamHtml = (team) => {
+      const members = Array.from(s.players.entries())
+        .filter(([_, p]) => p.team === team)
+        .map(([id, p]) => `<span style="color:${p.hp > 0 ? '#ffd100' : '#666'};${p.isActive ? 'text-shadow:0 0 6px #ffd100' : ''}">${p.isBot ? '🤖' : '🌐'} ${p.name} ${p.hp}/100${p.isActive ? ' ⚔' : ''}</span>`)
+        .join(' · ');
+      return members;
+    };
+    summary.innerHTML = `<div>🛡 ${teamHtml(mp.team)}</div><div>${teamHtml(mp.team === 0 ? 1 : 0)} 🛡</div>`;
+  } else {
+    const summary = document.getElementById('team-summary');
+    if (summary) summary.style.display = 'none';
+  }
   // phase-driven UI
   if (s.phase === 'waiting') {
     const u = authCurrent();

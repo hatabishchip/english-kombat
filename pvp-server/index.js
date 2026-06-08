@@ -207,6 +207,7 @@ type('number')(Player.prototype, 'elo');
 type('number')(Player.prototype, 'hp');
 type('boolean')(Player.prototype, 'isActive');
 type('boolean')(Player.prototype, 'isBot');
+type('number')(Player.prototype, 'team');     // 0 or 1 (for 2v2)
 
 class FightState extends Schema {
   constructor() {
@@ -225,9 +226,10 @@ type('string')(FightState.prototype, 'winnerId');
 // ─── FIGHT ROOM ───
 class FightRoom extends Room {
   onCreate(opts) {
-    this.maxClients = 2;
+    this.mode    = opts.mode || '1v1';     // '1v1' or '2v2'
+    this.maxClients = this.mode === '2v2' ? 4 : 2;
     this.bracket = opts.bracket || 1;
-    this.code    = opts.code || null;     // private-challenge code (6 chars)
+    this.code    = opts.code || null;
     this.state = new FightState();
     this.state.phase = 'waiting';
     this.state.difficulty = 'easy';
@@ -236,18 +238,24 @@ class FightRoom extends Room {
     this.correctCount = 0;
     this.turnTimeout = null;
     this.botFillTimeout = null;
-    this.setMetadata({ bracket: this.bracket, code: this.code });
+    this.turnOrder = [];      // ordered sessionIds for who-goes-next
+    this.turnIndex = 0;
+    this.setMetadata({ mode: this.mode, bracket: this.bracket, code: this.code });
     this.onMessage('answer', (client, msg) => this.handleAnswer(client, msg));
-    this.onMessage('leave', (client) => this.disconnect());
-    console.log(`[room ${this.roomId}] created (bracket=${this.bracket}, code=${this.code || '-'})`);
+    this.onMessage('leave', () => this.disconnect());
+    console.log(`[room ${this.roomId}] created mode=${this.mode} bracket=${this.bracket} code=${this.code || '-'}`);
 
-    // bot-fill: 30s for public, 90s for private challenge (give friend time to click link)
     const botFillMs = this.code ? 90000 : 30000;
     this.botFillTimeout = setTimeout(() => {
-      if (this.state.players.size < 2 && this.state.phase === 'waiting') {
+      while (this.state.players.size < this.maxClients && this.state.phase === 'waiting') {
         this.addBot();
       }
     }, botFillMs);
+  }
+
+  assignTeam() {
+    // for 2v2: first 2 to join = team 0, next 2 = team 1
+    return this.state.players.size < 2 ? 0 : 1;
   }
 
   onJoin(client, opts) {
@@ -259,10 +267,11 @@ class FightRoom extends Room {
     p.hp    = 100;
     p.isActive = false;
     p.isBot = false;
+    p.team  = this.mode === '2v2' ? this.assignTeam() : 0;
     this.state.players.set(client.sessionId, p);
-    markOnline(p.name.toLowerCase());      // active player → mark online
-    console.log(`[room ${this.roomId}] joined: ${p.name} elo=${p.elo}`);
-    if (this.state.players.size === 2) {
+    markOnline(p.name.toLowerCase());
+    console.log(`[room ${this.roomId}] joined: ${p.name} team=${p.team}`);
+    if (this.state.players.size === this.maxClients) {
       clearTimeout(this.botFillTimeout);
       this.startCountdown();
     }
@@ -274,23 +283,36 @@ class FightRoom extends Room {
     bot.name  = 'BOT';
     bot.char  = botChars[Math.floor(Math.random() * botChars.length)];
     bot.level = this.bracket >= 2 ? 7 : 3;
-    // bot elo scales with bracket
     bot.elo   = this.bracket >= 2 ? 1300 : 1000;
     bot.hp    = 100;
     bot.isActive = false;
     bot.isBot = true;
+    bot.team  = this.mode === '2v2' ? this.assignTeam() : 0;
     const botId = 'bot_' + Math.random().toString(36).slice(2, 8);
     this.state.players.set(botId, bot);
-    this.botId = botId;
-    console.log(`[room ${this.roomId}] bot fill: ${bot.char} elo=${bot.elo}`);
-    this.startCountdown();
+    console.log(`[room ${this.roomId}] bot fill: ${bot.char} team=${bot.team}`);
+    if (this.state.players.size === this.maxClients) {
+      this.startCountdown();
+    }
   }
 
   startCountdown() {
     this.state.phase = 'countdown';
-    // pick who goes first
     const ids = Array.from(this.state.players.keys());
-    const firstId = ids[Math.floor(Math.random() * ids.length)];
+    // build turn order: interleave teams (team0 → team1 → team0 → team1)
+    if (this.mode === '2v2') {
+      const t0 = ids.filter(id => this.state.players.get(id).team === 0);
+      const t1 = ids.filter(id => this.state.players.get(id).team === 1);
+      this.turnOrder = [];
+      for (let i = 0; i < Math.max(t0.length, t1.length); i++) {
+        if (t0[i]) this.turnOrder.push(t0[i]);
+        if (t1[i]) this.turnOrder.push(t1[i]);
+      }
+    } else {
+      this.turnOrder = ids;
+    }
+    this.turnIndex = 0;
+    const firstId = this.turnOrder[this.turnIndex];
     ids.forEach(id => {
       const p = this.state.players.get(id);
       p.isActive = (id === firstId);
@@ -351,19 +373,27 @@ class FightRoom extends Room {
     clearTimeout(this.turnTimeout);
     const player = this.state.players.get(playerId);
     if (!player) return;
+    let targetId = null;
     if (correct) {
       this.correctCount++;
-      // damage opponent
-      const oppId = this.getOpponentId(playerId);
-      const opp = this.state.players.get(oppId);
-      if (opp) opp.hp = Math.max(0, opp.hp - 20);
+      // pick target: random ALIVE opponent (different team)
+      const oppTeam = player.team === 0 ? 1 : 0;
+      const aliveOpps = Array.from(this.state.players.entries())
+        .filter(([id, p]) => p.team === oppTeam && p.hp > 0);
+      if (aliveOpps.length) {
+        const pick = aliveOpps[Math.floor(Math.random() * aliveOpps.length)];
+        targetId = pick[0];
+        pick[1].hp = Math.max(0, pick[1].hp - 20);
+      }
       this.state.phase = 'hit';
-      this.broadcast('result', { correct: true, playerId, spoken, answer: this.currentPhrase.en });
-      if (opp && opp.hp <= 0) {
+      this.broadcast('result', { correct: true, playerId, targetId, spoken, answer: this.currentPhrase.en });
+      // check win — team with all 0 HP loses
+      const t0Alive = Array.from(this.state.players.values()).filter(p => p.team === 0 && p.hp > 0).length;
+      const t1Alive = Array.from(this.state.players.values()).filter(p => p.team === 1 && p.hp > 0).length;
+      if (t0Alive === 0 || t1Alive === 0) {
         setTimeout(() => this.endFight(playerId), 1500);
         return;
       }
-      // upgrade difficulty
       if (this.correctCount === 6 && this.state.difficulty === 'easy') {
         this.state.difficulty = 'medium';
         this.broadcast('diff_up', { level: 'medium' });
@@ -393,52 +423,72 @@ class FightRoom extends Room {
   }
 
   swap() {
-    for (const p of this.state.players.values()) {
-      p.isActive = !p.isActive;
+    // advance turn — skip dead players
+    if (this.turnOrder.length === 0) {
+      // legacy fallback
+      for (const p of this.state.players.values()) p.isActive = !p.isActive;
+      this.startTurn();
+      return;
+    }
+    let attempts = 0;
+    do {
+      this.turnIndex = (this.turnIndex + 1) % this.turnOrder.length;
+      attempts++;
+    } while (
+      attempts < this.turnOrder.length * 2 &&
+      (this.state.players.get(this.turnOrder[this.turnIndex])?.hp || 0) <= 0
+    );
+    const activeId = this.turnOrder[this.turnIndex];
+    for (const [id, p] of this.state.players) {
+      p.isActive = (id === activeId);
     }
     this.startTurn();
   }
 
-  endFight(winnerId) {
+  endFight(triggerId) {
     clearTimeout(this.turnTimeout);
     this.state.phase = 'game_over';
-    this.state.winnerId = winnerId;
-    const winner = this.state.players.get(winnerId);
-    const loserId = this.getOpponentId(winnerId);
-    const loser = this.state.players.get(loserId);
-    // compute ELO delta (server-authoritative)
-    let deltaWinner = 0, deltaLoser = 0, winnerNewElo = 0, loserNewElo = 0;
-    if (winner && loser) {
-      deltaWinner = eloDelta(winner.elo, loser.elo, true);
-      deltaLoser  = eloDelta(loser.elo, winner.elo, false);
-      winnerNewElo = Math.max(0, winner.elo + deltaWinner);
-      loserNewElo  = Math.max(0, loser.elo  + deltaLoser);
-      // persist to in-memory leaderboard (skip bots)
-      if (!winner.isBot) {
-        const prev = LEADERBOARD.get(winner.name) || {};
-        updateLeaderboard(winner.name, { elo: winnerNewElo, char: winner.char, level: winner.level, wins: (prev.wins || 0) + 1 });
-        // persist to Postgres
-        dbUpsertPlayer(winner.name, {
-          elo: winnerNewElo, character: winner.char, level: winner.level,
-          winsDelta: 1, lossesDelta: 0,
-        });
+    const triggerPlayer = this.state.players.get(triggerId);
+    if (!triggerPlayer) {
+      this.broadcast('game_over', { winnerTeam: 0, winnerId: triggerId, winnerName: '?', elo: {} });
+      setTimeout(() => this.disconnect(), 5000);
+      return;
+    }
+    const winnerTeam = triggerPlayer.team;
+    // build winners/losers arrays
+    const winners = [], losers = [];
+    for (const [id, p] of this.state.players) {
+      (p.team === winnerTeam ? winners : losers).push({ id, p });
+    }
+    // average opp ELO per side (for individual delta calculation)
+    const avg = arr => arr.length ? arr.reduce((s, x) => s + x.p.elo, 0) / arr.length : 1000;
+    const winAvg = avg(winners), losAvg = avg(losers);
+    const eloUpdates = {};
+    for (const { id, p } of winners) {
+      const delta = eloDelta(p.elo, losAvg, true);
+      const newElo = Math.max(0, p.elo + delta);
+      eloUpdates[id] = { delta, newElo };
+      if (!p.isBot) {
+        const prev = LEADERBOARD.get(p.name) || {};
+        updateLeaderboard(p.name, { elo: newElo, char: p.char, level: p.level, wins: (prev.wins || 0) + 1 });
+        dbUpsertPlayer(p.name, { elo: newElo, character: p.char, level: p.level, winsDelta: 1, lossesDelta: 0 });
       }
-      if (!loser.isBot) {
-        const prev = LEADERBOARD.get(loser.name) || {};
-        updateLeaderboard(loser.name, { elo: loserNewElo, char: loser.char, level: loser.level, losses: (prev.losses || 0) + 1 });
-        dbUpsertPlayer(loser.name, {
-          elo: loserNewElo, character: loser.char, level: loser.level,
-          winsDelta: 0, lossesDelta: 1,
-        });
+    }
+    for (const { id, p } of losers) {
+      const delta = eloDelta(p.elo, winAvg, false);
+      const newElo = Math.max(0, p.elo + delta);
+      eloUpdates[id] = { delta, newElo };
+      if (!p.isBot) {
+        const prev = LEADERBOARD.get(p.name) || {};
+        updateLeaderboard(p.name, { elo: newElo, char: p.char, level: p.level, losses: (prev.losses || 0) + 1 });
+        dbUpsertPlayer(p.name, { elo: newElo, character: p.char, level: p.level, winsDelta: 0, lossesDelta: 1 });
       }
     }
     this.broadcast('game_over', {
-      winnerId,
-      winnerName: winner ? winner.name : '?',
-      elo: {
-        [winnerId]: { delta: deltaWinner, newElo: winnerNewElo },
-        [loserId]:  { delta: deltaLoser,  newElo: loserNewElo },
-      },
+      winnerTeam,
+      winnerId: winners[0]?.id || triggerId,
+      winnerName: winners.map(w => w.p.name).join(' + '),
+      elo: eloUpdates,
     });
     setTimeout(() => this.disconnect(), 5000);
   }
@@ -954,7 +1004,7 @@ const gameServer = new Server({
 });
 
 // filterBy bracket + code: public rooms match by bracket, private rooms match by code
-gameServer.define('fight', FightRoom).filterBy(['bracket', 'code']);
+gameServer.define('fight', FightRoom).filterBy(['mode', 'bracket', 'code']);
 
 const PORT = process.env.PORT || 2567;
 (async () => {
