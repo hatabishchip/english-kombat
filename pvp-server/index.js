@@ -20,13 +20,17 @@ async function initDb() {
   await pgPool.query(`
     CREATE TABLE IF NOT EXISTS players (
       username TEXT PRIMARY KEY,
+      hash TEXT,
       elo INTEGER DEFAULT 1000,
       wins INTEGER DEFAULT 0,
       losses INTEGER DEFAULT 0,
       character TEXT,
       level INTEGER DEFAULT 1,
+      completed TEXT[] DEFAULT '{}',
       last_played TIMESTAMPTZ DEFAULT now()
     );
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS hash TEXT;
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS completed TEXT[] DEFAULT '{}';
     CREATE INDEX IF NOT EXISTS players_elo_idx ON players (elo DESC);
 
     CREATE TABLE IF NOT EXISTS phrases (
@@ -434,6 +438,94 @@ app.get('/leaderboard', async (_, res) => {
 });
 app.use(express.json());
 app.use('/colyseus', monitor());
+
+// ─── ACCOUNT SYNC (cross-device login + progress) ───
+app.post('/api/auth/sync', async (req, res) => {
+  if (!pgPool) return res.status(503).json({ error: 'no db' });
+  const { username, hash, localProfile } = req.body || {};
+  if (!username || !hash) return res.status(400).json({ error: 'username/hash required' });
+  const u = username.toLowerCase();
+  try {
+    const { rows } = await pgPool.query('SELECT * FROM players WHERE username = $1', [u]);
+    if (rows.length) {
+      const row = rows[0];
+      // existing user — check hash
+      if (row.hash && row.hash !== hash) {
+        return res.status(401).json({ error: 'wrong password' });
+      }
+      // set hash if user existed via PvP play but never auth-synced
+      if (!row.hash) {
+        await pgPool.query('UPDATE players SET hash = $1 WHERE username = $2', [hash, u]);
+        row.hash = hash;
+      }
+      return res.json({ ok: true, profile: {
+        username:  row.username,
+        hash:      row.hash,
+        elo:       row.elo || 1000,
+        wins:      row.wins || 0,
+        losses:    row.losses || 0,
+        level:     row.level || 1,
+        character: row.character || null,
+        completed: row.completed || [],
+        lastPlayed: row.last_played ? new Date(row.last_played).getTime() : Date.now(),
+      }});
+    }
+    // new user — register, seed with localProfile if provided
+    const lp = localProfile || {};
+    const newRow = {
+      elo: lp.elo || 1000,
+      wins: lp.wins || 0,
+      losses: lp.losses || 0,
+      level: lp.level || 1,
+      character: lp.character || null,
+      completed: Array.isArray(lp.completed) ? lp.completed : [],
+    };
+    await pgPool.query(
+      `INSERT INTO players (username, hash, elo, wins, losses, level, character, completed, last_played)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())`,
+      [u, hash, newRow.elo, newRow.wins, newRow.losses, newRow.level, newRow.character, newRow.completed]
+    );
+    res.json({ ok: true, profile: { username: u, hash, ...newRow, lastPlayed: Date.now() }, isNew: true });
+  } catch(e) {
+    console.warn('[auth] sync failed:', e.message);
+    res.status(500).json({ error: 'server error' });
+  }
+});
+
+app.put('/api/auth/profile', async (req, res) => {
+  if (!pgPool) return res.status(503).json({ error: 'no db' });
+  const { username, hash, updates } = req.body || {};
+  if (!username || !hash) return res.status(400).json({ error: 'auth required' });
+  const u = username.toLowerCase();
+  try {
+    const r = await pgPool.query('SELECT hash FROM players WHERE username = $1', [u]);
+    if (!r.rows.length || r.rows[0].hash !== hash) return res.status(401).json({ error: 'auth fail' });
+    await pgPool.query(
+      `UPDATE players SET
+         elo       = COALESCE($1, elo),
+         level     = COALESCE($2, level),
+         wins      = COALESCE($3, wins),
+         losses    = COALESCE($4, losses),
+         character = COALESCE($5, character),
+         completed = COALESCE($6::text[], completed),
+         last_played = now()
+       WHERE username = $7`,
+      [
+        updates.elo ?? null,
+        updates.level ?? null,
+        updates.wins ?? null,
+        updates.losses ?? null,
+        updates.character ?? null,
+        Array.isArray(updates.completed) ? updates.completed : null,
+        u,
+      ]
+    );
+    res.json({ ok: true });
+  } catch(e) {
+    console.warn('[auth] update failed:', e.message);
+    res.status(500).json({ error: 'server error' });
+  }
+});
 
 // ─── ADMIN PHRASES API ───
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme';

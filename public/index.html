@@ -2244,6 +2244,54 @@ async function authHash(text) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
+function pvpHttpUrl() {
+  if (!PVP_SERVER_URL) return null;
+  return PVP_SERVER_URL.replace(/^wss:\/\//,'https://').replace(/^ws:\/\//,'http://');
+}
+
+async function serverAuthSync(username, hash, localProfile) {
+  const base = pvpHttpUrl();
+  if (!base) return { ok: false, reason: 'no-server' };
+  try {
+    const r = await fetch(base + '/api/auth/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, hash, localProfile }),
+    });
+    if (r.status === 401) return { ok: false, reason: 'wrong-password' };
+    if (!r.ok) return { ok: false, reason: 'server-error' };
+    const data = await r.json();
+    return { ok: true, profile: data.profile, isNew: !!data.isNew };
+  } catch(e) {
+    console.warn('[auth] sync failed:', e);
+    return { ok: false, reason: 'network' };
+  }
+}
+
+async function serverAuthPushProfile() {
+  const base = pvpHttpUrl();
+  const u = authCurrent();
+  if (!base || !u || !u.hash) return;
+  try {
+    await fetch(base + '/api/auth/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: u.username,
+        hash:     u.hash,
+        updates:  {
+          elo:       u.elo,
+          level:     u.level,
+          wins:      u.wins,
+          losses:    u.losses,
+          character: u.character,
+          completed: u.completed,
+        },
+      }),
+    });
+  } catch(e) { console.warn('[auth] push failed:', e); }
+}
+
 async function doLogin() {
   const u = document.getElementById('login-name').value.trim().toLowerCase();
   const p = document.getElementById('login-pwd').value;
@@ -2253,34 +2301,42 @@ async function doLogin() {
   if (!p)           { errEl.textContent = '⚠ Введи пароль'; return; }
   const data = authLoad();
   const hash = await authHash(p);
-  let newAcc = false;
 
-  // 1. Try cloud first — if a profile exists in cloud, validate against IT
-  const cloudProfile = await cloudFetchProfile(u);
-  if (cloudProfile) {
-    if (cloudProfile.hash !== hash) { errEl.textContent = '⚠ Неверный пароль'; return; }
-    // merge cloud → local (cloud wins for cross-device)
+  // 1. Try our SERVER first (Postgres-backed cross-device auth)
+  const localProfile = data.users[u] || null;
+  const serverResp = await serverAuthSync(u, hash, localProfile);
+  if (serverResp.ok) {
     data.users[u] = {
-      hash:        cloudProfile.hash,
-      level:       cloudProfile.level       || 1,
-      elo:         cloudProfile.elo         || 1000,
-      wins:        cloudProfile.wins        || 0,
-      losses:      cloudProfile.losses      || 0,
-      character:   cloudProfile.character   || null,
-      completed:   cloudProfile.completed   || [],
-      lastPlayed:  Date.now(),
+      hash:       serverResp.profile.hash,
+      level:      serverResp.profile.level     || 1,
+      elo:        serverResp.profile.elo       || 1000,
+      wins:       serverResp.profile.wins      || 0,
+      losses:     serverResp.profile.losses    || 0,
+      character:  serverResp.profile.character || null,
+      completed:  serverResp.profile.completed || [],
+      lastPlayed: Date.now(),
     };
-  } else if (data.users[u]) {
+    data.currentUser = u;
+    authSave(data);
+    console.log('[auth] server login ok', u, serverResp.isNew ? '(NEW)' : '');
+    applyLoginState();
+    show('s-home');
+    return;
+  }
+  if (serverResp.reason === 'wrong-password') {
+    errEl.textContent = '⚠ Неверный пароль';
+    return;
+  }
+  // 2. Server unreachable → fall back to LOCAL auth
+  console.warn('[auth] server unreachable — local fallback');
+  if (data.users[u]) {
     if (data.users[u].hash !== hash) { errEl.textContent = '⚠ Неверный пароль'; return; }
   } else {
     data.users[u] = { hash, level:1, elo:1000, wins:0, losses:0, character:null, completed:[], lastPlayed:Date.now() };
-    newAcc = true;
   }
   data.currentUser = u;
   authSave(data);
-  // push to cloud (silent, non-blocking)
-  cloudUpsertProfile(u, data.users[u]).catch(()=>{});
-  console.log(newAcc ? '[auth] new account' : '[auth] login ok', u);
+  errEl.textContent = '⚠ Сервер недоступен — играешь оффлайн (прогресс сохранится локально)';
   applyLoginState();
   show('s-home');
 }
@@ -2296,7 +2352,9 @@ function authUpdate(updates) {
   Object.assign(data.users[data.currentUser], updates);
   data.users[data.currentUser].lastPlayed = Date.now();
   authSave(data);
-  // push to cloud silently (non-blocking)
+  // push to our server silently (cross-device sync)
+  serverAuthPushProfile().catch(()=>{});
+  // also Supabase if configured (legacy)
   cloudUpsertProfile(data.currentUser, data.users[data.currentUser]).catch(()=>{});
 }
 function doLogout() {
@@ -4390,7 +4448,7 @@ submitMyAnswer = function(alts) {
 };
 
 // ─── INIT — decide whether to show login or home on page load ───
-(function initAuth() {
+(async function initAuth() {
   const u = authCurrent();
   if (u) {
     // Check vitality first — if 0, show death modal BEFORE home
@@ -4401,6 +4459,23 @@ submitMyAnswer = function(alts) {
     } else {
       applyLoginState();
       show('s-home');
+      // background sync — pull freshest profile from server (other device may have updated)
+      const resp = await serverAuthSync(u.username, u.hash, u);
+      if (resp.ok && resp.profile) {
+        // server-wins for stats; merge into local
+        const data = authLoad();
+        data.users[data.currentUser] = {
+          ...data.users[data.currentUser],
+          elo:        resp.profile.elo       ?? u.elo,
+          level:      resp.profile.level     ?? u.level,
+          wins:       resp.profile.wins      ?? u.wins,
+          losses:     resp.profile.losses    ?? u.losses,
+          character:  resp.profile.character ?? u.character,
+          completed:  resp.profile.completed ?? u.completed,
+        };
+        authSave(data);
+        applyLoginState();
+      }
     }
   } else {
     show('s-login');
