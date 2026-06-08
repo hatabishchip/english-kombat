@@ -70,6 +70,16 @@ async function initDb() {
       UNIQUE (username)
     );
     CREATE INDEX IF NOT EXISTS clans_tag_idx ON clans (tag);
+
+    -- clan chat messages
+    CREATE TABLE IF NOT EXISTS clan_messages (
+      id SERIAL PRIMARY KEY,
+      clan_id INTEGER REFERENCES clans(id) ON DELETE CASCADE,
+      username TEXT NOT NULL,
+      text TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS clan_messages_clan_idx ON clan_messages (clan_id, id DESC);
   `);
   // seed if empty
   const { rows } = await pgPool.query('SELECT COUNT(*)::int AS c FROM phrases');
@@ -808,6 +818,48 @@ app.get('/api/clans/:tag/members', async (req, res) => {
   );
   res.json({ members: rows });
 });
+// ─── CLAN CHAT (HTTP polling) ───
+// Simple rate-limit per user (1 message per 1.5s)
+const lastMsgTime = new Map();
+
+app.post('/api/clans/messages', async (req, res) => {
+  const me = await authUserFromReq(req);
+  if (!me) return res.status(401).json({ error: 'auth' });
+  const text = (req.body.text || '').trim().slice(0, 300);
+  if (!text) return res.status(400).json({ error: 'empty' });
+  // rate-limit
+  const now = Date.now();
+  const last = lastMsgTime.get(me) || 0;
+  if (now - last < 1500) return res.status(429).json({ error: 'slow down' });
+  lastMsgTime.set(me, now);
+  // find user's clan
+  const cl = await pgPool.query('SELECT clan_id FROM clan_members WHERE username = $1', [me]);
+  if (!cl.rows.length) return res.status(403).json({ error: 'not in clan' });
+  const clanId = cl.rows[0].clan_id;
+  const { rows } = await pgPool.query(
+    `INSERT INTO clan_messages (clan_id, username, text) VALUES ($1, $2, $3) RETURNING *`,
+    [clanId, me, text]
+  );
+  res.json({ ok: true, message: rows[0] });
+});
+
+app.get('/api/clans/messages', async (req, res) => {
+  const me = await authUserFromReq(req);
+  if (!me) return res.status(401).json({ error: 'auth' });
+  const since = parseInt(req.query.since) || 0;
+  const cl = await pgPool.query('SELECT clan_id FROM clan_members WHERE username = $1', [me]);
+  if (!cl.rows.length) return res.json({ messages: [] });
+  const clanId = cl.rows[0].clan_id;
+  const { rows } = await pgPool.query(
+    `SELECT id, username, text, created_at
+     FROM clan_messages
+     WHERE clan_id = $1 AND id > $2
+     ORDER BY id DESC LIMIT 100`,
+    [clanId, since]
+  );
+  res.json({ messages: rows.reverse() });   // chronological order
+});
+
 app.get('/api/clans/top', async (_, res) => {
   const { rows } = await pgPool.query(
     `SELECT c.id, c.tag, c.name, c.color, c.owner,
