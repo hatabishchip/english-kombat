@@ -279,8 +279,9 @@ class FightRoom extends Room {
 
   addBot() {
     const bot = new Player();
-    const botChars = ['subzero','kotal','sareena','nightwolf'];
-    bot.name  = 'BOT';
+    const botChars = ['subzero','shrek','barbie','merkel'];
+    const humanNames = ['Alex','Dima','Olga','Max','Ivan','Kate','Leo','Nina','Tolik','Mia'];
+    bot.name  = humanNames[Math.floor(Math.random() * humanNames.length)];
     bot.char  = botChars[Math.floor(Math.random() * botChars.length)];
     bot.level = this.bracket >= 2 ? 7 : 3;
     bot.elo   = this.bracket >= 2 ? 1300 : 1000;

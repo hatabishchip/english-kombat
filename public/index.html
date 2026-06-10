@@ -1600,7 +1600,7 @@
     <div id="online-count" style="margin-top:4px;font-family:sans-serif;font-size:11px;color:#888;letter-spacing:.5px">🌐 — игроков онлайн</div>
     <div class="user-vitality">
       <span>❤ Жизнеспособность</span>
-      <span id="vit-num">7/7</span>
+      <span id="vit-num">3/3</span>
     </div>
     <div class="user-vitality-bar">
       <div id="vit-fill" class="user-vitality-fill" style="width:100%"></div>
@@ -1609,6 +1609,7 @@
 
   <button class="btn btn-gold" onclick="startGame()">⚔ В БОЙ С БОТОМ</button>
   <button id="btn-pvp" class="btn btn-listen" onclick="startPvP()">🌐 ОНЛАЙН-БОЙ (PvP)</button>
+  <button id="btn-world" class="btn btn-gold" style="font-size:14px" onclick="startWorldFromHome()">🌍 МИР (после 4 локаций)</button>
   <button class="btn btn-dark" style="font-size:13px" onclick="showLeaderboard()">🏆 ЛИДЕРБОРД</button>
   <button class="btn btn-dark" style="font-size:13px" onclick="showSocial()">👥 ДРУЗЬЯ И КЛАН</button>
   <button class="btn btn-dark" style="font-size:13px" onclick="showGlobalChat()">🌐 ГЛОБАЛЬНЫЙ ЧАТ</button>
@@ -1629,20 +1630,20 @@
       <div class="char-name">SUB-ZERO</div>
       <div class="char-role">Криоманс<br>Лин Куэй</div>
     </div>
-    <div class="char-card" data-id="kotal">
-      <div class="char-portrait" id="portrait-kotal"></div>
-      <div class="char-name">KOTAL KAHN</div>
-      <div class="char-role">Император<br>Внешнего Мира</div>
+    <div class="char-card" data-id="shrek">
+      <div class="char-portrait" id="portrait-shrek"></div>
+      <div class="char-name">SHREK</div>
+      <div class="char-role">Огр<br>из болота</div>
     </div>
-    <div class="char-card" data-id="sareena">
-      <div class="char-portrait" id="portrait-sareena"></div>
-      <div class="char-name">SAREENA</div>
-      <div class="char-role">Демон-<br>ассасин</div>
+    <div class="char-card" data-id="barbie">
+      <div class="char-portrait" id="portrait-barbie"></div>
+      <div class="char-name">BARBIE</div>
+      <div class="char-role">Королева<br>гламура</div>
     </div>
-    <div class="char-card" data-id="nightwolf">
-      <div class="char-portrait" id="portrait-nightwolf"></div>
-      <div class="char-name">NIGHTWOLF</div>
-      <div class="char-role">Шаман-<br>воин</div>
+    <div class="char-card" data-id="merkel">
+      <div class="char-portrait" id="portrait-merkel"></div>
+      <div class="char-name">MERKEL</div>
+      <div class="char-role">Канцлерин<br>&nbsp;</div>
     </div>
   </div>
   <button id="select-confirm" class="btn btn-gold" disabled style="opacity:.4">ВЫБЕРИ ПЕРСОНАЖА</button>
@@ -1721,6 +1722,7 @@
     </div>
 
     <div class="map-hint">👆 Тапни на локацию куда пойти</div>
+    <button id="map-world-btn" class="btn btn-gold" style="display:none;position:absolute;top:12px;right:12px;width:auto;padding:9px 16px;font-size:13px;z-index:20" onclick="startWorld()">🌍 В МИР</button>
   </div>
 </div>
 
@@ -1866,11 +1868,57 @@
 </div>
 
 <!-- ── GAME OVER ─────────────────────────────────── -->
+<!-- ── REWARD PICKER — выбери 1 из 4 карточек после победы ── -->
+<div id="s-reward" class="screen" style="justify-content:center">
+  <div style="font-family:'Impact',sans-serif;font-size:30px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 14px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-bottom:4px">🎁 ВЫБЕРИ НАГРАДУ</div>
+  <div id="reward-sub" style="font-family:sans-serif;font-size:12px;color:#888;letter-spacing:1.5px;margin-bottom:18px">ОДНУ ИЗ ЧЕТЫРЁХ</div>
+  <div id="reward-grid" class="cards-grid" style="max-width:440px"></div>
+  <div id="reward-note" style="font-family:sans-serif;font-size:12px;color:#60ff60;margin-top:14px;min-height:18px"></div>
+</div>
+
+<!-- ── WORLD — онлайн-мир после 4 локаций ── -->
+<div id="s-world" class="screen" style="padding:0;justify-content:flex-start">
+  <div id="world-intro" style="position:fixed;inset:0;background:#020108;display:none;align-items:center;justify-content:center;z-index:50">
+    <div id="world-globe" style="font-size:90px;filter:drop-shadow(0 0 40px rgba(80,160,255,.6))">🌍</div>
+  </div>
+  <div class="map-stats-top">
+    <div class="map-player-card">
+      <div id="world-avatar" class="map-avatar-portrait"></div>
+      <div class="map-player-info">
+        <div id="world-player-name" class="map-player-name">—</div>
+        <div id="world-clan-info" class="map-player-role">без клана</div>
+        <div class="map-power">
+          <div class="map-power-label"><span>⚡ СИЛА</span><span id="world-power-num">1/10</span></div>
+          <div class="map-power-bar"><div id="world-power-fill" class="map-power-fill" style="width:10%"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="world-map" class="map-world" style="cursor:default">
+    <div class="map-prop" style="left:8%;top:30%">🏙</div>
+    <div class="map-prop" style="right:10%;top:60%">🌃</div>
+    <div class="map-prop" style="left:45%;bottom:12%">🌉</div>
+    <div class="map-hint" id="world-hint">👇 Тапни на игрока — бой или коллаборация</div>
+  </div>
+  <!-- action sheet -->
+  <div id="world-sheet" style="display:none;position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:100%;max-width:420px;background:linear-gradient(180deg,rgba(30,20,8,.97),rgba(8,5,2,.99));border:2px solid #c89538;border-bottom:none;border-radius:14px 14px 0 0;padding:16px;z-index:60;box-shadow:0 -8px 30px rgba(0,0,0,.8)">
+    <div id="ws-name" style="font-family:'Impact',sans-serif;font-size:18px;color:#ffd100;letter-spacing:1px;text-align:center;margin-bottom:2px">—</div>
+    <div id="ws-info" style="font-family:sans-serif;font-size:11px;color:#888;text-align:center;margin-bottom:12px">—</div>
+    <button class="btn btn-red"    style="margin-bottom:8px" onclick="worldFight()">⚔ БОЙ 1 НА 1</button>
+    <button class="btn btn-listen" style="margin-bottom:8px" onclick="worldCollab()">🤝 КОЛЛАБОРАЦИЯ</button>
+    <button id="ws-group" class="btn btn-gold" style="margin-bottom:8px;display:none" onclick="worldGroupFight()">⚔⚔ ГРУППОВОЙ БОЙ 2v2</button>
+    <button class="btn btn-dark" style="font-size:13px" onclick="closeWorldSheet()">ЗАКРЫТЬ</button>
+  </div>
+  <div style="padding:10px;display:flex;justify-content:center;background:linear-gradient(0deg,rgba(0,0,0,.85),transparent)">
+    <button class="btn btn-dark" style="font-size:13px;max-width:200px" onclick="goHome()">← В МЕНЮ</button>
+  </div>
+</div>
+
 <div id="s-over" class="screen">
   <div id="over-title" class="over-title win">ПОБЕДА!</div>
   <div id="over-sub"   class="over-sub">---</div>
   <div id="over-levelup" style="font-family:'Impact',sans-serif;font-size:18px;color:#60ff60;margin-bottom:20px;display:none;text-shadow:0 0 12px rgba(96,255,96,.6)">⚡ +1 К СИЛЕ! </div>
-  <button class="btn btn-gold" onclick="goBackToMap()">🗺 НА КАРТУ</button>
+  <button id="btn-back-map" class="btn btn-gold" onclick="goBackToMap()">🗺 НА КАРТУ</button>
   <button class="btn btn-dark" style="max-width:200px;font-size:14px;margin-top:4px" onclick="goHome()">В МЕНЮ</button>
 </div>
 
@@ -1887,7 +1935,7 @@
   <div class="death-card">
     <div class="death-emoji">💀</div>
     <div class="death-title">ПЕРСОНАЖ УМЕР</div>
-    <div class="death-text" id="death-text">Ты не заходил слишком долго. Жизнеспособность достигла нуля — прогресс сброшен.<br><br>Каждый день вне игры съедает 1 единицу. Возвращайся регулярно.</div>
+    <div class="death-text" id="death-text">Ты не заходил 3 дня — персонаж не выдержал. Прогресс сброшен.<br><br>День пропуска — шкала желтеет, два — краснеет, три — обнуление. Заходи каждый день.</div>
     <button class="btn btn-gold" onclick="acknowledgeDeath()">⚔ НАЧАТЬ ЗАНОВО</button>
   </div>
 </div>
@@ -2106,95 +2154,121 @@ const CHARS = {
       <path d="M 14 12 L 18 16 M 64 12 L 60 16" stroke="#60d8ff" stroke-width="1" opacity=".7"/>
     `
   },
-  kotal: {
-    name: 'KOTAL KAHN',
-    role: 'Император Внешнего Мира',
-    bodyFill:'#1a8888', accentFill:'#ffd100', armFill:'#0a4444', skinFill:'#3aa8a8',
-    beltFill:'#8a6010', buckleFill:'#ffd100',
+  shrek: {
+    name: 'SHREK',
+    role: 'Огр из болота',
+    bodyFill:'#6a4a2a', accentFill:'#9ac83a', armFill:'#4a3018', skinFill:'#8ab84a',
+    beltFill:'#2a1c08', buckleFill:'#c8a040',
     headSVG: `
-      <!-- tall jade/gold crown headdress -->
-      <path d="M 18 16 L 20 -2 L 28 14 L 32 -8 L 39 12 L 46 -8 L 50 14 L 58 -2 L 60 16 Z" fill="#c89538" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>
-      <!-- jade center stone -->
-      <ellipse cx="39" cy="2" rx="3.5" ry="4" fill="#1aaaaa" stroke="#000" stroke-width="1"/>
-      <ellipse cx="39" cy="1.5" rx="1.5" ry="1.8" fill="#60ffff" opacity=".7"/>
-      <!-- gold band under crown -->
-      <rect x="20" y="14" width="38" height="5" fill="#8a6010" stroke="#000" stroke-width="1"/>
-      <!-- teal/blue painted face -->
-      <ellipse cx="39" cy="26" rx="14" ry="15" fill="#3aa8a8" stroke="#000" stroke-width="1.5"/>
-      <!-- face war-paint stripes (gold) -->
-      <rect x="22" y="20" width="34" height="1.5" fill="#ffd100" opacity=".75"/>
-      <rect x="22" y="33" width="34" height="1.5" fill="#ffd100" opacity=".75"/>
-      <!-- piercing gold eyes -->
-      <g class="eye"><circle cx="31" cy="25" r="3.5" fill="#ffd100"/><circle cx="31" cy="25" r="1.6" fill="#fff"/></g>
-      <g class="eye"><circle cx="47" cy="25" r="3.5" fill="#ffd100"/><circle cx="47" cy="25" r="1.6" fill="#fff"/></g>
+      <!-- trumpet ears sticking out -->
+      <path d="M 16 14 Q 8 10 5 12 Q 4 16 9 17 Q 14 18 17 17 Z" fill="#8ab84a" stroke="#000" stroke-width="1.2"/>
+      <ellipse cx="6" cy="14.5" rx="2.5" ry="2" fill="#6a9838" stroke="#000" stroke-width=".8"/>
+      <path d="M 62 14 Q 70 10 73 12 Q 74 16 69 17 Q 64 18 61 17 Z" fill="#8ab84a" stroke="#000" stroke-width="1.2"/>
+      <ellipse cx="72" cy="14.5" rx="2.5" ry="2" fill="#6a9838" stroke="#000" stroke-width=".8"/>
+      <!-- big bald green head -->
+      <ellipse cx="39" cy="26" rx="17" ry="17" fill="#8ab84a" stroke="#000" stroke-width="1.5"/>
+      <!-- brow ridge -->
+      <path d="M 26 19 Q 32 16.5 37 19 M 41 19 Q 46 16.5 52 19" stroke="#5a8030" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <!-- friendly brown eyes -->
+      <g class="eye"><ellipse cx="32" cy="23" rx="3.2" ry="3.6" fill="#fff"/><circle cx="32" cy="23.5" r="1.8" fill="#5a3a18"/></g>
+      <g class="eye"><ellipse cx="46" cy="23" rx="3.2" ry="3.6" fill="#fff"/><circle cx="46" cy="23.5" r="1.8" fill="#5a3a18"/></g>
+      <!-- wide ogre nose -->
+      <ellipse cx="39" cy="30" rx="5" ry="3.4" fill="#7aa83e" stroke="#000" stroke-width="1"/>
+      <circle cx="37" cy="30.5" r="1" fill="#4a6828"/><circle cx="41" cy="30.5" r="1" fill="#4a6828"/>
+      <!-- big grin -->
+      <path d="M 29 35 Q 39 41 49 35" stroke="#000" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <!-- white shirt collar under vest -->
+      <path d="M 30 44 L 39 50 L 48 44" stroke="#e8e0c8" stroke-width="3" fill="none"/>
+    `
+  },
+  barbie: {
+    name: 'BARBIE',
+    role: 'Королева гламура',
+    bodyFill:'#e8489a', accentFill:'#ff9ad0', armFill:'#c03478', skinFill:'#f5c9a8',
+    beltFill:'#a82868', buckleFill:'#fff0f8',
+    headSVG: `
+      <!-- long blonde hair behind -->
+      <path d="M 20 12 Q 12 26 14 52 L 24 52 Q 22 32 26 20 Z" fill="#f5d040" stroke="#000" stroke-width="1.2"/>
+      <path d="M 58 12 Q 66 26 64 52 L 54 52 Q 56 32 52 20 Z" fill="#f5d040" stroke="#000" stroke-width="1.2"/>
+      <!-- hair top -->
+      <path d="M 22 22 Q 20 6 39 5 Q 58 6 56 22 Q 50 12 39 12 Q 28 12 22 22 Z" fill="#ffe060" stroke="#000" stroke-width="1.3"/>
+      <!-- face -->
+      <ellipse cx="39" cy="25" rx="13" ry="14" fill="#f5c9a8" stroke="#000" stroke-width="1.3"/>
+      <!-- side bangs -->
+      <path d="M 26 18 Q 28 26 26 32 Q 23 24 26 18 Z" fill="#ffe060"/>
+      <path d="M 52 18 Q 50 26 52 32 Q 55 24 52 18 Z" fill="#ffe060"/>
+      <!-- big blue eyes + lashes -->
+      <g class="eye"><ellipse cx="33" cy="23" rx="3.4" ry="3.8" fill="#fff"/><circle cx="33" cy="23.5" r="2" fill="#3a8ad8"/><circle cx="33.6" cy="22.8" r=".8" fill="#fff"/></g>
+      <g class="eye"><ellipse cx="45" cy="23" rx="3.4" ry="3.8" fill="#fff"/><circle cx="45" cy="23.5" r="2" fill="#3a8ad8"/><circle cx="45.6" cy="22.8" r=".8" fill="#fff"/></g>
+      <path d="M 29 19.5 L 27.5 18 M 31 18.6 L 30 17 M 49 19.5 L 50.5 18 M 47 18.6 L 48 17" stroke="#000" stroke-width=".9" stroke-linecap="round"/>
+      <!-- cute nose -->
+      <path d="M 39 27 Q 38 29 39.5 29.6" stroke="#c89070" stroke-width="1" fill="none"/>
+      <!-- pink smile -->
+      <path d="M 33 33 Q 39 37 45 33" stroke="#e0407a" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <!-- blush -->
+      <ellipse cx="29" cy="29" rx="2.4" ry="1.4" fill="#ff9ad0" opacity=".6"/>
+      <ellipse cx="49" cy="29" rx="2.4" ry="1.4" fill="#ff9ad0" opacity=".6"/>
+    `
+  },
+  merkel: {
+    name: 'MERKEL',
+    role: 'Канцлерин',
+    bodyFill:'#c03434', accentFill:'#ffd100', armFill:'#992828', skinFill:'#ecc4a4',
+    beltFill:'#1a1a22', buckleFill:'#c8c8d0',
+    headSVG: `
+      <!-- short blonde-grey bob -->
+      <path d="M 23 30 Q 18 8 39 7 Q 60 8 55 30 Q 56 14 39 13 Q 22 14 23 30 Z" fill="#d8c890" stroke="#000" stroke-width="1.3"/>
+      <path d="M 23 28 Q 21 16 28 12 L 27 30 Z" fill="#d8c890" stroke="#000" stroke-width="1"/>
+      <path d="M 55 28 Q 57 16 50 12 L 51 30 Z" fill="#d8c890" stroke="#000" stroke-width="1"/>
+      <!-- face with slight jowls -->
+      <path d="M 27 22 Q 26 38 39 39 Q 52 38 51 22 Q 51 12 39 12 Q 27 12 27 22 Z" fill="#ecc4a4" stroke="#000" stroke-width="1.3"/>
+      <!-- tired but stern eyes -->
+      <g class="eye"><ellipse cx="33" cy="22" rx="2.8" ry="2.4" fill="#fff"/><circle cx="33" cy="22.4" r="1.5" fill="#4a6a9a"/></g>
+      <g class="eye"><ellipse cx="45" cy="22" rx="2.8" ry="2.4" fill="#fff"/><circle cx="45" cy="22.4" r="1.5" fill="#4a6a9a"/></g>
+      <!-- eyelids — half lowered, stern -->
+      <path d="M 30 20.4 L 36 20.4 M 42 20.4 L 48 20.4" stroke="#c8a080" stroke-width="1.6"/>
       <!-- nose -->
-      <path d="M 39 28 L 37 34 L 41 34 Z" fill="#1a8888" opacity=".7"/>
-    `
-  },
-  sareena: {
-    name: 'SAREENA',
-    role: 'Демон-ассасин',
-    bodyFill:'#2a1830', accentFill:'#d040a0', armFill:'#1a0e20', skinFill:'#ead0d8',
-    beltFill:'#4a2040', buckleFill:'#d040a0',
-    headSVG: `
-      <!-- dark heavy hood -->
-      <path d="M 10 12 Q 4 32 14 48 L 64 48 Q 74 32 68 12 Q 39 -4 10 12 Z" fill="#1a0e20" stroke="#000" stroke-width="1.5"/>
-      <!-- inner hood shadow -->
-      <ellipse cx="39" cy="32" rx="25" ry="18" fill="#0a0410" opacity=".55"/>
-      <!-- pale face -->
-      <ellipse cx="39" cy="24" rx="12" ry="13" fill="#ead0d8" stroke="#000" stroke-width="1"/>
-      <!-- hollow shadowed eye sockets -->
-      <ellipse cx="31" cy="22" rx="3.5" ry="4" fill="#2a0a1a"/>
-      <ellipse cx="47" cy="22" rx="3.5" ry="4" fill="#2a0a1a"/>
-      <!-- glowing pink/magenta pupils -->
-      <g class="eye"><circle cx="31" cy="22" r="1.6" fill="#ff60c8"/></g>
-      <g class="eye"><circle cx="47" cy="22" r="1.6" fill="#ff60c8"/></g>
-      <!-- dark lipstick -->
-      <path d="M 32 32 Q 39 34.5 46 32" stroke="#5a0a3a" stroke-width="2" fill="none" stroke-linecap="round"/>
-      <path d="M 39 32.5 L 39 34" stroke="#5a0a3a" stroke-width="1"/>
-      <!-- tiny vampire fang hint -->
-      <path d="M 36 33.5 L 36 35" stroke="#fff" stroke-width="1"/>
-    `
-  },
-  nightwolf: {
-    name: 'NIGHTWOLF',
-    role: 'Шаман-воин',
-    bodyFill:'#5a2818', accentFill:'#c83020', armFill:'#3a1408', skinFill:'#c88058',
-    beltFill:'#8a5028', buckleFill:'#c83020',
-    headSVG: `
-      <!-- long black hair behind -->
-      <path d="M 18 18 Q 8 36 14 52 L 22 52 Q 26 36 26 22 Z" fill="#0a0604" stroke="#000" stroke-width="1.2"/>
-      <path d="M 60 18 Q 70 36 64 52 L 56 52 Q 52 36 52 22 Z" fill="#0a0604" stroke="#000" stroke-width="1.2"/>
-      <!-- tan/red face -->
-      <ellipse cx="39" cy="26" rx="14" ry="15" fill="#c88058" stroke="#000" stroke-width="1.5"/>
-      <!-- blue headband -->
-      <rect x="20" y="14" width="38" height="6" fill="#1a6090" stroke="#000" stroke-width="1.2"/>
-      <rect x="20" y="18" width="38" height="1" fill="#0a3060"/>
-      <!-- feather sticking up from headband -->
-      <path d="M 18 14 L 8 -4 Q 10 6 12 14 Z" fill="#f0e8c0" stroke="#000" stroke-width="1.2"/>
-      <line x1="10" y1="2" x2="12" y2="14" stroke="#000" stroke-width=".5"/>
-      <path d="M 9 4 L 14 4 M 8 7 L 14 7 M 9 10 L 14 10" stroke="#000" stroke-width=".5"/>
-      <!-- red war paint V on cheeks -->
-      <path d="M 24 25 L 30 30 L 24 33" stroke="#c83020" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-      <path d="M 54 25 L 48 30 L 54 33" stroke="#c83020" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-      <!-- horizontal red stripe across nose -->
-      <rect x="29" y="27" width="20" height="2" fill="#c83020" opacity=".8"/>
-      <!-- stern dark eyes -->
-      <g class="eye"><ellipse cx="31" cy="25" rx="2" ry="2.5" fill="#1a0a04"/><circle cx="31.5" cy="24.5" r=".8" fill="#fff"/></g>
-      <g class="eye"><ellipse cx="47" cy="25" rx="2" ry="2.5" fill="#1a0a04"/><circle cx="47.5" cy="24.5" r=".8" fill="#fff"/></g>
+      <path d="M 39 24 Q 37.6 28.6 39 29.8 Q 40.4 28.6 39 24" stroke="#b89070" stroke-width="1" fill="none"/>
+      <!-- famous neutral mouth — corners slightly down -->
+      <path d="M 33.5 33.5 Q 39 34.5 44.5 33.5" stroke="#9a5a4a" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+      <!-- jacket collar V -->
+      <path d="M 31 44 L 39 52 L 47 44" stroke="#8a1c1c" stroke-width="3.5" fill="none"/>
+      <!-- merkel-raute hands hint replaced by necklace -->
+      <circle cx="39" cy="46" r="1.4" fill="#c8c8d0"/>
     `
   },
 };
 
-function makeFighterSVG(charId, w = FIGHTER_W) {
+// stage = сколько локаций пройдено (0..4). Визуальная прокачка персонажа:
+// 0 — хилый: бледный, мешки под глазами, тощий
+// 1 — поел: нормальный цвет
+// 2 — оделся: галстук/шарф в цвет
+// 3 — подстригся: блеск/лоск
+// 4 — дом: золотая аура + корона
+function playerStage() {
+  const u = (typeof authCurrent === 'function') ? authCurrent() : null;
+  return Math.min(4, (u && u.completed && u.completed.length) || 0);
+}
+
+function makeFighterSVG(charId, w = FIGHTER_W, stage = 1) {
   const c = CHARS[charId] || CHARS.subzero;
   const h = w * 2;
+  const weak = stage === 0;
+  const svgFilter = weak ? 'filter:grayscale(.55) brightness(.85);' : '';
+  const torsoX = weak ? 23 : 19, torsoW = weak ? 32 : 40;   // тощий торс
   return `
-<svg width="${w}" height="${h}" viewBox="0 0 78 156" style="display:block">
+<svg width="${w}" height="${h}" viewBox="0 0 78 156" style="display:block;${svgFilter}">
+  ${stage >= 4 ? `<ellipse cx="39" cy="80" rx="37" ry="76" fill="${c.accentFill}" opacity=".09"/>` : ''}
   ${c.headSVG}
+  ${weak ? `
+  <ellipse cx="32" cy="30" rx="4.5" ry="2.2" fill="#3a3050" opacity=".5"/>
+  <ellipse cx="46" cy="30" rx="4.5" ry="2.2" fill="#3a3050" opacity=".5"/>` : ''}
+  ${stage >= 4 ? `<text x="29" y="6" font-size="13">👑</text>` : ''}
+  ${stage >= 3 ? `<text x="58" y="12" font-size="9">✨</text>` : ''}
   <rect x="35" y="44" width="8" height="8" fill="${c.armFill}"/>
-  <rect x="19" y="50" width="40" height="56" rx="7" fill="${c.bodyFill}" stroke="#000" stroke-width="1.2"/>
-  <rect x="19" y="83" width="40" height="7" fill="${c.beltFill}"/>
+  <rect x="${torsoX}" y="50" width="${torsoW}" height="56" rx="7" fill="${c.bodyFill}" stroke="#000" stroke-width="1.2"/>
+  ${stage >= 2 ? `<rect x="36" y="52" width="6" height="15" rx="2" fill="${c.accentFill}" opacity=".9"/>` : ''}
+  <rect x="${torsoX}" y="83" width="${torsoW}" height="7" fill="${c.beltFill}"/>
   <rect x="33" y="83" width="12" height="7" fill="${c.buckleFill}"/>
   <rect x="6" y="52" width="12" height="44" rx="5" fill="${c.armFill}" stroke="#000" stroke-width="1"/>
   <ellipse cx="12" cy="101" rx="7" ry="5" fill="${c.armFill}"/>
@@ -2206,7 +2280,7 @@ function makeFighterSVG(charId, w = FIGHTER_W) {
   <rect x="41" y="104" width="16" height="46" rx="5" fill="${c.bodyFill}" stroke="#000" stroke-width="1"/>
   <rect x="17" y="144" width="22" height="8" rx="3" fill="${c.armFill}"/>
   <rect x="39" y="144" width="22" height="8" rx="3" fill="${c.armFill}"/>
-  <rect x="19" y="50" width="40" height="2" rx="1" fill="${c.accentFill}" opacity=".55"/>
+  <rect x="${torsoX}" y="50" width="${torsoW}" height="2" rx="1" fill="${c.accentFill}" opacity=".55"/>
 </svg>`;
 }
 
@@ -2233,18 +2307,18 @@ function makeWalkerSVG(charId) {
 // Initial render — default characters (will be overwritten when player picks)
 function renderBattleFighters() {
   const p = state.playerChar || 'subzero';
-  const b = state.botChar    || 'kotal';
-  document.getElementById('fi-left').innerHTML  = makeFighterSVG(p);
-  document.getElementById('fi-right').innerHTML = makeFighterSVG(b);
-  // Update name labels with character name
+  const b = state.botChar    || 'shrek';
+  document.getElementById('fi-left').innerHTML  = makeFighterSVG(p, FIGHTER_W, playerStage());
+  document.getElementById('fi-right').innerHTML = makeFighterSVG(b, FIGHTER_W, 1);
   if (state.playerChar) document.getElementById('n-left').textContent = `${state.myName} (${CHARS[p].name})`;
-  document.getElementById('n-right').textContent = `🤖 ${CHARS[b].name}`;
+  // имя противника ставится в startWorldBattle/локациях; по умолчанию имя персонажа
+  document.getElementById('n-right').textContent = state.opponentName || `🤖 ${CHARS[b].name}`;
 }
 
 document.getElementById('fi-left').innerHTML  = makeFighterSVG('subzero');
-document.getElementById('fi-right').innerHTML = makeFighterSVG('kotal');
+document.getElementById('fi-right').innerHTML = makeFighterSVG('shrek');
 document.getElementById('mini-l').innerHTML = `<div class="fi idle">${makeFighterSVG('subzero', 64)}</div>`;
-document.getElementById('mini-r').innerHTML = `<div class="fi mirror idle">${makeFighterSVG('kotal', 64)}</div>`;
+document.getElementById('mini-r').innerHTML = `<div class="fi mirror idle">${makeFighterSVG('shrek', 64)}</div>`;
 
 // ═════════════════════════════════════════════════════════════════
 //  CLOUD SYNC — optional Supabase backing for cross-device save
@@ -2459,9 +2533,9 @@ function doLogout() {
   show('s-login');
 }
 // ─── TAMAGOTCHI VITALITY — degrades 1 unit/day offline ───
-const VITALITY_MAX = 7;     // 7 days of grace
-const VITALITY_WARN = 3;    // yellow alarm below this
-const VITALITY_DANGER = 1;  // red emergency
+const VITALITY_MAX = 3;     // 3 дня: жёлтый → красный → сброс
+const VITALITY_WARN = 2;    // 1 день пропуска — жёлтый
+const VITALITY_DANGER = 1;  // 2 дня пропуска — красный, 3 — обнуление
 
 function vitalityFor(user) {
   if (!user) return VITALITY_MAX;
@@ -2550,10 +2624,27 @@ function renderUserCard() {
   document.getElementById('user-card-name').textContent  = u.username.toUpperCase();
   document.getElementById('user-card-level').textContent =
     `Уровень ${u.level || 1}/10` + (u.character ? ` · ${CHARS[u.character]?.name || ''}` : ' · нет персонажа');
-  document.getElementById('user-card-stats').textContent = `🏆 ${u.wins || 0}   💀 ${u.losses || 0}`;
+  document.getElementById('user-card-stats').textContent =
+    `🏆 ${u.wins || 0}   💀 ${u.losses || 0}   🎒 ${(u.rewards || []).length}`;
   document.getElementById('user-card-fill').style.width  = `${(u.level || 1) * 10}%`;
   const eloEl = document.getElementById('user-card-elo');
   if (eloEl) eloEl.textContent = `⚔ ELO ${u.elo || 1000}`;
+  // онлайн-кнопки активируются после 4 локаций
+  const done = typeof allLocationsDone === 'function' && allLocationsDone();
+  const pvpBtn = document.getElementById('btn-pvp');
+  const worldBtn = document.getElementById('btn-world');
+  if (pvpBtn)   { pvpBtn.style.opacity = done ? '1' : '.45'; pvpBtn.textContent = done ? '🌐 ОНЛАЙН-БОЙ (PvP)' : '🔒 ОНЛАЙН (пройди 4 локации)'; }
+  if (worldBtn) { worldBtn.style.opacity = done ? '1' : '.45'; worldBtn.textContent = done ? '🌍 МИР' : '🌍 МИР (после 4 локаций)'; }
+}
+
+function startWorldFromHome() {
+  const u = authCurrent();
+  if (!u) { show('s-login'); return; }
+  if (!u.character) { startSelect(); return; }
+  warmupAudio();
+  state.playerChar = u.character;
+  state.playerLevel = u.level || 1;
+  startWorld();
 }
 
 // ─── PRESENCE / HEARTBEAT ───
@@ -3202,13 +3293,15 @@ function startMap() {
   });
   // hint
   const hintEl = document.querySelector('.map-hint');
+  const allDone = LOC_ORDER.every(id => completed.includes(id));
   if (hintEl) {
     hintEl.style.display = '';
-    const allDone = LOC_ORDER.every(id => completed.includes(id));
     hintEl.textContent = allDone
-      ? '🏆 ВСЕ ЛОКАЦИИ ПРОЙДЕНЫ — теперь ты топ!'
+      ? '🏆 БАЗА ПРОЙДЕНА — жми 🌍 В МИР'
       : `👆 Веди пальцем к локации ${LOCATIONS[nextLoc]?.icon || ''}`;
   }
+  const worldBtn = document.getElementById('map-world-btn');
+  if (worldBtn) worldBtn.style.display = allDone ? '' : 'none';
   show('s-map');
   startMapMovement();
 }
@@ -3581,6 +3674,9 @@ function goTrain() {
 
 function renderTrainCard() {
   if (trainIdx >= trainCards.length) {
+    // прошёл всю тренировку → бонус мощи на следующий бой (+5 урона за удар)
+    state.trainingBonus = true;
+    setStatus('⚡ БОНУС МОЩИ ПОЛУЧЕН! Урон 25 вместо 20', 'mine');
     goBattle();
     return;
   }
@@ -3807,7 +3903,7 @@ function scheduleBotAttack() {
   clearTimeout(state.botAttackTimer);
   showBotThinking(false);     // clear any stale telegraph
   // gap before the bot starts "thinking" (then +2-4s think telegraph in botThink)
-  const ranges = { easy: [4000, 6000], medium: [3000, 5000], hard: [2000, 3500] };
+  const ranges = { easy: [3000, 3800], medium: [2400, 3000], hard: [1800, 2400] };
   const [lo, hi] = ranges[state.difficulty] || ranges.easy;
   state.botAttackTimer = setTimeout(() => botThink(), lo + Math.random() * (hi - lo));
 }
@@ -3817,7 +3913,7 @@ function botThink() {
   if (state.phase === 'game_over') return;
   if (state.resolving) { state.botAttackTimer = setTimeout(() => botThink(), 1000); return; }
   showBotThinking(true);
-  const thinkMs = 2000 + Math.random() * 2000;     // random 2-4 seconds
+  const thinkMs = 2000;     // удар «в течение двух секунд» — фикс 2с замах
   state.botAttackTimer = setTimeout(() => { showBotThinking(false); botStrike(); }, thinkMs);
 }
 
@@ -3877,7 +3973,8 @@ function submitMyAnswer(alts) {
     state.myCorrectInRow = (state.myCorrectInRow || 0) + 1;
     if (state.myCorrectInRow >= 2) bumpCombo(state.myCorrectInRow);
     upgradeDiff();
-    state.botHP = Math.max(0, state.botHP - 20);
+    const dmg = state.trainingBonus ? 25 : 20;
+    state.botHP = Math.max(0, state.botHP - dmg);
     setHP('right', state.botHP);
     doPunch('left', 'right');                     // I punch BOT
     setTimeout(() => spawnStunBirds('right', 800), 560);
@@ -3903,19 +4000,35 @@ function endGame(iWin) {
   state.phase = 'game_over';
   stopTimer(); stopListen();
   clearTimeout(state.botAttackTimer);   // stop brawl bot attacks
+  clearTimeout(state.allyTimer);        // stop group-battle ally
   showBotThinking(false);
   setActiveTurn(null);   // turn off both rings
+  state.trainingBonus = false;          // бонус мощи действует один бой
+
+  const isLocation = LOC_ORDER.includes(state.currentLocation);
+  const cur = authCurrent();
+  let rewardTheme = null;
+  let overSub = '';
 
   if (iWin) {
-    state.playerLevel = Math.min(10, (state.playerLevel || 1) + 1);
-    const cur = authCurrent();
+    // групповой бой = сильный буст (+2), остальные +1
+    const gain = state.groupMode ? 2 : 1;
+    state.playerLevel = Math.min(10, (state.playerLevel || 1) + gain);
     if (cur) {
-      // mark current location as completed (unlocks the next one)
-      const completed = Array.from(new Set([...(cur.completed || []), state.currentLocation]));
-      authUpdate({ level: state.playerLevel, wins: (cur.wins || 0) + 1, completed });
+      const upd = { level: state.playerLevel, wins: (cur.wins || 0) + 1 };
+      if (isLocation) {
+        upd.completed = Array.from(new Set([...(cur.completed || []), state.currentLocation]));
+        rewardTheme = LOCATIONS[state.currentLocation]?.theme || null;   // выбор награды карточкой
+      }
+      if (state.collabTarget) {
+        // победил алкаша по пути → коллаборация состоялась
+        upd.ally = state.collabTarget;
+        overSub = `🤝 Ты в клане с ${state.collabTarget.name}! Общий уровень: ${state.playerLevel + (state.collabTarget.level || 1)}`;
+      }
+      authUpdate(upd);
     }
+    if (state.groupMode) overSub = `⚔ КОМАНДНАЯ ПОБЕДА! Мощный буст +2 к силе`;
   } else {
-    const cur = authCurrent();
     if (cur) authUpdate({ losses: (cur.losses || 0) + 1 });
   }
 
@@ -3925,20 +4038,27 @@ function endGame(iWin) {
 
   document.getElementById('over-title').textContent = iWin ? '🏆 ПОБЕДА!' : '💀 ПОРАЖЕНИЕ';
   document.getElementById('over-title').className   = `over-title ${iWin ? 'win' : 'lose'}`;
-  document.getElementById('over-sub').textContent   = iWin
-    ? `Ты избил бота. Знание = сила.`
-    : `Бот знает английский лучше. Попробуй ещё.`;
+  document.getElementById('over-sub').textContent   = overSub || (iWin
+    ? `Знание = сила.`
+    : `Соперник знает английский лучше. Попробуй ещё.`);
   const levelEl = document.getElementById('over-levelup');
   if (levelEl) {
     if (iWin) {
       levelEl.style.display = '';
-      levelEl.innerHTML = `⚡ +1 К СИЛЕ — ТЫ УРОВНЯ ${state.playerLevel}/10`;
+      levelEl.innerHTML = `⚡ +${state.groupMode ? 2 : 1} К СИЛЕ — ТЫ УРОВНЯ ${state.playerLevel}/10`;
     } else {
       levelEl.style.display = 'none';
     }
   }
 
-  setTimeout(() => show('s-over'), 2400);
+  const fromWorld = state.fromWorld;
+  setTimeout(() => {
+    if (iWin && rewardTheme) showRewardPicker(rewardTheme);   // сначала выбор награды
+    else show('s-over');
+  }, 2400);
+  // кнопка возврата ведёт на карту или в мир
+  const backBtn = document.getElementById('btn-back-map');
+  if (backBtn) backBtn.textContent = fromWorld ? '🌍 В МИР' : '🗺 НА КАРТУ';
 }
 
 function goBackToMap() {
@@ -3949,16 +4069,244 @@ function goBackToMap() {
   state.correctCount = 0;
   state.difficulty = 'easy';
   state.myTurn = Math.random() < 0.5;
+  state.groupMode = false;
+  state.collabTarget = null;
+  state.opponentName = null;
+  hideGroupSlots();
   resetFighters();
   setHP('left', 100);
   setHP('right', 100);
   document.getElementById('diff-badge').textContent = 'EASY';
   document.getElementById('diff-badge').className   = 'diff-badge';
-  // pick a fresh bot character (any except player)
   const others = Object.keys(CHARS).filter(id => id !== state.playerChar);
   state.botChar = others[Math.floor(Math.random() * others.length)];
   renderBattleFighters();
-  startMap();
+  if (state.fromWorld) { state.fromWorld = false; startWorld(); }
+  else startMap();
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  REWARD PICKER — победил → выбери 1 карточку из 4 (пул 12 по теме)
+// ═════════════════════════════════════════════════════════════════
+const REWARDS = {
+  food:     [['eggs','🥚'],['bread','🍞'],['soup','🍲'],['pizza','🍕'],['apple','🍎'],['coffee','☕'],['water','💧'],['meat','🥩'],['cheese','🧀'],['fish','🐟'],['rice','🍚'],['salad','🥗']],
+  clothes:  [['trousers','👖'],['t-shirt','👕'],['jacket','🧥'],['sneakers','👟'],['cap','🧢'],['socks','🧦'],['dress','👗'],['shirt','👔'],['shorts','🩳'],['scarf','🧣'],['gloves','🧤'],['boots','🥾']],
+  grooming: [['haircut','💇'],['razor','🪒'],['shampoo','🧴'],['mirror','🪞'],['scissors','✂️'],['soap','🧼'],['comb','🪮'],['towel','🧖'],['perfume','🌸'],['brush','🖌'],['wax','🫙'],['gel','🫧']],
+  home:     [['sofa','🛋'],['lamp','💡'],['plant','🪴'],['tv','📺'],['bed','🛏'],['chair','🪑'],['candle','🕯'],['flowers','💐'],['wine','🍷'],['music','🎵'],['carpet','🧶'],['window','🪟']],
+};
+
+function showRewardPicker(theme) {
+  const pool = REWARDS[theme] || REWARDS.food;
+  const four = [...pool].sort(() => Math.random() - .5).slice(0, 4);
+  const grid = document.getElementById('reward-grid');
+  document.getElementById('reward-note').textContent = '';
+  document.getElementById('reward-sub').textContent =
+    ({food:'ЧЕМ ПОДКРЕПИШЬСЯ', clothes:'ЧТО НАДЕНЕШЬ', grooming:'ЧТО ВЫБЕРЕШЬ', home:'ЧТО ДОБАВИШЬ В ДОМ'})[theme] || 'ОДНУ ИЗ ЧЕТЫРЁХ';
+  grid.innerHTML = four.map(([en, emoji]) =>
+    `<button class="card-opt" onclick="pickReward('${theme}','${en}',this)">
+       <span style="display:flex;flex-direction:column;align-items:center;gap:6px">
+         <span style="font-size:34px">${emoji}</span><span>${en}</span>
+       </span>
+     </button>`).join('');
+  show('s-reward');
+}
+
+function pickReward(theme, en, btn) {
+  document.querySelectorAll('#reward-grid .card-opt').forEach(b => b.disabled = true);
+  btn.classList.add('right');
+  speakEN(en);
+  playClick();
+  const cur = authCurrent();
+  if (cur) authUpdate({ rewards: [...(cur.rewards || []), { theme, en }] });
+  document.getElementById('reward-note').textContent = `✓ ${en} — твоё!`;
+  setTimeout(() => show('s-over'), 1400);
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  WORLD — онлайн-мир (после 4 локаций). Пока соседи — боты как люди.
+// ═════════════════════════════════════════════════════════════════
+const WORLD_NAMES = ['Дима','Anna','Max','Олег','Kate','Ivan','Нина','Leo','Tolik','Mia'];
+let worldPlayers = [];
+let worldSelected = null;
+
+function allLocationsDone() {
+  const u = authCurrent();
+  return LOC_ORDER.every(id => (u?.completed || []).includes(id));
+}
+
+function startWorld() {
+  if (!allLocationsDone()) {
+    alert('🔒 Сначала пройди все 4 локации на карте — это твоя базовая подготовка.');
+    startMap();
+    return;
+  }
+  const u = authCurrent();
+  // header
+  document.getElementById('world-avatar').innerHTML = makeFighterSVG(state.playerChar, 50, playerStage());
+  document.getElementById('world-player-name').textContent = (u?.username || 'ТЫ').toUpperCase();
+  document.getElementById('world-clan-info').textContent = u?.ally
+    ? `🤝 Клан: ты + ${u.ally.name} · общий ур. ${(u.level || 1) + (u.ally.level || 1)}`
+    : 'Без клана — заколлаборируйся';
+  document.getElementById('world-power-num').textContent  = `${Math.min(10, u?.level || 1)}/10`;
+  document.getElementById('world-power-fill').style.width = `${Math.min(10, u?.level || 1) * 10}%`;
+  // 4 ближайших «игрока» (пока боты, подаются как люди)
+  if (!worldPlayers.length) {
+    const chars = Object.keys(CHARS);
+    const names = [...WORLD_NAMES].sort(() => Math.random() - .5).slice(0, 4);
+    const spots = [{x:25,y:25},{x:70,y:32},{x:30,y:62},{x:68,y:68}];
+    worldPlayers = names.map((name, i) => ({
+      name,
+      char:  chars[Math.floor(Math.random() * chars.length)],
+      level: Math.max(1, Math.min(10, (u?.level || 1) + Math.floor(Math.random() * 3) - 1)),
+      ...spots[i],
+    }));
+  }
+  renderWorldPlayers();
+  closeWorldSheet();
+  show('s-world');
+  // интро: планета приближается к твоей местности
+  const intro = document.getElementById('world-intro');
+  const globe = document.getElementById('world-globe');
+  intro.style.display = 'flex';
+  globe.style.transition = 'none';
+  globe.style.transform = 'scale(.25)';
+  globe.style.opacity = '1';
+  requestAnimationFrame(() => {
+    globe.style.transition = 'transform 1.4s ease-in, opacity .4s ease 1.1s';
+    globe.style.transform = 'scale(8)';
+    globe.style.opacity = '0';
+  });
+  setTimeout(() => { intro.style.display = 'none'; }, 1600);
+}
+
+function renderWorldPlayers() {
+  const map = document.getElementById('world-map');
+  map.querySelectorAll('.world-node').forEach(n => n.remove());
+  worldPlayers.forEach((p, i) => {
+    const node = document.createElement('div');
+    node.className = 'world-node';
+    node.style.cssText = `position:absolute;left:${p.x}%;top:${p.y}%;transform:translate(-50%,-50%);text-align:center;cursor:pointer;z-index:5`;
+    node.innerHTML = `
+      <div style="width:54px;height:54px;margin:0 auto;border:2.5px solid #c89538;border-radius:50%;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;background:radial-gradient(circle at 35% 30%,rgba(255,209,0,.2),transparent 70%);box-shadow:0 0 16px rgba(255,209,0,.35)">
+        ${makeFighterSVG(p.char, 40, 1)}
+      </div>
+      <div style="font-family:'Impact',sans-serif;font-size:11px;color:#ffd100;letter-spacing:1px;margin-top:4px;text-shadow:0 1px 2px #000">🌐 ${p.name.toUpperCase()}</div>
+      <div style="font-family:sans-serif;font-size:9px;color:#8a8060">ур. ${p.level}</div>`;
+    node.onclick = () => openWorldSheet(i);
+    map.appendChild(node);
+  });
+}
+
+function openWorldSheet(i) {
+  worldSelected = worldPlayers[i];
+  playClick();
+  const u = authCurrent();
+  const isAlly = u?.ally && u.ally.name === worldSelected.name;
+  document.getElementById('ws-name').textContent = `${isAlly ? '🤝' : '🌐'} ${worldSelected.name.toUpperCase()}`;
+  document.getElementById('ws-info').textContent =
+    `${CHARS[worldSelected.char]?.name || ''} · уровень ${worldSelected.level}` + (isAlly ? ' · ТВОЙ СОЮЗНИК' : '');
+  // с союзником не дерёмся и не коллаборируемся — только групповой бой против других
+  document.querySelector('#world-sheet .btn-red').style.display    = isAlly ? 'none' : '';
+  document.querySelector('#world-sheet .btn-listen').style.display = isAlly ? 'none' : '';
+  document.getElementById('ws-group').style.display = (u?.ally && !isAlly) ? '' : 'none';
+  document.getElementById('world-sheet').style.display = 'block';
+}
+function closeWorldSheet() {
+  document.getElementById('world-sheet').style.display = 'none';
+}
+
+function setupWorldBattle(opp, opts = {}) {
+  state.fromWorld   = true;
+  state.currentLocation = 'world';     // тема general, локация не засчитывается
+  state.myHP   = 100;
+  state.botHP  = opts.groupMode ? 200 : 100;
+  state.usedIds = new Set();
+  state.correctCount = 0;
+  state.difficulty = opts.difficulty || 'medium';
+  state.groupMode  = !!opts.groupMode;
+  state.collabTarget = opts.collabTarget || null;
+  state.botChar = opp.char;
+  state.opponentName = `🌐 ${opp.name.toUpperCase()}`;
+  renderBattleFighters();
+  resetFighters();
+  setHP('left', 100);
+  setHP('right', state.botHP);
+  closeWorldSheet();
+  goBattle(state.battleMode === 'cards' ? 'cards' : 'voice');
+}
+
+function worldFight() {
+  if (!worldSelected) return;
+  setupWorldBattle(worldSelected);
+}
+
+function worldCollab() {
+  if (!worldSelected) return;
+  // по пути к союзнику — алкаш-препятствие
+  const drunkChars = Object.keys(CHARS).filter(c => c !== state.playerChar);
+  const drunk = {
+    name: 'АЛКАШ ПЕТРОВИЧ',
+    char: drunkChars[Math.floor(Math.random() * drunkChars.length)],
+    level: 1,
+  };
+  alert(`🍾 По пути к ${worldSelected.name} дорогу преградил АЛКАШ ПЕТРОВИЧ!\nОтмудохай его, чтобы дойти до коллаборации.`);
+  setupWorldBattle(drunk, { difficulty: 'easy', collabTarget: { name: worldSelected.name, char: worldSelected.char, level: worldSelected.level } });
+}
+
+function worldGroupFight() {
+  const u = authCurrent();
+  if (!u?.ally || !worldSelected) return;
+  // 2v2: ты + союзник против выбранного и его напарника
+  const chars = Object.keys(CHARS);
+  const enemy2 = {
+    name: WORLD_NAMES[Math.floor(Math.random() * WORLD_NAMES.length)],
+    char: chars[Math.floor(Math.random() * chars.length)],
+  };
+  setupWorldBattle(worldSelected, { groupMode: true, difficulty: 'medium' });
+  showGroupSlots(u.ally, enemy2);
+  // союзник-бот периодически сам наносит удары (без ожиданий — хуярилово)
+  scheduleAllyAttack();
+}
+
+// ── group battle visuals: ally beside you, second enemy beside them ──
+function showGroupSlots(ally, enemy2) {
+  hideGroupSlots();
+  const leftFo  = document.getElementById('fo-left');
+  const rightFo = document.getElementById('fo-right');
+  const allySlot = document.createElement('div');
+  allySlot.id = 'group-ally';
+  allySlot.style.cssText = 'position:absolute;left:-44px;bottom:0;transform:scale(.6);transform-origin:bottom center;opacity:.92;z-index:0';
+  allySlot.innerHTML = makeFighterSVG(ally.char || 'subzero', FIGHTER_W, 1);
+  leftFo.style.position = 'relative';
+  leftFo.appendChild(allySlot);
+  const e2Slot = document.createElement('div');
+  e2Slot.id = 'group-enemy2';
+  e2Slot.style.cssText = 'position:absolute;right:-44px;bottom:0;transform:scale(.6) scaleX(-1);transform-origin:bottom center;opacity:.92;z-index:0';
+  e2Slot.innerHTML = makeFighterSVG(enemy2.char || 'shrek', FIGHTER_W, 1);
+  rightFo.style.position = 'relative';
+  rightFo.appendChild(e2Slot);
+  state.allyName = ally.name;
+}
+function hideGroupSlots() {
+  document.getElementById('group-ally')?.remove();
+  document.getElementById('group-enemy2')?.remove();
+}
+
+function scheduleAllyAttack() {
+  clearTimeout(state.allyTimer);
+  if (!state.groupMode || state.phase === 'game_over') return;
+  state.allyTimer = setTimeout(() => {
+    if (state.phase === 'game_over' || !state.groupMode) return;
+    if (Math.random() < .6) {          // союзник попадает в 60%
+      state.botHP = Math.max(0, state.botHP - 10);
+      setHP('right', state.botHP);
+      spawnImpact('right');
+      playImpact();
+      setStatus(`🤝 ${state.allyName || 'Союзник'} зарядил врагу! −10`, 'mine');
+      if (state.botHP <= 0) { endGame(true); return; }
+    }
+    scheduleAllyAttack();
+  }, 4000 + Math.random() * 3500);
 }
 
 function upgradeDiff() {
@@ -3985,7 +4333,9 @@ function showDiffUp(level) {
 // ═════════════════════════════════════════════════════════════════
 //  UI HELPERS
 // ═════════════════════════════════════════════════════════════════
-function setHP(side, hp) {
+function setHP(side, hp, max) {
+  const cap = max || ((side === 'right' && state.groupMode) ? 200 : 100);
+  hp = (hp / cap) * 100;
   const bar = document.getElementById(`hp-${side}`);
   bar.style.width = `${Math.max(0, hp)}%`;
   bar.className   = `hbf${hp < 35 ? ' crit' : ''}`;
@@ -4406,110 +4756,95 @@ function playSubZeroCry() {
   });
 }
 
-// Kotal Kahn: war horn fanfare + drum thump
-function playKotalCry() {
+// Shrek: ogre roar — deep growl sweep + swamp gurgle
+function playShrekCry() {
   const ctx = getAC(); if (!ctx) return;
-  // brass war horn (3 ascending notes)
-  [110, 165, 220].forEach((f, i) => {
+  // deep growl with vibrato
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(95, ctx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(55, ctx.currentTime + .9);
+  const lfo = ctx.createOscillator(), lfoG = ctx.createGain();
+  lfo.frequency.value = 11; lfoG.gain.value = 9;
+  lfo.connect(lfoG); lfoG.connect(o.frequency); lfo.start();
+  const flt = ctx.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.value = 420;
+  g.gain.setValueAtTime(.55, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .95);
+  o.connect(flt); flt.connect(g); g.connect(ctx.destination);
+  o.start(); o.stop(ctx.currentTime + .95); lfo.stop(ctx.currentTime + .95);
+  // swamp gurgle blips
+  [0.15, 0.32, 0.52].forEach((dt, i) => {
+    const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+    o2.type = 'sine'; o2.frequency.value = 140 + i * 30;
+    const s = ctx.currentTime + dt;
+    g2.gain.setValueAtTime(.2, s);
+    g2.gain.exponentialRampToValueAtTime(.001, s + .1);
+    o2.connect(g2); g2.connect(ctx.destination);
+    o2.start(s); o2.stop(s + .1);
+  });
+}
+
+// Barbie: sparkle arpeggio + flirty giggle blips
+function playBarbieCry() {
+  const ctx = getAC(); if (!ctx) return;
+  // glitter arpeggio up
+  [1050, 1320, 1580, 2100].forEach((f, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'triangle'; o.frequency.value = f;
+    const s = ctx.currentTime + i * .07;
+    g.gain.setValueAtTime(.16, s);
+    g.gain.exponentialRampToValueAtTime(.001, s + .3);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(s); o.stop(s + .3);
+  });
+  // giggle — two quick pitch bounces
+  [0.35, 0.5].forEach((dt, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine';
+    const s = ctx.currentTime + dt;
+    o.frequency.setValueAtTime(880 + i * 120, s);
+    o.frequency.exponentialRampToValueAtTime(1180 + i * 120, s + .09);
+    g.gain.setValueAtTime(.18, s);
+    g.gain.exponentialRampToValueAtTime(.001, s + .14);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(s); o.stop(s + .14);
+  });
+}
+
+// Merkel: stern bureaucratic brass chord + dry "hmph"
+function playMerkelCry() {
+  const ctx = getAC(); if (!ctx) return;
+  // official two-note brass (minor second — serious)
+  [220, 277].forEach(f => {
     const o = ctx.createOscillator(), g = ctx.createGain();
     o.type = 'sawtooth'; o.frequency.value = f;
-    const s = ctx.currentTime + i * .09;
-    g.gain.setValueAtTime(0, s);
-    g.gain.linearRampToValueAtTime(.28, s + .05);
-    g.gain.setValueAtTime(.28, s + .35);
-    g.gain.exponentialRampToValueAtTime(.001, s + .65);
-    const flt = ctx.createBiquadFilter();
-    flt.type = 'lowpass'; flt.frequency.value = 1400;
+    const flt = ctx.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.value = 900;
+    g.gain.setValueAtTime(0, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(.16, ctx.currentTime + .06);
+    g.gain.setValueAtTime(.16, ctx.currentTime + .4);
+    g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .7);
     o.connect(flt); flt.connect(g); g.connect(ctx.destination);
-    o.start(s); o.stop(s + .65);
+    o.start(); o.stop(ctx.currentTime + .7);
   });
-  // ceremonial drum (kettle drum thump)
-  const o2 = ctx.createOscillator(), g2 = ctx.createGain();
-  o2.type = 'sine';
-  o2.frequency.setValueAtTime(85, ctx.currentTime);
-  o2.frequency.exponentialRampToValueAtTime(38, ctx.currentTime + .2);
-  g2.gain.setValueAtTime(.75, ctx.currentTime);
-  g2.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .32);
-  o2.connect(g2); g2.connect(ctx.destination);
-  o2.start(); o2.stop(ctx.currentTime + .32);
-}
-
-// Sareena: ghostly chorus with vibrato + dark whisper noise
-function playSareenaCry() {
-  const ctx = getAC(); if (!ctx) return;
-  [185, 245, 310].forEach((f, i) => {
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.type = 'sine'; o.frequency.value = f;
-    // vibrato LFO
-    const lfo = ctx.createOscillator(), lfoG = ctx.createGain();
-    lfo.frequency.value = 5 + i * 1.5;
-    lfoG.gain.value = 10;
-    lfo.connect(lfoG); lfoG.connect(o.frequency);
-    const s = ctx.currentTime + i * .12;
-    lfo.start(s);
-    g.gain.setValueAtTime(0, s);
-    g.gain.linearRampToValueAtTime(.18, s + .35);
-    g.gain.exponentialRampToValueAtTime(.001, s + 1.3);
-    o.connect(g); g.connect(ctx.destination);
-    o.start(s); o.stop(s + 1.3);
-    lfo.stop(s + 1.3);
-  });
-  // whispery breath through bandpass
-  const sr = ctx.sampleRate;
-  const buf = ctx.createBuffer(1, sr * 1.2, sr);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < d.length; i++) {
-    const t = i / sr;
-    const env = Math.sin(Math.PI * t / 1.2);
-    d[i] = (Math.random() * 2 - 1) * env * .18;
-  }
-  const src = ctx.createBufferSource(); src.buffer = buf;
-  const flt = ctx.createBiquadFilter(); flt.type = 'bandpass';
-  flt.frequency.value = 700; flt.Q.value = 2;
-  src.connect(flt); flt.connect(ctx.destination); src.start();
-}
-
-// Nightwolf: triple drum beat + wolf howl
-function playNightwolfCry() {
-  const ctx = getAC(); if (!ctx) return;
-  // tribal triple drum
-  [0, .15, .3].forEach(dt => {
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.type = 'sine';
-    o.frequency.setValueAtTime(105, ctx.currentTime + dt);
-    o.frequency.exponentialRampToValueAtTime(42, ctx.currentTime + dt + .14);
-    g.gain.setValueAtTime(.72, ctx.currentTime + dt);
-    g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + dt + .2);
-    o.connect(g); g.connect(ctx.destination);
-    o.start(ctx.currentTime + dt); o.stop(ctx.currentTime + dt + .2);
-  });
-  // wolf howl after drums — rising tone with wide vibrato
+  // dry "hmph" — short low grunt after the chord
   setTimeout(() => {
-    const ctx2 = getAC(); if (!ctx2) return;
-    const o = ctx2.createOscillator(), g = ctx2.createGain();
+    const c2 = getAC(); if (!c2) return;
+    const o = c2.createOscillator(), g = c2.createGain();
     o.type = 'sine';
-    const t0 = ctx2.currentTime;
-    o.frequency.setValueAtTime(280, t0);
-    o.frequency.exponentialRampToValueAtTime(520, t0 + .3);
-    o.frequency.exponentialRampToValueAtTime(360, t0 + .85);
-    const lfo = ctx2.createOscillator(), lfoG = ctx2.createGain();
-    lfo.frequency.value = 7; lfoG.gain.value = 35;
-    lfo.connect(lfoG); lfoG.connect(o.frequency);
-    lfo.start(t0);
-    g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(.32, t0 + .1);
-    g.gain.exponentialRampToValueAtTime(.001, t0 + .9);
-    o.connect(g); g.connect(ctx2.destination);
-    o.start(t0); o.stop(t0 + .9);
-    lfo.stop(t0 + .9);
-  }, 480);
+    o.frequency.setValueAtTime(150, c2.currentTime);
+    o.frequency.exponentialRampToValueAtTime(95, c2.currentTime + .16);
+    g.gain.setValueAtTime(.4, c2.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, c2.currentTime + .2);
+    o.connect(g); g.connect(c2.destination);
+    o.start(); o.stop(c2.currentTime + .2);
+  }, 550);
 }
 
 const CHAR_CRIES = {
-  subzero:   playSubZeroCry,
-  kotal:     playKotalCry,
-  sareena:   playSareenaCry,
-  nightwolf: playNightwolfCry,
+  subzero: playSubZeroCry,
+  shrek:   playShrekCry,
+  barbie:  playBarbieCry,
+  merkel:  playMerkelCry,
 };
 function playMiss() {
   const ctx = getAC(); if (!ctx) return;
@@ -4783,6 +5118,12 @@ async function startPvP(opts = {}) {
     startSelect();
     return;
   }
+  // онлайн открыт только после базовой подготовки (4 локации с ботами)
+  if (!allLocationsDone()) {
+    alert('🔒 Онлайн откроется после прохождения всех 4 локаций.\nЭто твоя базовая подготовка: столовая → одежда → барбер → дом.');
+    startMap();
+    return;
+  }
   warmupAudio();
   state.playerLevel = u.level || 1;
   state.playerChar  = u.character;
@@ -4935,9 +5276,9 @@ function renderPvPState(s) {
   // active-fighter SVG
   const activeMy  = s.players.get(myId);
   document.getElementById('fi-left').innerHTML  = makeFighterSVG((activeMy?.char) || mp.char || 'subzero');
-  document.getElementById('fi-right').innerHTML = op ? makeFighterSVG(op.char || 'kotal') : '';
+  document.getElementById('fi-right').innerHTML = op ? makeFighterSVG(op.char || 'shrek') : '';
   document.getElementById('n-left').textContent  = activeMy ? activeMy.name : mp.name;
-  document.getElementById('n-right').textContent = op ? (op.isBot ? `🤖 ${op.name}` : `🌐 ${op.name}`) : '...';
+  document.getElementById('n-right').textContent = op ? `🌐 ${op.name}` : '...';
   setHP('left',  activeMy ? activeMy.hp : mp.hp);
   if (op) setHP('right', op.hp);
   state.myHP = mp.hp;
