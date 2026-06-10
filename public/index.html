@@ -1769,8 +1769,7 @@
       <div class="walk-choice-title">⚔ ЛАВКА ВОНЮЧЕГО СЕМЫ</div>
       <div class="walk-choice-sub">Что будешь делать?</div>
       <button class="btn btn-gold"   onclick="goTrain()"      style="margin-bottom:8px">📚 ВЫУЧИТЬ СЛОВА</button>
-      <button class="btn btn-red"    onclick="goBattle('voice')"             style="margin-bottom:8px">🎤 БОЙ ГОЛОСОМ</button>
-      <button class="btn btn-listen" onclick="goBattle('cards')">🃏 БОЙ КАРТОЧКАМИ</button>
+      <button class="btn btn-red" onclick="goBattle('voice')">⚔ В БОЙ — СКАЗАЛ И УДАРИЛ</button>
     </div>
   </div>
 </div>
@@ -3453,7 +3452,7 @@ function arriveAtMapLocation(id) {
 
 function goBattle(mode) {
   endWalkScene();
-  state.battleMode = (mode === 'cards') ? 'cards' : 'voice';
+  state.battleMode = 'voice';   // только голос: сказал — ударил
   const currentScreen = document.querySelector('.screen.on')?.id;
   const fromWalkOrTrain = currentScreen === 's-walk' || currentScreen === 's-train';
   const launch = () => {
@@ -3834,11 +3833,9 @@ function maybeShowBattleTutor(onContinue) {
       text: 'Веди пальцем по карте к локациям. В каждой — бой с ботом и новый словарь. Победи всех чтобы качать силу 1→10.',
     },
     {
-      emoji: state.battleMode === 'cards' ? '🃏' : '🎤',
-      title: state.battleMode === 'cards' ? 'РЕЖИМ КАРТОЧЕК' : 'РЕЖИМ ГОЛОСА',
-      text: state.battleMode === 'cards'
-        ? 'Видишь русскую фразу — выбери правильный английский из 4 карточек. Правильно = твой удар. У тебя 8 секунд.'
-        : 'Видишь русскую фразу — скажи перевод по-английски. Микрофон включится сам. У тебя 8 секунд.',
+      emoji: '🎤',
+      title: 'СКАЗАЛ — УДАРИЛ',
+      text: 'Видишь русскую фразу — скажи перевод по-английски вслух. Микрофон включится сам. Правильно = мгновенный удар.',
     },
     {
       emoji: '🥊',
@@ -4265,7 +4262,7 @@ function setupWorldBattle(opp, opts = {}) {
   setHP('left', 100);
   setHP('right', state.botHP);
   closeWorldSheet();
-  goBattle(state.battleMode === 'cards' ? 'cards' : 'voice');
+  goBattle('voice');
 }
 
 function worldFight() {
