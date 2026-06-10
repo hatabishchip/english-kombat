@@ -873,7 +873,7 @@
       border-radius:3px;
       overflow:hidden;
     }
-    .char-portrait svg{transform:translateY(8px);}
+    .char-portrait svg{transform:none;}
     .char-name{
       font-family:'Impact',sans-serif;font-size:14px;letter-spacing:1.5px;
       color:#ffd100;margin-top:6px;text-align:center;line-height:1;
@@ -3196,7 +3196,7 @@ function startSelect() {
   // render portraits
   for (const id of Object.keys(CHARS)) {
     const el = document.getElementById(`portrait-${id}`);
-    if (el) el.innerHTML = makeFighterSVG(id, 110);
+    if (el) el.innerHTML = makeFighterSVG(id, 64);
   }
   // reset selection
   state.playerChar = null;
@@ -3207,6 +3207,11 @@ function startSelect() {
   btn.style.opacity = '.4';
   btn.textContent = 'ВЫБЕРИ ПЕРСОНАЖА';
   show('s-select');
+  // отцентрировать первую карточку в карусели (иначе на телефоне она за краем)
+  requestAnimationFrame(() => {
+    const first = document.querySelector('#char-grid .char-card');
+    first && first.scrollIntoView({ inline: 'center', block: 'nearest' });
+  });
 }
 
 // wire up clicks once on load
