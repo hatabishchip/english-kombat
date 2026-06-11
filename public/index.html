@@ -1822,6 +1822,7 @@
   </div>
 
   <div class="train-card">
+    <div id="train-pic" style="font-size:52px;line-height:1;min-height:56px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.6))"></div>
     <div id="train-ru" class="train-ru">---</div>
     <div class="train-divider"></div>
     <div id="train-en" class="train-en" onclick="replayEN()" title="тап чтобы переслушать">---</div>
@@ -1833,7 +1834,7 @@
       🔊 ПОСЛУШАТЬ ПО-АНГЛИЙСКИ
       <span class="listen-wave"><span></span><span></span><span></span><span></span><span></span></span>
     </button>
-    <button id="train-btn-speak" class="btn btn-mic" onclick="trainStartMic()">🎤 СКАЗАТЬ ПЕРЕВОД</button>
+    <button id="train-btn-speak" class="btn btn-mic" onclick="trainStartMic()">🎤 СКАЗАТЬ ПО-АНГЛИЙСКИ</button>
     <button id="train-btn-know"  class="btn btn-gold" onclick="trainAnswer(true)">✓ ЗНАЮ — ДАЛЬШЕ</button>
     <button id="train-btn-dunno" class="btn btn-red"  onclick="trainAnswer(false)">❌ НЕ ЗНАЮ — ПОКАЖИ</button>
     <button id="train-btn-next"  class="btn btn-dark" style="display:none" onclick="trainNext()">→ ДАЛЬШЕ</button>
@@ -1883,6 +1884,7 @@
 
   <div class="bot">
     <div id="phrase-card" class="phrase-card">
+      <div id="phrase-pic" style="font-size:46px;line-height:1;min-height:50px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.6))"></div>
       <div id="phrase-ru"  class="phrase-ru">Готовься...</div>
       <div id="phrase-sub" class="phrase-sub"></div>
     </div>
@@ -2727,7 +2729,7 @@ function smartPlay() {
   // первый запуск — интро «как играть»
   if (!u.character && !u.introSeen) {
     showTutor('⚔', 'КАК ИГРАТЬ',
-      'Это драка на английском. 1) Выбери бойца. 2) Попадёшь на карту города — веди пальцем к локации. 3) В локации бой: видишь русскую фразу — скажи перевод вслух, и твой боец бьёт. 4) Пройди все 4 локации — откроются Мир и онлайн-бои.',
+      'Это драка на английском. 1) Выбери бойца. 2) Попадёшь на карту города — веди пальцем к локации. 3) В локации бой: видишь фразу — скажи её ПО-АНГЛИЙСКИ вслух, и твой боец бьёт. 4) Пройди все 4 локации — откроются Мир и онлайн-бои.',
       () => { authUpdate({ introSeen: true }); startGame(); });
     return;
   }
@@ -3371,6 +3373,34 @@ const LOCATIONS = {
 };
 const LOC_ORDER = ['canteen','shop','barber','apartment'];
 
+// ── Визуальное подкрепление фразы: эмодзи-картинка по ключевому слову ──
+const EMOJI_HINTS = [
+  ['eggs','🥚'],['bread','🍞'],['soup','🍲'],['pizza','🍕'],['apple','🍎'],['coffee','☕'],
+  ['water','💧'],['meat','🥩'],['cheese','🧀'],['fish','🐟'],['rice','🍚'],['salad','🥗'],
+  ['salt','🧂'],['hungry','😋'],['tasty','😋'],['delicious','🤤'],['bill','🧾'],['check','🧾'],
+  ['pasta','🍝'],['potatoes','🥔'],['drink','🥤'],['eat','🍽️'],['food','🍽️'],['cook','👩‍🍳'],
+  ['trousers','👖'],['pants','👖'],['shirt','👕'],['t-shirt','👕'],['jacket','🧥'],['coat','🧥'],
+  ['shoes','👟'],['sneakers','👟'],['boots','🥾'],['cap','🧢'],['socks','🧦'],['dress','👗'],
+  ['shorts','🩳'],['scarf','🧣'],['gloves','🧤'],['mirror','🪞'],['size','📏'],['fits','📏'],
+  ['expensive','💰'],['cheap','🪙'],['color','🎨'],['owe','💸'],['try it on','🪞'],['store','🏪'],
+  ['hair','💇'],['haircut','💇'],['beard','🧔'],['shave','🪒'],['shorter','✂️'],['neat','✂️'],
+  ['trim','✂️'],['bangs','💇'],['blow dry','💨'],['style','💈'],['wash','🚿'],
+  ['home','🏠'],['movie','🎬'],['wine','🍷'],['dinner','🍽️'],['morning','🌅'],['relax','🛋️'],
+  ['beautiful','😍'],['gorgeous','😍'],['welcome','🤗'],['stay','🌙'],['night','🌙'],['comfortable','🛋️'],
+  ['sleep','😴'],['tired','🥱'],['speak','🗣️'],['talk','🗣️'],['english','🇬🇧'],['german','🇩🇪'],
+  ['french','🇫🇷'],['know','🧠'],['help','🆘'],['win','🏆'],['study','📚'],['need','🙏'],
+  ['answer','❓'],['going','🚶'],['good','👍'],['coffee','☕'],['glad','😊'],['say','💬'],
+];
+const THEME_FALLBACK_EMOJI = { food:'🍳', clothes:'👕', grooming:'💈', home:'🏠' };
+function phraseEmoji(en) {
+  const low = String(en || '').toLowerCase();
+  for (const [kw, em] of EMOJI_HINTS) {
+    if (low.includes(kw)) return em;
+  }
+  const theme = LOCATIONS[state.currentLocation]?.theme;
+  return THEME_FALLBACK_EMOJI[theme] || '⚔';
+}
+
 function isLocationUnlocked(id) {
   const u = authCurrent();
   const completed = (u && u.completed) || [];
@@ -3422,7 +3452,7 @@ function startMap() {
   if (u0 && !u0.mapIntroSeen) {
     authUpdate({ mapIntroSeen: true });
     showTutor('🗺', 'ТЫ НА КАРТЕ ГОРОДА',
-      'Веди пальцем по экрану — боец идёт за пальцем. Зайди в первую локацию 🍳 СТОЛОВАЯ. Внутри — бой: чтобы пройти дальше, нужно замочить оппонента ударами. Удар = правильно сказанный перевод фразы. Победа открывает следующую локацию.');
+      'Веди пальцем по экрану — боец идёт за пальцем. Зайди в первую локацию 🍳 СТОЛОВАЯ. Внутри — бой: чтобы пройти дальше, нужно замочить оппонента ударами. Удар = правильно сказанная фраза по-английски. Победа открывает следующую локацию.');
   }
 }
 
@@ -3802,6 +3832,8 @@ function renderTrainCard() {
   }
   const card = trainCards[trainIdx];
   document.getElementById('train-ru').textContent = card.ru;
+  const tpic = document.getElementById('train-pic');
+  if (tpic) tpic.textContent = phraseEmoji(card.en);
   const enEl = document.getElementById('train-en');
   enEl.textContent = card.en;
   enEl.classList.remove('show', 'train-wrong', 'train-correct');
@@ -3811,7 +3843,7 @@ function renderTrainCard() {
 
   const speakBtn = document.getElementById('train-btn-speak');
   speakBtn.classList.remove('listening');
-  speakBtn.textContent = '🎤 СКАЗАТЬ ПЕРЕВОД';
+  speakBtn.textContent = '🎤 СКАЗАТЬ ПО-АНГЛИЙСКИ';
 
   document.getElementById('train-btn-listen').style.display = '';
   document.getElementById('train-btn-listen').classList.remove('playing');
@@ -3923,7 +3955,7 @@ function maybeShowBattleTutor(onContinue) {
     {
       emoji: '🎤',
       title: 'СКАЗАЛ — УДАРИЛ',
-      text: 'Видишь русскую фразу — скажи перевод по-английски вслух. Микрофон включится сам. Правильно = мгновенный удар.',
+      text: 'Видишь фразу — скажи её ПО-АНГЛИЙСКИ вслух. Микрофон включится сам. Сказал правильно = мгновенный удар.',
     },
     {
       emoji: '🥊',
@@ -3999,16 +4031,18 @@ function presentPhrase() {
   document.getElementById('phrase-ru').className  = 'phrase-ru';
   document.getElementById('phrase-sub').className = 'phrase-sub';
   document.getElementById('phrase-ru').textContent = state.currentPhrase.ru;
+  const pic = document.getElementById('phrase-pic');
+  if (pic) pic.textContent = phraseEmoji(state.currentPhrase.en);
   setActiveTurn('left');
   setHeard('');
 
   if (state.battleMode === 'cards') {
     document.getElementById('phrase-sub').textContent = '🃏 Выбери перевод — бей врага';
-    setStatus('⚔ ПЕРЕВОДИ — БЕЙ!', 'mine');
+    setStatus('⚔ ГОВОРИ ПО-АНГЛИЙСКИ — БЕЙ!', 'mine');
     renderCardOptions();
   } else {
-    document.getElementById('phrase-sub').textContent = '🎤 Скажи перевод — бей врага';
-    setStatus('⚔ ПЕРЕВОДИ — БЕЙ!', 'mine');
+    document.getElementById('phrase-sub').textContent = '🎤 Скажи фразу ПО-АНГЛИЙСКИ — и бей';
+    setStatus('⚔ ГОВОРИ ПО-АНГЛИЙСКИ — БЕЙ!', 'mine');
     updateMic(true);
     setTimeout(() => {
       if (state.acceptingAnswer && HAS_SR && !listening) startListen();
@@ -4068,6 +4102,7 @@ function botStrike() {
 
   // stun: hide phrase for 1 second after the hit lands
   document.getElementById('phrase-ru').textContent  = '😵';
+  const stunPic = document.getElementById('phrase-pic'); if (stunPic) stunPic.textContent = '';
   document.getElementById('phrase-sub').textContent = 'оглушён...';
   setStatus('💫 ОГЛУШЁН!', 'bad');
 
@@ -5171,7 +5206,7 @@ function submitTrainAnswer(alts) {
   // reset speak button visual
   const sb = document.getElementById('train-btn-speak');
   sb.classList.remove('listening');
-  sb.textContent = '🎤 СКАЗАТЬ ПЕРЕВОД';
+  sb.textContent = '🎤 СКАЗАТЬ ПО-АНГЛИЙСКИ';
 
   if (!trainCards.length || trainIdx >= trainCards.length) return;
   const card    = trainCards[trainIdx];
@@ -5441,9 +5476,11 @@ function renderPvPState(s) {
     document.getElementById('phrase-ru').className   = 'phrase-ru';
     document.getElementById('phrase-sub').className  = 'phrase-sub';
     document.getElementById('phrase-ru').textContent = s.phraseRu;
+    const ppic = document.getElementById('phrase-pic');
+    if (ppic) ppic.textContent = phraseEmoji(s.phraseEn);
     if (mp.isActive) {
       setStatus('⚔ ТВОЙ ХОД — ГОВОРИ!', 'mine');
-      document.getElementById('phrase-sub').textContent = '🎤 Скажи перевод';
+      document.getElementById('phrase-sub').textContent = '🎤 Скажи фразу ПО-АНГЛИЙСКИ';
       setActiveTurn('left');
       updateMic(true);
       startTimer(8);
