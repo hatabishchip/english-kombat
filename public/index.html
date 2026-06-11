@@ -730,6 +730,33 @@
       overflow:hidden;
       box-shadow:inset 0 0 4px rgba(0,0,0,.8);
     }
+    /* ── progress path (Карта → Мир → PvP) ── */
+    .path-step{
+      flex:1;max-width:92px;text-align:center;cursor:pointer;
+      padding:8px 4px;border-radius:10px;
+      border:1.5px solid rgba(200,149,56,.55);
+      background:linear-gradient(180deg,rgba(40,28,10,.7),rgba(12,8,3,.85));
+      box-shadow:0 0 12px rgba(255,209,0,.18);
+      transition:transform .1s ease;
+    }
+    .path-step:active{transform:scale(.95);}
+    .path-step .path-ico{font-size:20px;line-height:1;}
+    .path-step .path-lbl{font-family:'Impact',sans-serif;font-size:10px;letter-spacing:1.5px;color:#ffd100;margin-top:3px;}
+    .path-step .path-sub{font-family:sans-serif;font-size:9px;color:#8a8060;margin-top:1px;}
+    .path-step.locked{
+      border-color:rgba(120,110,90,.3);
+      background:rgba(20,16,10,.5);
+      box-shadow:none;opacity:.55;cursor:default;
+    }
+    .path-step.locked .path-lbl{color:#777;}
+    .path-step.done{border-color:#2aa84a;box-shadow:0 0 10px rgba(42,168,74,.25);}
+    .path-step.current{
+      border-color:#ffd100;
+      box-shadow:0 0 16px rgba(255,209,0,.45);
+      animation:hint-pulse 2s ease-in-out infinite;
+    }
+    .path-link{width:16px;height:1.5px;background:rgba(200,149,56,.4);flex:0 0 auto;}
+
     /* vitality (tamagotchi) bar */
     .user-vitality{
       margin-top:6px;
@@ -1608,22 +1635,35 @@
     </div>
   </div>
 
-  <!-- основные действия -->
-  <button class="btn btn-gold" onclick="startGame()">⚔ В БОЙ С БОТОМ</button>
-  <button id="btn-pvp" class="btn btn-listen" onclick="startPvP()">🌐 ОНЛАЙН-БОЙ (PvP)</button>
-  <button id="btn-world" class="btn btn-gold" style="font-size:14px" onclick="startWorldFromHome()">🌍 МИР (после 4 локаций)</button>
+  <!-- одна главная кнопка -->
+  <button class="btn btn-gold" style="font-size:22px;padding:16px" onclick="smartPlay()">▶ ИГРАТЬ</button>
+
+  <!-- дорожка этапов: доступное подсвечено, остальное откроется по прохождению -->
+  <div id="progress-path" style="display:flex;align-items:center;gap:0;width:100%;max-width:320px;margin:4px 0 10px;justify-content:center">
+    <div class="path-step" id="ps-map" onclick="smartPlay()">
+      <div class="path-ico">🗺</div><div class="path-lbl">КАРТА</div><div class="path-sub" id="ps-map-sub">0/4</div>
+    </div>
+    <div class="path-link"></div>
+    <div class="path-step locked" id="ps-world" onclick="pathWorld()">
+      <div class="path-ico">🌍</div><div class="path-lbl">МИР</div><div class="path-sub" id="ps-world-sub">🔒</div>
+    </div>
+    <div class="path-link"></div>
+    <div class="path-step locked" id="ps-pvp" onclick="pathPvP()">
+      <div class="path-ico">🌐</div><div class="path-lbl">PvP</div><div class="path-sub" id="ps-pvp-sub">🔒</div>
+    </div>
+  </div>
 
   <!-- вторичные — компактная сетка 2×2 -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:300px;margin-top:2px">
     <button class="btn btn-dark" style="font-size:11.5px;padding:10px 6px;margin:0" onclick="showLeaderboard()">🏆 ЛИДЕРБОРД</button>
     <button class="btn btn-dark" style="font-size:11.5px;padding:10px 6px;margin:0" onclick="showSocial()">👥 ДРУЗЬЯ/КЛАН</button>
     <button class="btn btn-dark" style="font-size:11.5px;padding:10px 6px;margin:0" onclick="showGlobalChat()">💬 ЧАТ</button>
-    <button class="btn btn-dark" style="font-size:11.5px;padding:10px 6px;margin:0" onclick="testSound()">🔊 ЗВУК</button>
+    <button id="btn-change-char" class="btn btn-dark" style="font-size:11.5px;padding:10px 6px;margin:0" onclick="forceCharSelect()">🧑‍🎤 ПЕРСОНАЖ</button>
   </div>
 
   <!-- мелкие текстовые внизу -->
   <div style="display:flex;gap:18px;margin-top:12px">
-    <button id="btn-change-char" style="background:none;border:none;color:#8a8060;font-size:11px;text-decoration:underline;cursor:pointer;display:none" onclick="forceCharSelect()">сменить персонажа</button>
+    <button style="background:none;border:none;color:#8a8060;font-size:11px;text-decoration:underline;cursor:pointer" onclick="testSound()">проверить звук</button>
     <button style="background:none;border:none;color:#666;font-size:11px;text-decoration:underline;cursor:pointer" onclick="doLogout()">выйти</button>
   </div>
   <div id="home-err" style="font-family:sans-serif;font-size:12px;color:#e84040;margin-top:4px;min-height:16px;text-align:center"></div>
@@ -2610,7 +2650,7 @@ function applyLoginState() {
   state.playerChar  = u.character || null;
   renderUserCard();
   renderVitality();
-  document.getElementById('btn-change-char').style.display = u.character ? '' : 'none';
+  // кнопка ПЕРСОНАЖ в сетке видна всегда
   authUpdate({});
   startHeartbeat();
 }
@@ -2657,22 +2697,63 @@ function renderUserCard() {
   const av = document.getElementById('home-avatar');
   if (av) av.innerHTML = u.character ? makeFighterSVG(u.character, 52, playerStage()) : '<span style="font-size:26px;margin-top:12px">❓</span>';
   // онлайн-кнопки активируются после 4 локаций
-  const done = typeof allLocationsDone === 'function' && allLocationsDone();
-  const pvpBtn = document.getElementById('btn-pvp');
-  const worldBtn = document.getElementById('btn-world');
-  if (pvpBtn)   { pvpBtn.style.opacity = done ? '1' : '.45'; pvpBtn.textContent = done ? '🌐 ОНЛАЙН-БОЙ (PvP)' : '🔒 ОНЛАЙН (пройди 4 локации)'; }
-  if (worldBtn) { worldBtn.style.opacity = done ? '1' : '.45'; worldBtn.textContent = done ? '🌍 МИР' : '🌍 МИР (после 4 локаций)'; }
+  renderProgressPath(u);
 }
 
-function startWorldFromHome() {
+// ─── PROGRESS PATH: Карта → Мир → PvP (одна графа, как просил Толик) ───
+function renderProgressPath(u) {
+  const completed = (u?.completed || []).filter(id => LOC_ORDER.includes(id));
+  const done = completed.length >= LOC_ORDER.length;
+  const psMap   = document.getElementById('ps-map');
+  const psWorld = document.getElementById('ps-world');
+  const psPvp   = document.getElementById('ps-pvp');
+  if (!psMap) return;
+  // карта
+  psMap.className = 'path-step ' + (done ? 'done' : 'current');
+  document.getElementById('ps-map-sub').textContent = done ? '✓' : `${completed.length}/4`;
+  // мир
+  psWorld.className = 'path-step ' + (done ? 'current' : 'locked');
+  document.getElementById('ps-world-sub').textContent = done ? 'открыт' : '🔒';
+  // pvp
+  psPvp.className = 'path-step ' + (done ? '' : 'locked');
+  document.getElementById('ps-pvp-sub').textContent = done ? 'открыт' : '🔒';
+}
+
+// ─── SMART PLAY: одна кнопка ведёт куда нужно по прогрессу ───
+function smartPlay() {
   const u = authCurrent();
   if (!u) { show('s-login'); return; }
-  if (!u.character) { startSelect(); return; }
+  warmupAudio();
+  // первый запуск — интро «как играть»
+  if (!u.character && !u.introSeen) {
+    showTutor('⚔', 'КАК ИГРАТЬ',
+      'Это драка на английском. 1) Выбери бойца. 2) Попадёшь на карту города — веди пальцем к локации. 3) В локации бой: видишь русскую фразу — скажи перевод вслух, и твой боец бьёт. 4) Пройди все 4 локации — откроются Мир и онлайн-бои.',
+      () => { authUpdate({ introSeen: true }); startGame(); });
+    return;
+  }
+  if (allLocationsDone() && u.character) {
+    state.playerChar = u.character;
+    state.playerLevel = u.level || 1;
+    startWorld();
+    return;
+  }
+  startGame();   // выбор персонажа (если нет) или карта
+}
+function pathWorld() {
+  if (!allLocationsDone()) { playMiss(); return; }
+  const u = authCurrent();
+  if (!u?.character) { startSelect(); return; }
   warmupAudio();
   state.playerChar = u.character;
   state.playerLevel = u.level || 1;
   startWorld();
 }
+function pathPvP() {
+  if (!allLocationsDone()) { playMiss(); return; }
+  startPvP();
+}
+// тап по аватару = смена персонажа
+document.getElementById('home-avatar')?.addEventListener('click', () => forceCharSelect());
 
 // ─── PRESENCE / HEARTBEAT ───
 let _heartbeatTimer = null;
@@ -3336,6 +3417,13 @@ function startMap() {
   if (worldBtn) worldBtn.style.display = allDone ? '' : 'none';
   show('s-map');
   startMapMovement();
+  // памятка при первом попадании на карту (фидбек Толика)
+  const u0 = authCurrent();
+  if (u0 && !u0.mapIntroSeen) {
+    authUpdate({ mapIntroSeen: true });
+    showTutor('🗺', 'ТЫ НА КАРТЕ ГОРОДА',
+      'Веди пальцем по экрану — боец идёт за пальцем. Зайди в первую локацию 🍳 СТОЛОВАЯ. Внутри — бой: чтобы пройти дальше, нужно замочить оппонента ударами. Удар = правильно сказанный перевод фразы. Победа открывает следующую локацию.');
+  }
 }
 
 function updatePowerBar() {
