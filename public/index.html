@@ -1645,11 +1645,11 @@
     </div>
     <div class="path-link"></div>
     <div class="path-step locked" id="ps-world" onclick="pathWorld()">
-      <div class="path-ico">🌍</div><div class="path-lbl">МИР</div><div class="path-sub" id="ps-world-sub">🔒</div>
+      <div class="path-ico">🌍</div><div class="path-lbl">РАЙОН</div><div class="path-sub" id="ps-world-sub">🔒</div>
     </div>
     <div class="path-link"></div>
     <div class="path-step locked" id="ps-pvp" onclick="pathPvP()">
-      <div class="path-ico">🌐</div><div class="path-lbl">PvP</div><div class="path-sub" id="ps-pvp-sub">🔒</div>
+      <div class="path-ico">🌐</div><div class="path-lbl">ОНЛАЙН</div><div class="path-sub" id="ps-pvp-sub">🔒</div>
     </div>
   </div>
 
@@ -1955,9 +1955,12 @@
   <div id="world-sheet" style="display:none;position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:100%;max-width:420px;background:linear-gradient(180deg,rgba(30,20,8,.97),rgba(8,5,2,.99));border:2px solid #c89538;border-bottom:none;border-radius:14px 14px 0 0;padding:16px;z-index:60;box-shadow:0 -8px 30px rgba(0,0,0,.8)">
     <div id="ws-name" style="font-family:'Impact',sans-serif;font-size:18px;color:#ffd100;letter-spacing:1px;text-align:center;margin-bottom:2px">—</div>
     <div id="ws-info" style="font-family:sans-serif;font-size:11px;color:#888;text-align:center;margin-bottom:12px">—</div>
-    <button class="btn btn-red"    style="margin-bottom:8px" onclick="worldFight()">⚔ БОЙ 1 НА 1</button>
-    <button class="btn btn-listen" style="margin-bottom:8px" onclick="worldCollab()">🤝 КОЛЛАБОРАЦИЯ</button>
-    <button id="ws-group" class="btn btn-gold" style="margin-bottom:8px;display:none" onclick="worldGroupFight()">⚔⚔ ГРУППОВОЙ БОЙ 2v2</button>
+    <button class="btn btn-red"    style="margin-bottom:4px" onclick="worldFight()">⚔ БОЙ 1 НА 1</button>
+    <div style="font-family:sans-serif;font-size:10px;color:#776a4a;text-align:center;margin-bottom:8px">просто подраться с соседом</div>
+    <button class="btn btn-listen" style="margin-bottom:4px" onclick="worldCollab()">🤝 КОЛЛАБОРАЦИЯ</button>
+    <div style="font-family:sans-serif;font-size:10px;color:#776a4a;text-align:center;margin-bottom:8px">по пути алкаш, побей и сосед в твоём клане</div>
+    <button id="ws-group" class="btn btn-gold" style="margin-bottom:4px;display:none" onclick="worldGroupFight()">⚔⚔ ГРУППОВОЙ БОЙ 2v2</button>
+    <div id="ws-group-hint" style="font-family:sans-serif;font-size:10px;color:#776a4a;text-align:center;margin-bottom:8px;display:none">ты + союзник против соседа + его напарника</div>
     <button class="btn btn-dark" style="font-size:13px" onclick="closeWorldSheet()">ЗАКРЫТЬ</button>
   </div>
   <div style="padding:10px;display:flex;justify-content:center;background:linear-gradient(0deg,rgba(0,0,0,.85),transparent)">
@@ -2713,12 +2716,12 @@ function renderProgressPath(u) {
   // карта
   psMap.className = 'path-step ' + (done ? 'done' : 'current');
   document.getElementById('ps-map-sub').textContent = done ? '✓' : `${completed.length}/4`;
-  // мир
+  // мир (район с соседями-ботами + клан + 2v2)
   psWorld.className = 'path-step ' + (done ? 'current' : 'locked');
-  document.getElementById('ps-world-sub').textContent = done ? 'открыт' : '🔒';
-  // pvp
+  document.getElementById('ps-world-sub').textContent = done ? 'соседи + клан' : '🔒 после 4 локаций';
+  // pvp (онлайн против живых, лиги по уровню)
   psPvp.className = 'path-step ' + (done ? '' : 'locked');
-  document.getElementById('ps-pvp-sub').textContent = done ? 'открыт' : '🔒';
+  document.getElementById('ps-pvp-sub').textContent = done ? 'живые игроки' : '🔒 после 4 локаций';
 }
 
 // ─── SMART PLAY: одна кнопка ведёт куда нужно по прогрессу ───
@@ -2748,10 +2751,24 @@ function pathWorld() {
   warmupAudio();
   state.playerChar = u.character;
   state.playerLevel = u.level || 1;
-  startWorld();
+  const goWorld = () => startWorld();
+  if (!u.worldIntroSeen) {
+    showTutor('🌍', 'РАЙОН (СОСЕДИ-БОТЫ)',
+      'Это твой район после прокачки. На карте 4 соседа (Дима, Аня, Толик, Mia — они БОТЫ под видом людей). По каждому 3 действия: ⚔ драка 1 на 1, 🤝 коллаборация (сначала отмудохай АЛКАША ПЕТРОВИЧА, потом сосед — твой союзник в клане), ⚔⚔ 2v2 — ты + союзник против двух врагов. Сети не нужно, играешь когда угодно.',
+      () => { authUpdate({ worldIntroSeen: true }); goWorld(); });
+    return;
+  }
+  goWorld();
 }
 function pathPvP() {
   if (!allLocationsDone()) { playMiss(); return; }
+  const u = authCurrent();
+  if (!u?.pvpIntroSeen) {
+    showTutor('🌐', 'ОНЛАЙН (ЖИВЫЕ ИГРОКИ)',
+      'Это настоящий PvP против живых людей через интернет. Сервер сводит тебя по лиге (1-5 «Новички» / 6-10 «Опытные»), кто первый правильно сказал фразу — тот первый бьёт. За победы растёт ELO-рейтинг. Можно вызвать друга по ссылке-коду — будете драться только вдвоём. Нужен интернет.',
+      () => { authUpdate({ pvpIntroSeen: true }); startPvP(); });
+    return;
+  }
   startPvP();
 }
 // тап по аватару = смена персонажа
@@ -4361,7 +4378,9 @@ function openWorldSheet(i) {
   // с союзником не дерёмся и не коллаборируемся — только групповой бой против других
   document.querySelector('#world-sheet .btn-red').style.display    = isAlly ? 'none' : '';
   document.querySelector('#world-sheet .btn-listen').style.display = isAlly ? 'none' : '';
-  document.getElementById('ws-group').style.display = (u?.ally && !isAlly) ? '' : 'none';
+  const grpVisible = (u?.ally && !isAlly) ? '' : 'none';
+  document.getElementById('ws-group').style.display = grpVisible;
+  document.getElementById('ws-group-hint').style.display = grpVisible;
   document.getElementById('world-sheet').style.display = 'block';
 }
 function closeWorldSheet() {
