@@ -52,6 +52,17 @@
       max-width:520px;
       transform:translateX(-50%);
     }
+    /* интерьер локации за бойцами — подмена фона .arena по классу боя */
+    #s-battle.bg-canteen .arena,
+    #s-battle.bg-shop .arena,
+    #s-battle.bg-gym .arena,
+    #s-battle.bg-apartment .arena{
+      background-size:cover; background-position:center 30%; background-repeat:no-repeat;
+    }
+    #s-battle.bg-canteen   .arena{ background-image:linear-gradient(180deg,rgba(8,5,2,.45) 0%,rgba(8,5,2,.1) 35%,rgba(8,5,2,.35) 65%,rgba(8,5,2,.9) 100%),url('bg/canteen.jpg'); }
+    #s-battle.bg-shop      .arena{ background-image:linear-gradient(180deg,rgba(8,5,2,.45) 0%,rgba(8,5,2,.1) 35%,rgba(8,5,2,.35) 65%,rgba(8,5,2,.9) 100%),url('bg/shop.jpg'); }
+    #s-battle.bg-gym       .arena{ background-image:linear-gradient(180deg,rgba(8,5,2,.45) 0%,rgba(8,5,2,.1) 35%,rgba(8,5,2,.35) 65%,rgba(8,5,2,.9) 100%),url('bg/gym.jpg'); }
+    #s-battle.bg-apartment .arena{ background-image:linear-gradient(180deg,rgba(8,5,2,.45) 0%,rgba(8,5,2,.1) 35%,rgba(8,5,2,.35) 65%,rgba(8,5,2,.9) 100%),url('bg/apartment.jpg'); }
 
     /* ── COMMON ── */
     input.field{
@@ -1655,8 +1666,8 @@
     </div>
   </div>
 
-  <!-- одна главная кнопка -->
-  <button class="btn btn-gold" style="font-size:22px;padding:16px" onclick="smartPlay()">▶ ИГРАТЬ</button>
+  <!-- одна главная кнопка (текст меняется: пока нет персонажа = СОЗДАТЬ) -->
+  <button id="home-play-btn" class="btn btn-gold" style="font-size:22px;padding:16px" onclick="smartPlay()">▶ ИГРАТЬ</button>
 
   <!-- дорожка этапов: доступное подсвечено, остальное откроется по прохождению -->
   <div id="progress-path" style="display:flex;align-items:center;gap:0;width:100%;max-width:320px;margin:4px 0 10px;justify-content:center">
@@ -1678,7 +1689,7 @@
     <button class="btn btn-dark" style="font-size:11.5px;padding:10px 6px;margin:0" onclick="showLeaderboard()">🏆 ЛИДЕРБОРД</button>
     <button class="btn btn-dark" style="font-size:11.5px;padding:10px 6px;margin:0" onclick="showSocial()">👥 ДРУЗЬЯ/КЛАН</button>
     <button class="btn btn-dark" style="font-size:11.5px;padding:10px 6px;margin:0" onclick="showGlobalChat()">💬 ЧАТ</button>
-    <button id="btn-change-char" class="btn btn-dark" style="font-size:11.5px;padding:10px 6px;margin:0" onclick="forceCharSelect()">🧑‍🎤 ПЕРСОНАЖ</button>
+    <button id="btn-change-char" class="btn btn-dark" style="font-size:11.5px;padding:10px 6px;margin:0" onclick="forceCharSelect()">🎨 ПЕРЕСОЗДАТЬ</button>
   </div>
 
   <!-- мелкие текстовые внизу -->
@@ -1693,8 +1704,8 @@
 <!-- ── CHARACTER SELECT (first step after home) ── -->
 <div id="s-select" class="screen">
   <button class="corner-back" onclick="goHome()">← В МЕНЮ</button>
-  <div class="select-title">⚔ ВЫБЕРИ БОЙЦА</div>
-  <div class="select-sub">КЕМ ПОЙДЁШЬ ДРАТЬСЯ ЗА ШМОТКИ</div>
+  <div class="select-title">🎨 ВЫБЕРИ БОЙЦА</div>
+  <div class="select-sub">ПОКА ВЫБЕРИ ИЗ ГОТОВЫХ — КОНСТРУКТОР СВОЕГО СКОРО</div>
   <div class="char-grid" id="char-grid">
     <div class="char-card" data-id="subzero">
       <div class="char-portrait" id="portrait-subzero"></div>
@@ -1776,10 +1787,10 @@
       <div class="map-loc-label">SECOND HAND</div>
       <div class="map-loc-sub">одежда</div>
     </div>
-    <div class="map-loc" id="map-loc-barber"    data-loc="barber"    style="left:75%;top:35%">
-      <div class="map-loc-icon">💈</div>
-      <div class="map-loc-label">BARBERSHOP</div>
-      <div class="map-loc-sub">стрижка</div>
+    <div class="map-loc" id="map-loc-gym"       data-loc="gym"       style="left:75%;top:35%">
+      <div class="map-loc-icon">💪</div>
+      <div class="map-loc-label">GYM</div>
+      <div class="map-loc-sub">тренажёрка</div>
     </div>
     <div class="map-loc" id="map-loc-apartment" data-loc="apartment" style="left:50%;top:15%">
       <div class="map-loc-icon">🏠</div>
@@ -1870,6 +1881,7 @@
 <div id="s-battle" class="screen">
   <button class="corner-back" onclick="confirmLeave('auto')">← ВЫЙТИ</button>
   <div id="diff-badge" class="diff-badge">EASY</div>
+  <div id="time-badge" style="position:fixed;top:max(10px,env(safe-area-inset-top));right:8px;z-index:80;font-family:'Impact',sans-serif;font-size:12px;letter-spacing:1.5px;color:#ffd100;background:linear-gradient(180deg,rgba(40,30,15,.92),rgba(15,10,3,.92));border:1.5px solid #6a4818;border-radius:18px;padding:6px 12px;box-shadow:0 2px 8px rgba(0,0,0,.6);display:none">🌅 утро</div>
 
   <div id="arena" class="arena">
     <div class="spot"></div>
@@ -2073,20 +2085,20 @@ const PHRASES_BY_THEME = {
       { id:301, ru:'Я ем яйца',         en:'I eat eggs',           answers:['i eat eggs'] },
       { id:302, ru:'Я пью воду',        en:'I drink water',        answers:['i drink water'] },
       { id:303, ru:'Я хочу хлеб',       en:'I want bread',         answers:['i want bread','i want some bread'] },
-      { id:304, ru:'Дай мне кофе',      en:'Give me coffee',       answers:['give me coffee','give me some coffee'] },
+      { id:304, ru:'Дай мне кофе',      en:'Give me coffee',       answers:['give me coffee','give me some coffee'], time:'morning' },
       { id:305, ru:'Я голоден',         en:"I'm hungry",           answers:["i'm hungry",'i am hungry'] },
       { id:306, ru:'Я хочу пиццу',      en:'I want pizza',         answers:['i want pizza','i want a pizza'] },
       { id:307, ru:'Это вкусно',        en:"It's tasty",           answers:["it's tasty","it's delicious",'it is tasty'] },
       { id:308, ru:'Передай соль',      en:'Pass the salt',        answers:['pass the salt'] },
-      { id:309, ru:'Я ем суп',          en:'I eat soup',           answers:['i eat soup'] },
+      { id:309, ru:'Я ем суп',          en:'I eat soup',           answers:['i eat soup'], time:'day' },
       { id:310, ru:'Мне нужна еда',     en:'I need food',          answers:['i need food','i need some food'] },
     ],
     medium: [
       { id:311, ru:'Я хочу мясо и картошку', en:'I want meat and potatoes', answers:['i want meat and potatoes'] },
       { id:312, ru:'Сколько это стоит',      en:'How much is it',           answers:['how much is it','how much does it cost'] },
-      { id:313, ru:'Я закажу пасту',         en:"I'll order pasta",         answers:["i'll order pasta",'i will order pasta'] },
+      { id:313, ru:'Я закажу пасту',         en:"I'll order pasta",         answers:["i'll order pasta",'i will order pasta'], time:'evening' },
       { id:314, ru:'Я не ем мясо',           en:"I don't eat meat",         answers:["i don't eat meat",'i do not eat meat'] },
-      { id:315, ru:'Принесите счёт',         en:'Bring the bill',           answers:['bring the bill','bring the check'] },
+      { id:315, ru:'Принесите счёт',         en:'Bring the bill',           answers:['bring the bill','bring the check'], time:'evening' },
     ],
   },
   clothes: {
@@ -2110,43 +2122,43 @@ const PHRASES_BY_THEME = {
       { id:415, ru:'Сколько я должен',         en:'How much do I owe',          answers:['how much do i owe'] },
     ],
   },
-  grooming: {
+  fitness: {
     easy: [
-      { id:501, ru:'Подстриги меня',      en:'Cut my hair',           answers:['cut my hair'] },
-      { id:502, ru:'Помой голову',        en:'Wash my hair',          answers:['wash my hair'] },
-      { id:503, ru:'Слишком коротко',     en:"It's too short",        answers:["it's too short",'too short'] },
-      { id:504, ru:'Покороче',            en:'A bit shorter',         answers:['a bit shorter','shorter please'] },
-      { id:505, ru:'Сделай аккуратно',    en:'Make it neat',          answers:['make it neat'] },
-      { id:506, ru:'Покрась волосы',      en:'Color my hair',         answers:['color my hair','dye my hair'] },
-      { id:507, ru:'Подровняй бороду',    en:'Trim my beard',         answers:['trim my beard'] },
-      { id:508, ru:'Я хочу побриться',    en:'I want a shave',        answers:['i want a shave','i want to shave'] },
-      { id:509, ru:'Хорошо выглядит',     en:'That looks good',       answers:['that looks good','it looks good','looks good'] },
-      { id:510, ru:'Сними побольше',      en:'Take more off',         answers:['take more off','take some more off'] },
+      { id:501, ru:'Я хочу абонемент',     en:'I want a membership',   answers:['i want a membership','i want membership'] },
+      { id:502, ru:'Дай мне гантели',      en:'Give me the dumbbells', answers:['give me the dumbbells','give me dumbbells'] },
+      { id:503, ru:'Где штанга',           en:"Where's the barbell",   answers:["where's the barbell",'where is the barbell'] },
+      { id:504, ru:'Я делаю кардио',       en:'I do cardio',           answers:['i do cardio','i am doing cardio'] },
+      { id:505, ru:'Десять отжиманий',     en:'Ten push ups',          answers:['ten push ups','ten pushups'] },
+      { id:506, ru:'Мне нужно полотенце',  en:'I need a towel',        answers:['i need a towel'] },
+      { id:507, ru:'Сколько подходов',     en:'How many sets',         answers:['how many sets'] },
+      { id:508, ru:'Я устал',              en:"I'm tired",             answers:["i'm tired",'i am tired'] },
+      { id:509, ru:'Где раздевалка',       en:"Where's the locker room", answers:["where's the locker room",'where is the locker room'] },
+      { id:510, ru:'Подержи мне ноги',     en:'Hold my legs',          answers:['hold my legs'] },
     ],
     medium: [
-      { id:511, ru:'Я хочу другую причёску',  en:'I want a different style',  answers:['i want a different style'] },
-      { id:512, ru:'По бокам короче',          en:'Shorter on the sides',      answers:['shorter on the sides'] },
-      { id:513, ru:'Не трогай чёлку',          en:"Don't touch the bangs",     answers:["don't touch the bangs"] },
-      { id:514, ru:'Можешь посушить',          en:'Can you blow dry it',       answers:['can you blow dry it'] },
+      { id:511, ru:'Я хочу нарастить мышцы',  en:'I want to build muscle',    answers:['i want to build muscle','i want to gain muscle'] },
+      { id:512, ru:'Можешь меня подстраховать', en:'Can you spot me',        answers:['can you spot me'] },
+      { id:513, ru:'Я тренируюсь три раза в неделю', en:'I work out three times a week', answers:['i work out three times a week','i train three times a week'] },
+      { id:514, ru:'Мне нужен тренер',         en:'I need a trainer',          answers:['i need a trainer','i need a coach'] },
     ],
   },
   home: {
     easy: [
       { id:601, ru:'Добро пожаловать',    en:'Welcome home',          answers:['welcome home'] },
-      { id:602, ru:'Посмотрим фильм',     en:"Let's watch a movie",   answers:["let's watch a movie",'lets watch a movie'] },
+      { id:602, ru:'Посмотрим фильм',     en:"Let's watch a movie",   answers:["let's watch a movie",'lets watch a movie'], time:'evening' },
       { id:603, ru:'Ты голодна',          en:'Are you hungry',        answers:['are you hungry'] },
       { id:604, ru:'Располагайся',        en:'Make yourself comfortable', answers:['make yourself comfortable'] },
-      { id:605, ru:'Я приготовил ужин',   en:'I cooked dinner',       answers:['i cooked dinner','i made dinner'] },
-      { id:606, ru:'Хочешь вина',         en:'Want some wine',        answers:['want some wine','do you want some wine'] },
+      { id:605, ru:'Я приготовил ужин',   en:'I cooked dinner',       answers:['i cooked dinner','i made dinner'], time:'evening' },
+      { id:606, ru:'Хочешь вина',         en:'Want some wine',        answers:['want some wine','do you want some wine'], time:'evening' },
       { id:607, ru:'Давай расслабимся',   en:"Let's relax",           answers:["let's relax",'lets relax'] },
       { id:608, ru:'Это красиво',         en:"It's beautiful",        answers:["it's beautiful",'this is beautiful'] },
-      { id:609, ru:'Останься на ночь',    en:'Stay the night',        answers:['stay the night'] },
-      { id:610, ru:'Доброе утро',         en:'Good morning',          answers:['good morning'] },
+      { id:609, ru:'Останься на ночь',    en:'Stay the night',        answers:['stay the night'], time:'evening' },
+      { id:610, ru:'Доброе утро',         en:'Good morning',          answers:['good morning'], time:'morning' },
     ],
     medium: [
       { id:611, ru:'Я очень рад тебя видеть', en:"I'm so glad to see you",   answers:["i'm so glad to see you",'i am so glad to see you'] },
       { id:612, ru:'Ты прекрасно выглядишь',  en:'You look beautiful',      answers:['you look beautiful','you look gorgeous'] },
-      { id:613, ru:'Сделать тебе кофе',        en:'Should I make you coffee', answers:['should i make you coffee','want me to make coffee'] },
+      { id:613, ru:'Сделать тебе кофе',        en:'Should I make you coffee', answers:['should i make you coffee','want me to make coffee'], time:'morning' },
       { id:614, ru:'Я давно хотел сказать',    en:"I've been wanting to say", answers:["i've been wanting to say"] },
     ],
   },
@@ -2600,7 +2612,13 @@ function authCurrent() {
   const data = authLoad();
   if (!data.currentUser) return null;
   const u = data.users[data.currentUser];
-  return u ? { username: data.currentUser, ...u } : null;
+  if (!u) return null;
+  // ── миграция: barber → gym (старые сохранёнки) ──
+  if (Array.isArray(u.completed) && u.completed.includes('barber')) {
+    u.completed = u.completed.map(id => id === 'barber' ? 'gym' : id);
+    authSave(data);
+  }
+  return { username: data.currentUser, ...u };
 }
 function authUpdate(updates) {
   const data = authLoad();
@@ -2726,6 +2744,9 @@ function renderUserCard() {
   // аватар с фото-лицом персонажа
   const av = document.getElementById('home-avatar');
   if (av) av.innerHTML = u.character ? makeFighterSVG(u.character, 52, playerStage()) : '<span style="font-size:26px;margin-top:12px">❓</span>';
+  // главная кнопка: если персонажа нет — зовём создать; если есть — играть
+  const playBtn = document.getElementById('home-play-btn');
+  if (playBtn) playBtn.textContent = u.character ? '▶ ИГРАТЬ' : '🎨 СОЗДАТЬ ПЕРСОНАЖА';
   // онлайн-кнопки активируются после 4 локаций
   renderProgressPath(u);
 }
@@ -3431,10 +3452,10 @@ document.getElementById('select-confirm').addEventListener('click', () => {
 const LOCATIONS = {
   canteen:   { order:1, sign:'🍳 CANTEEN',   icon:'🍳', label:'CANTEEN',     sub:'столовая',     pos:{x:50,y:78}, ru:'СТОЛОВАЯ',     theme:'food' },
   shop:      { order:2, sign:'👕 SHOP',      icon:'👕', label:'SECOND HAND', sub:'одежда',       pos:{x:25,y:55}, ru:'ОДЕЖДА',       theme:'clothes' },
-  barber:    { order:3, sign:'💈 BARBER',    icon:'💈', label:'BARBERSHOP',  sub:'парикмахерская', pos:{x:75,y:35}, ru:'СТРИЖКА',     theme:'grooming' },
+  gym:       { order:3, sign:'💪 GYM',       icon:'💪', label:'GYM',         sub:'тренажёрка',   pos:{x:75,y:35}, ru:'КАЧАЛКА',     theme:'fitness' },
   apartment: { order:4, sign:'🏠 HOME',      icon:'🏠', label:'HOME',        sub:'свидание',     pos:{x:50,y:15}, ru:'ДОМ',           theme:'home' },
 };
-const LOC_ORDER = ['canteen','shop','barber','apartment'];
+const LOC_ORDER = ['canteen','shop','gym','apartment'];
 
 // ── Визуальное подкрепление фразы: эмодзи-картинка по ключевому слову ──
 const EMOJI_HINTS = [
@@ -3448,13 +3469,14 @@ const EMOJI_HINTS = [
   ['expensive','💰'],['cheap','🪙'],['color','🎨'],['owe','💸'],['try it on','🪞'],['store','🏪'],
   ['hair','💇'],['haircut','💇'],['beard','🧔'],['shave','🪒'],['shorter','✂️'],['neat','✂️'],
   ['trim','✂️'],['bangs','💇'],['blow dry','💨'],['style','💈'],['wash','🚿'],
+  ['membership','🎟️'],['dumbbells','🏋'],['dumbbell','🏋'],['barbell','🏋'],['cardio','🏃'],['push up','💪'],['push ups','💪'],['pushups','💪'],['pushup','💪'],['towel','🧖'],['sets','🔁'],['tired','😮‍💨'],['locker room','🚪'],['locker','🚪'],['legs','🦵'],['muscle','💪'],['spot','🤝'],['work out','🏋'],['work-out','🏋'],['workout','🏋'],['train','🏃'],['trainer','👨‍🏫'],['coach','👨‍🏫'],['gym','💪'],
   ['home','🏠'],['movie','🎬'],['wine','🍷'],['dinner','🍽️'],['morning','🌅'],['relax','🛋️'],
   ['beautiful','😍'],['gorgeous','😍'],['welcome','🤗'],['stay','🌙'],['night','🌙'],['comfortable','🛋️'],
   ['sleep','😴'],['tired','🥱'],['speak','🗣️'],['talk','🗣️'],['english','🇬🇧'],['german','🇩🇪'],
   ['french','🇫🇷'],['know','🧠'],['help','🆘'],['win','🏆'],['study','📚'],['need','🙏'],
   ['answer','❓'],['going','🚶'],['good','👍'],['coffee','☕'],['glad','😊'],['say','💬'],
 ];
-const THEME_FALLBACK_EMOJI = { food:'🍳', clothes:'👕', grooming:'💈', home:'🏠' };
+const THEME_FALLBACK_EMOJI = { food:'🍳', clothes:'👕', fitness:'💪', home:'🏠' };
 function phraseEmoji(en) {
   const low = String(en || '').toLowerCase();
   for (const [kw, em] of EMOJI_HINTS) {
@@ -3628,17 +3650,26 @@ function arriveAtMapLocation(id) {
   const m = document.getElementById('map-player');
   m.style.left = `${LOCATIONS[id].pos.x}%`;
   m.style.top  = `${LOCATIONS[id].pos.y}%`;
-  setTimeout(() => startWalk(), 450);
+  // ── без прогулки: затемнение и сразу в бой (Толик попросил убрать тропинку) ──
+  setTimeout(() => goBattle('voice'), 250);
 }
 
 function goBattle(mode) {
   endWalkScene();
   state.battleMode = 'voice';   // только голос: сказал — ударил
   const currentScreen = document.querySelector('.screen.on')?.id;
-  const fromWalkOrTrain = currentScreen === 's-walk' || currentScreen === 's-train';
+  const fromWalkOrTrain = currentScreen === 's-walk' || currentScreen === 's-train' || currentScreen === 's-map';
   const launch = () => {
     renderBattleFighters();
     show('s-battle');
+    // фон-интерьер по локации
+    const battle = document.getElementById('s-battle');
+    battle.classList.remove('bg-canteen','bg-shop','bg-gym','bg-apartment','bg-world');
+    const bgMap = { canteen:'bg-canteen', shop:'bg-shop', gym:'bg-gym', apartment:'bg-apartment' };
+    const bgCls = bgMap[state.currentLocation];
+    if (bgCls) battle.classList.add(bgCls);
+    const tb = document.getElementById('time-badge');
+    if (tb) { tb.textContent = TIME_BADGE[currentTimeOfDay()]; tb.style.display = 'inline-block'; }
     const meter = document.querySelector('.meter-zone');
     const cards = document.getElementById('cards-row');
     if (meter) meter.style.display = state.battleMode === 'cards' ? 'none' : '';
@@ -3725,7 +3756,7 @@ function startWalk() {
     const titles = {
       canteen:   '🍳 СТОЛОВАЯ',
       shop:      '⚔ ЛАВКА ВОНЮЧЕГО СЕМЫ',
-      barber:    '✂ ПАРИКМАХЕРСКАЯ',
+      gym:       '💪 ТРЕНАЖЁРКА',
       apartment: '🏠 СВИДАНИЕ',
     };
     titleEl.textContent = titles[state.currentLocation] || titles.shop;
@@ -3969,6 +4000,15 @@ function trainNext() {
   renderTrainCard();
 }
 
+// ── текущее время суток для фильтра фраз ──
+function currentTimeOfDay() {
+  const h = new Date().getHours();
+  if (h >= 5  && h < 11) return 'morning';
+  if (h >= 11 && h < 17) return 'day';
+  return 'evening';        // вечер и ночь
+}
+const TIME_BADGE = { morning: '🌅 утро', day: '☀️ день', evening: '🌙 вечер' };
+
 function pickPhrase() {
   // prefer the current location's theme; fall back to general pool if empty
   const theme = LOCATIONS[state.currentLocation]?.theme;
@@ -3976,12 +4016,19 @@ function pickPhrase() {
   const pool = (themedBucket && themedBucket.length)
     ? themedBucket
     : PHRASES[state.difficulty];
-  const avail = pool.filter(p => !state.usedIds.has(p.id));
-  if (!avail.length) {
+  // ─ фильтр по времени суток: оставить временные той же поры + универсальные ─
+  const tod = currentTimeOfDay();
+  const matchTime = p => !p.time || p.time === tod;
+  const availAll = pool.filter(p => !state.usedIds.has(p.id));
+  const avail = availAll.filter(matchTime);
+  const finalPool = avail.length ? avail : availAll;
+  if (!finalPool.length) {
     pool.forEach(p => state.usedIds.delete(p.id));
-    return pool[Math.floor(Math.random() * pool.length)];
+    const reset = pool.filter(matchTime);
+    const base = reset.length ? reset : pool;
+    return base[Math.floor(Math.random() * base.length)];
   }
-  return avail[Math.floor(Math.random() * avail.length)];
+  return finalPool[Math.floor(Math.random() * finalPool.length)];
 }
 
 // ─── TUTOR — show onboarding hints for first 4 battles ───
@@ -4307,7 +4354,7 @@ function goBackToMap() {
 const REWARDS = {
   food:     [['eggs','🥚'],['bread','🍞'],['soup','🍲'],['pizza','🍕'],['apple','🍎'],['coffee','☕'],['water','💧'],['meat','🥩'],['cheese','🧀'],['fish','🐟'],['rice','🍚'],['salad','🥗']],
   clothes:  [['trousers','👖'],['t-shirt','👕'],['jacket','🧥'],['sneakers','👟'],['cap','🧢'],['socks','🧦'],['dress','👗'],['shirt','👔'],['shorts','🩳'],['scarf','🧣'],['gloves','🧤'],['boots','🥾']],
-  grooming: [['haircut','💇'],['razor','🪒'],['shampoo','🧴'],['mirror','🪞'],['scissors','✂️'],['soap','🧼'],['comb','🪮'],['towel','🧖'],['perfume','🌸'],['brush','🖌'],['wax','🫙'],['gel','🫧']],
+  fitness:  [['dumbbells','🏋'],['membership','🎟️'],['towel','🧖'],['protein','🥤'],['gloves','🧤'],['sneakers','👟'],['water','💧'],['belt','🥋'],['shaker','🧴'],['mat','🧘'],['barbell','🏋'],['bandana','🧣']],
   home:     [['sofa','🛋'],['lamp','💡'],['plant','🪴'],['tv','📺'],['bed','🛏'],['chair','🪑'],['candle','🕯'],['flowers','💐'],['wine','🍷'],['music','🎵'],['carpet','🧶'],['window','🪟']],
 };
 
@@ -4317,7 +4364,7 @@ function showRewardPicker(theme) {
   const grid = document.getElementById('reward-grid');
   document.getElementById('reward-note').textContent = '';
   document.getElementById('reward-sub').textContent =
-    ({food:'ЧЕМ ПОДКРЕПИШЬСЯ', clothes:'ЧТО НАДЕНЕШЬ', grooming:'ЧТО ВЫБЕРЕШЬ', home:'ЧТО ДОБАВИШЬ В ДОМ'})[theme] || 'ОДНУ ИЗ ЧЕТЫРЁХ';
+    ({food:'ЧЕМ ПОДКРЕПИШЬСЯ', clothes:'ЧТО НАДЕНЕШЬ', fitness:'ЧТО ПРОКАЧАЕШЬ', home:'ЧТО ДОБАВИШЬ В ДОМ'})[theme] || 'ОДНУ ИЗ ЧЕТЫРЁХ';
   grid.innerHTML = four.map(([en, emoji]) =>
     `<button class="card-opt" onclick="pickReward('${theme}','${en}',this)">
        <span style="display:flex;flex-direction:column;align-items:center;gap:6px">
