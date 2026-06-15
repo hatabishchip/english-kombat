@@ -46,6 +46,24 @@
     .reel-arrow{width:38px;height:38px;border:1.5px solid #6a4818;background:linear-gradient(180deg,rgba(40,30,15,.95),rgba(15,10,3,.95));border-radius:8px;color:#ffd100;font-size:18px;cursor:pointer;}
     .reel-arrow:active{transform:scale(.92);background:#3a2d10;}
     .reel-label{flex:1;font-family:'Impact',sans-serif;letter-spacing:1.5px;color:#ffd100;text-align:center;border:1.5px solid #3a2812;background:rgba(0,0,0,.45);border-radius:8px;padding:9px 4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    /* карточки выбора варианта конструктора */
+    .creator-card{
+      display:flex;align-items:center;gap:10px;width:100%;
+      padding:8px 12px 8px 8px;
+      background:linear-gradient(180deg,rgba(40,30,15,.9),rgba(15,10,3,.95));
+      border:1.5px solid #3a2812;border-radius:10px;
+      color:#f0e8d0;cursor:pointer;text-align:left;
+      font-family:'Impact',sans-serif;
+      transition:transform .12s ease,border-color .12s ease,box-shadow .12s ease;
+    }
+    .creator-card:active{transform:scale(.98);}
+    .creator-card:hover{border-color:#c89538;box-shadow:0 0 12px rgba(255,209,0,.18);}
+    .cc-preview{flex:0 0 64px;width:64px;height:128px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;}
+    .cc-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+    .cc-badge{font-family:sans-serif;font-size:9px;letter-spacing:1.5px;color:#9ad8ff;text-shadow:0 0 8px rgba(154,216,255,.4);}
+    .cc-title{font-size:16px;letter-spacing:1.5px;color:#ffd100;text-shadow:0 1px 2px #000;line-height:1.2;}
+    .cc-hint{font-family:sans-serif;font-size:11px;color:#b0a890;letter-spacing:.5px;line-height:1.3;}
+    .cc-arrow{flex:0 0 14px;color:#c89538;font-size:14px;}
     /* drag-drop полки (вариант 7) */
     .dnd-shelf{display:flex;gap:6px;overflow-x:auto;padding:4px 2px;scrollbar-width:none;-ms-overflow-style:none;}
     .dnd-shelf::-webkit-scrollbar{display:none;}
@@ -1744,21 +1762,13 @@
   <button id="select-confirm" class="btn btn-gold" disabled style="opacity:.4">ВЫБЕРИ ПЕРСОНАЖА</button>
 </div>
 
-<!-- ── ВЫБОР ВАРИАНТА КОНСТРУКТОРА (Толик с тобой тестят какой лучше) ── -->
+<!-- ── ВЫБОР ВАРИАНТА КОНСТРУКТОРА (Толик тестит какой зайдёт) ── -->
 <div id="s-creator-pick" class="screen" style="justify-content:flex-start;overflow-y:auto;padding-top:max(24px,env(safe-area-inset-top));padding-bottom:24px">
   <button class="corner-back" onclick="goHome()">← В МЕНЮ</button>
-  <div style="font-family:'Impact',sans-serif;font-size:24px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 12px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-bottom:2px;text-align:center;margin-top:8px">🎨 КАК СОБИРАТЬ?</div>
-  <div style="font-family:sans-serif;font-size:11px;color:#888;letter-spacing:1.5px;margin-bottom:18px;text-align:center;max-width:300px">7 СПОСОБОВ. ПОПРОБУЙ КАЖДЫЙ — ПОТОМ ВЫБЕРЕМ ЛУЧШИЙ</div>
-  <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:360px">
-    <button class="btn btn-dark"   style="font-size:14px;text-align:left;padding:13px 14px" onclick="openCreator('steps')">📋 <b>ШАГИ</b> · мастер 6 экранов <span style="float:right;color:#8a8060;font-size:10px">v1</span></button>
-    <button class="btn btn-dark"   style="font-size:14px;text-align:left;padding:13px 14px" onclick="openCreator('reels')">🎰 <b>БАРАБАНЫ</b> · 1 экран, свайп <span style="float:right;color:#8a8060;font-size:10px">v2</span></button>
-    <button class="btn btn-dark"   style="font-size:14px;text-align:left;padding:13px 14px" onclick="openCreator('idfit')">🕵 <b>ФОТОРОБОТ ЛИЦА</b> · черты лица <span style="float:right;color:#8a8060;font-size:10px">v3</span></button>
-    <button class="btn btn-dark"   style="font-size:14px;text-align:left;padding:13px 14px" onclick="openCreator('archetypes')">🎭 <b>АРХЕТИПЫ</b> · 12 готовых угарных <span style="float:right;color:#8a8060;font-size:10px">v4</span></button>
-    <button class="btn btn-dark"   style="font-size:14px;text-align:left;padding:13px 14px" onclick="openCreator('lottery')">🎲 <b>ЛОТЕРЕЯ</b> · рандом одной кнопкой <span style="float:right;color:#8a8060;font-size:10px">v5</span></button>
-    <button class="btn btn-dark"   style="font-size:14px;text-align:left;padding:13px 14px" onclick="openCreator('voice')">🎤 <b>ГОЛОСОМ</b> · опиши себя вслух <span style="float:right;color:#8a8060;font-size:10px">v6</span></button>
-    <button class="btn btn-dark"   style="font-size:14px;text-align:left;padding:13px 14px" onclick="openCreator('dnd')">🤲 <b>DRAG &amp; DROP</b> · одеваешь манекен <span style="float:right;color:#8a8060;font-size:10px">v7</span></button>
-  </div>
-  <div style="font-family:sans-serif;font-size:11px;color:#666;margin-top:14px;text-align:center">тот что зайдёт — оставим, остальное уберём</div>
+  <div style="font-family:'Impact',sans-serif;font-size:24px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 12px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-bottom:2px;text-align:center;margin-top:6px">🎨 КАК СОБИРАТЬ?</div>
+  <div style="font-family:sans-serif;font-size:11px;color:#888;letter-spacing:1.5px;margin-bottom:14px;text-align:center;max-width:320px">7 СПОСОБОВ. ПОТЫКАЙ ЛЮБОЙ — ПОТОМ ПЕРЕСОЗДАШЬ В ДРУГОМ</div>
+  <div id="creator-cards" style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:360px"></div>
+  <div style="font-family:sans-serif;font-size:10px;color:#666;margin-top:14px;text-align:center;max-width:300px">персонажа можно пересоздать в любой момент — кнопка 🎨 ПЕРЕСОЗДАТЬ на главной</div>
 </div>
 
 <!-- ── ВАРИАНТ 3: ФОТОРОБОТ ЛИЦА (SVG-части) ─── -->
@@ -3092,7 +3102,45 @@ let _customStep  = 0;
 // ── ВХОДНАЯ ТОЧКА: всегда показываем экран выбора варианта конструктора ──
 // (Толик тестирует, пускай попробует все 7; когда выберем лучший — поменяем поведение)
 function startCustom() {
+  renderCreatorCards();
   show('s-creator-pick');
+}
+// 7 вариантов в порядке от самого быстрого/угарного к самому глубокому
+const CREATOR_CARDS = [
+  { id:'lottery',    badge:'🚀 САМЫЙ БЫСТРЫЙ', emoji:'🎲', title:'ЛОТЕРЕЯ',         hint:'один тык — крутится барабан и выпадает рандомный угарный боец',
+    preset:{ mood:'angry', build:'jock', height:'tall',  head:'alien',  color:'green',  pants:'sweats' } },
+  { id:'archetypes', badge:'🔥 УГАРНО',        emoji:'🎭', title:'АРХЕТИПЫ',        hint:'12 готовых: Дед-Стрипер, Жабка-CEO, Алкаш-Пришелец и компания',
+    preset:{ mood:'sly',   build:'norm', height:'medium', head:'gangsta',color:'black',  pants:'formal' } },
+  { id:'reels',      badge:'',                 emoji:'🎰', title:'БАРАБАНЫ',        hint:'один экран, стрелками крутишь лицо/тело/штаны и видишь сразу',
+    preset:{ mood:'kind',  build:'big',  height:'medium', head:'troll',  color:'orange', pants:'jeans' } },
+  { id:'dnd',        badge:'',                 emoji:'🤲', title:'ОДЕНЬ МАНЕКЕН',   hint:'тыкаешь часть внизу — она летит к манекену и надевается',
+    preset:{ mood:'brave', build:'jock', height:'tall',   head:'cowboy', color:'orange', pants:'sweats' } },
+  { id:'voice',      badge:'',                 emoji:'🎤', title:'ГОЛОСОМ',         hint:'скажи вслух «высокий толстый зелёный качок» — боец появится',
+    preset:{ mood:'brave', build:'jock', height:'tall',   head:'ninja',  color:'green',  pants:'skinny' } },
+  { id:'idfit',      badge:'🕵 ГЛУБОКО',       emoji:'🕵', title:'ФОТОРОБОТ ЛИЦА',  hint:'волосы, форма, глаза, нос, усы, борода — как в полиции',
+    preset:{ mood:'sly',   build:'norm', height:'medium', head:'wizard', color:'purple', pants:'formal',
+             faceShape:'oval', eyes:'angry', nose:'sharp', mustache:'horseshoe', beard:'goatee', hair:'long', _idfit:true } },
+  { id:'steps',      badge:'',                 emoji:'📋', title:'ПОШАГОВО',        hint:'мастер: характер → сложение → рост → голова → цвет → имя',
+    preset:{ mood:'kind',  build:'slim', height:'short',  head:'pirate', color:'red',    pants:'jeans' } },
+];
+function renderCreatorCards() {
+  const wrap = document.getElementById('creator-cards');
+  if (!wrap) return;
+  wrap.innerHTML = CREATOR_CARDS.map(c => {
+    // мини-превью бойца за 70px
+    CHARS.custom = buildCustomCharFromObj(c.preset);
+    const svg = makeFighterSVG('custom', 64, 1);
+    return `
+      <button class="creator-card" onclick="openCreator('${c.id}')">
+        <div class="cc-preview">${svg}</div>
+        <div class="cc-text">
+          ${c.badge ? `<div class="cc-badge">${c.badge}</div>` : ''}
+          <div class="cc-title">${c.emoji} ${c.title}</div>
+          <div class="cc-hint">${c.hint}</div>
+        </div>
+        <div class="cc-arrow">▶</div>
+      </button>`;
+  }).join('');
 }
 function openCreator(variant) {
   // запоминаем последний выбор юзера
