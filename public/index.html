@@ -1761,6 +1761,19 @@
   <div style="font-family:sans-serif;font-size:11px;color:#666;margin-top:14px;text-align:center">тот что зайдёт — оставим, остальное уберём</div>
 </div>
 
+<!-- ── ВАРИАНТ 3: ФОТОРОБОТ ЛИЦА (SVG-части) ─── -->
+<div id="s-idfit" class="screen" style="justify-content:flex-start;overflow-y:auto;padding-top:max(24px,env(safe-area-inset-top));padding-bottom:24px">
+  <button class="corner-back" onclick="show('s-creator-pick')">← НАЗАД</button>
+  <div style="font-family:'Impact',sans-serif;font-size:22px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 12px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-top:8px">🕵 ФОТОРОБОТ</div>
+  <div style="font-family:sans-serif;font-size:11px;color:#888;letter-spacing:1.5px;margin-bottom:8px">СОБЕРИ ЛИЦО ИЗ ЧАСТЕЙ</div>
+  <div id="idfit-preview" style="width:130px;min-height:240px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:8px;filter:drop-shadow(0 6px 14px rgba(255,209,0,.25))"></div>
+  <div id="idfit-rows" style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:6px"></div>
+  <div style="display:flex;gap:8px;width:100%;max-width:340px;margin-top:14px">
+    <button class="btn btn-dark" style="flex:1" onclick="idfitRandom()">🎲 РАНДОМ</button>
+    <button class="btn btn-gold" style="flex:1.4" onclick="idfitDone()">✨ ГОТОВО</button>
+  </div>
+</div>
+
 <!-- ── ВАРИАНТ 7: DRAG & DROP МАНЕКЕН (тап-применить с анимацией) ── -->
 <div id="s-dnd" class="screen" style="justify-content:flex-start;overflow-y:auto;padding-top:max(24px,env(safe-area-inset-top));padding-bottom:24px;position:relative">
   <button class="corner-back" onclick="show('s-creator-pick')">← НАЗАД</button>
@@ -2546,7 +2559,9 @@ function buildCustomCharFromObj(cc) {
     skinFill:  head.skin,
     beltFill:  color.belt,
     buckleFill:accent,
-    headSVG:   customHeadSVG(head.id),
+    headSVG:   (cc.faceShape || cc._idfit)
+      ? buildIdfitHeadSVG(cc, head.skin)
+      : customHeadSVG(head.id),
     _custom:true,
     _build: build,
     _heightScale: (CUSTOM_HEIGHTS.find(h=>h.id===cc.height) || CUSTOM_HEIGHTS[1]).scale,
@@ -2693,6 +2708,122 @@ function randomCustomChar() {
     pants:  pick(CUSTOM_PANTS).id,
     name:   'РАНДОМ',
   };
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  ВАРИАНТ 3 — ФОТОРОБОТ ЛИЦА. Голова собирается из SVG-частей.
+// ═════════════════════════════════════════════════════════════════
+const IDFIT_FACE_SHAPES = [
+  { id:'oval',   label:'🥚 ОВАЛ',   svg:'<ellipse cx="39" cy="25" rx="13" ry="15" fill="{SKIN}" stroke="#000" stroke-width="1.4"/>' },
+  { id:'round',  label:'⚪ КРУГ',   svg:'<circle cx="39" cy="26" r="14" fill="{SKIN}" stroke="#000" stroke-width="1.4"/>' },
+  { id:'square', label:'⬛ КВАДР',  svg:'<path d="M 26 14 L 52 14 L 52 38 Q 39 44 26 38 Z" fill="{SKIN}" stroke="#000" stroke-width="1.4"/>' },
+  { id:'long',   label:'📏 ВЫТЯН',  svg:'<ellipse cx="39" cy="26" rx="10" ry="17" fill="{SKIN}" stroke="#000" stroke-width="1.4"/>' },
+  { id:'heart',  label:'❤️ СЕРДЦЕ', svg:'<path d="M 26 16 Q 39 12 52 16 Q 50 38 39 42 Q 28 38 26 16 Z" fill="{SKIN}" stroke="#000" stroke-width="1.4"/>' },
+];
+const IDFIT_EYES = [
+  { id:'normal',  label:'👀 ОБЫЧНЫЕ', svg:'<g><ellipse cx="33" cy="22" rx="2.6" ry="2.4" fill="#fff"/><circle cx="33" cy="22.4" r="1.4" fill="#333"/><ellipse cx="45" cy="22" rx="2.6" ry="2.4" fill="#fff"/><circle cx="45" cy="22.4" r="1.4" fill="#333"/></g>' },
+  { id:'big',     label:'😳 БОЛЬШИЕ', svg:'<g><circle cx="33" cy="22" r="3.4" fill="#fff" stroke="#000" stroke-width="1"/><circle cx="33" cy="22.5" r="2" fill="#3a6a98"/><circle cx="45" cy="22" r="3.4" fill="#fff" stroke="#000" stroke-width="1"/><circle cx="45" cy="22.5" r="2" fill="#3a6a98"/></g>' },
+  { id:'narrow',  label:'😏 УЗКИЕ',   svg:'<g><line x1="29" y1="22" x2="37" y2="22" stroke="#000" stroke-width="2.2" stroke-linecap="round"/><line x1="41" y1="22" x2="49" y2="22" stroke="#000" stroke-width="2.2" stroke-linecap="round"/></g>' },
+  { id:'angry',   label:'😠 ЗЛЫЕ',    svg:'<g><path d="M 29 19 L 36 22 L 29 24" fill="none" stroke="#000" stroke-width="1.6"/><ellipse cx="33" cy="22.4" rx="1.4" ry="1.4" fill="#000"/><path d="M 49 19 L 42 22 L 49 24" fill="none" stroke="#000" stroke-width="1.6"/><ellipse cx="45" cy="22.4" rx="1.4" ry="1.4" fill="#000"/></g>' },
+  { id:'crying',  label:'😢 ГРУСТНЫЕ',svg:'<g><ellipse cx="33" cy="22" rx="2.6" ry="2.4" fill="#fff"/><circle cx="33" cy="22.4" r="1.4" fill="#3a6a98"/><ellipse cx="45" cy="22" rx="2.6" ry="2.4" fill="#fff"/><circle cx="45" cy="22.4" r="1.4" fill="#3a6a98"/><path d="M 32 25 Q 32 28 31 30" stroke="#60a0d8" stroke-width="1.2" fill="none"/><path d="M 46 25 Q 46 28 47 30" stroke="#60a0d8" stroke-width="1.2" fill="none"/></g>' },
+  { id:'star',    label:'🤩 ЗВЁЗДЫ',  svg:'<g><text x="29" y="25" font-size="9" fill="#ffd100">★</text><text x="41" y="25" font-size="9" fill="#ffd100">★</text></g>' },
+];
+const IDFIT_NOSES = [
+  { id:'small',    label:'· МАЛЕНЬКИЙ', svg:'<path d="M 39 26 Q 38 30 39 32 L 41 32" fill="none" stroke="#000" stroke-width="1.1"/>' },
+  { id:'potato',   label:'🥔 КАРТОШКА', svg:'<ellipse cx="39" cy="30" rx="3.5" ry="2.5" fill="#000" opacity=".15"/><path d="M 36 27 Q 39 33 42 27 Q 40 32 39 33 Q 38 32 36 27" fill="none" stroke="#000" stroke-width="1.1"/>' },
+  { id:'sharp',    label:'⏷ ОСТРЫЙ',   svg:'<path d="M 39 22 L 36 31 L 42 31 Z" fill="none" stroke="#000" stroke-width="1.2"/>' },
+  { id:'wide',     label:'⏘ ШИРОКИЙ',  svg:'<path d="M 35 28 Q 39 33 43 28 L 42 31 Q 39 33 36 31 Z" fill="none" stroke="#000" stroke-width="1.2"/>' },
+  { id:'pig',      label:'🐷 ПЯТАЧОК', svg:'<ellipse cx="39" cy="30" rx="4" ry="2.6" fill="#f5a8a8" stroke="#000" stroke-width="1"/><circle cx="37.5" cy="30" r=".8" fill="#000"/><circle cx="40.5" cy="30" r=".8" fill="#000"/>' },
+];
+const IDFIT_MUSTACHES = [
+  { id:'none',     label:'— БЕЗ',      svg:'' },
+  { id:'thin',     label:'〰 ТОНКИЕ',  svg:'<path d="M 31 33 Q 39 32 47 33" fill="none" stroke="#000" stroke-width="1.4" stroke-linecap="round"/>' },
+  { id:'thick',    label:'▬ ГУСТЫЕ',   svg:'<path d="M 30 32 Q 33 34 39 33 Q 45 34 48 32 L 48 35 Q 39 37 30 35 Z" fill="#5a3a18" stroke="#000" stroke-width="1"/>' },
+  { id:'horseshoe',label:'∩ ПОДКОВА',  svg:'<path d="M 31 32 L 33 38 M 47 32 L 45 38 M 31 32 Q 39 30 47 32" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>' },
+  { id:'curl',     label:'➰ ЗАКРУЧ',  svg:'<path d="M 31 33 Q 35 30 39 33 Q 43 30 47 33 M 29 33 Q 27 34 28 36 M 49 33 Q 51 34 50 36" fill="none" stroke="#000" stroke-width="1.4" stroke-linecap="round"/>' },
+];
+const IDFIT_BEARDS = [
+  { id:'none',      label:'— БЕЗ',     svg:'' },
+  { id:'stubble',   label:'· ЩЕТИНА',  svg:'<g fill="#3a2818"><circle cx="32" cy="36" r=".5"/><circle cx="35" cy="38" r=".5"/><circle cx="38" cy="39" r=".5"/><circle cx="42" cy="38" r=".5"/><circle cx="45" cy="37" r=".5"/><circle cx="34" cy="39" r=".5"/><circle cx="40" cy="40" r=".5"/><circle cx="44" cy="39" r=".5"/></g>' },
+  { id:'goatee',    label:'🐐 КОЗЛИНКА',svg:'<path d="M 36 37 L 39 44 L 42 37 Q 41 41 39 42 Q 37 41 36 37 Z" fill="#3a2818" stroke="#000" stroke-width="1"/>' },
+  { id:'full',      label:'🧔 ПОЛНАЯ', svg:'<path d="M 28 32 Q 30 42 39 44 Q 48 42 50 32 Q 47 40 39 42 Q 31 40 28 32" fill="#3a2818" stroke="#000" stroke-width="1.1"/>' },
+  { id:'long',      label:'🧙 ДЛИННАЯ',svg:'<path d="M 27 32 Q 29 50 39 53 Q 49 50 51 32 Q 48 48 39 50 Q 30 48 27 32" fill="#a0a0a8" stroke="#000" stroke-width="1.1"/>' },
+];
+const IDFIT_HAIRS = [
+  { id:'none',     label:'🥚 ЛЫСЫЙ',   svg:'' },
+  { id:'short',    label:'💇 КОРОТКИЕ',svg:'<path d="M 25 12 Q 39 4 53 12 Q 52 18 50 16 Q 39 12 28 16 Q 26 18 25 12 Z" fill="#3a2818" stroke="#000" stroke-width="1.2"/>' },
+  { id:'long',     label:'💁 ДЛИННЫЕ', svg:'<path d="M 22 14 Q 18 30 22 42 L 28 38 Q 26 24 30 18 Q 39 12 48 18 Q 52 24 50 38 L 56 42 Q 60 30 56 14 Q 39 4 22 14 Z" fill="#5a3a18" stroke="#000" stroke-width="1.2"/>' },
+  { id:'mohawk',   label:'⚡ ИРОКЕЗ',  svg:'<path d="M 35 4 L 37 14 L 41 14 L 43 4 Z" fill="#c83434" stroke="#000" stroke-width="1.2"/><path d="M 30 14 Q 25 16 25 22 M 48 14 Q 53 16 53 22" fill="none" stroke="#3a2818" stroke-width="1.6"/>' },
+  { id:'curly',    label:'🌀 КУДРЯВЫЕ',svg:'<g fill="#3a2818" stroke="#000" stroke-width="1"><circle cx="28" cy="12" r="4"/><circle cx="35" cy="8" r="4"/><circle cx="43" cy="8" r="4"/><circle cx="50" cy="12" r="4"/><circle cx="24" cy="18" r="3"/><circle cx="54" cy="18" r="3"/></g>' },
+  { id:'bald',     label:'🧑‍🦲 БРИТЫЙ', svg:'<path d="M 30 14 Q 39 12 48 14" fill="none" stroke="#666" stroke-width=".6"/>' },
+];
+
+const IDFIT_AXES = [
+  { key:'hair',      title:'🧑‍🦱 ВОЛОСЫ',  opts:IDFIT_HAIRS },
+  { key:'faceShape', title:'😀 ФОРМА',    opts:IDFIT_FACE_SHAPES },
+  { key:'eyes',      title:'👁 ГЛАЗА',    opts:IDFIT_EYES },
+  { key:'nose',      title:'👃 НОС',      opts:IDFIT_NOSES },
+  { key:'mustache',  title:'👨 УСЫ',      opts:IDFIT_MUSTACHES },
+  { key:'beard',     title:'🧔 БОРОДА',   opts:IDFIT_BEARDS },
+];
+
+let _idfitDraft = null;
+function buildIdfitHeadSVG(draft, skin) {
+  const sk = skin || '#e8c8a0';
+  const find = (arr, id) => arr.find(o => o.id === id) || arr[0];
+  const face   = find(IDFIT_FACE_SHAPES, draft.faceShape);
+  const eyes   = find(IDFIT_EYES,        draft.eyes);
+  const nose   = find(IDFIT_NOSES,       draft.nose);
+  const must   = find(IDFIT_MUSTACHES,   draft.mustache);
+  const beard  = find(IDFIT_BEARDS,      draft.beard);
+  const hair   = find(IDFIT_HAIRS,       draft.hair);
+  return [
+    hair.svg,
+    face.svg.replace(/\{SKIN\}/g, sk),
+    eyes.svg, nose.svg, must.svg, beard.svg,
+  ].join('');
+}
+function renderIdfit() {
+  // в превью используем тот же makeFighterSVG, но подменим headSVG через CHARS.custom
+  const cc = { ..._idfitDraft, _idfit:true };
+  CHARS.custom = buildCustomCharFromObj(cc);
+  CHARS.custom.headSVG = buildIdfitHeadSVG(cc, CHARS.custom.skinFill);
+  document.getElementById('idfit-preview').innerHTML = makeFighterSVG('custom', 120, 1);
+  // полки осей с горизонтальной прокруткой
+  const rows = document.getElementById('idfit-rows');
+  rows.innerHTML = IDFIT_AXES.map(axis => `
+    <div style="display:flex;align-items:center;gap:6px">
+      <div style="flex:0 0 96px;font-family:'Impact',sans-serif;font-size:11px;color:#c8a868;letter-spacing:1px">${axis.title}</div>
+      <div class="dnd-shelf" style="flex:1">
+        ${axis.opts.map(o => `<div class="dnd-item ${_idfitDraft[axis.key]===o.id?'selected':''}" data-axis="${axis.key}" data-id="${o.id}" style="font-size:9px;line-height:1.1;color:#c8a868;flex-direction:column;width:60px;padding:2px">${o.label}</div>`).join('')}
+      </div>
+    </div>`).join('');
+  rows.querySelectorAll('.dnd-item').forEach(item => {
+    item.addEventListener('click', () => {
+      _idfitDraft[item.dataset.axis] = item.dataset.id;
+      playClick();
+      renderIdfit();
+    });
+  });
+}
+function idfitRandom() {
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  IDFIT_AXES.forEach(axis => { _idfitDraft[axis.key] = pick(axis.opts).id; });
+  playClick();
+  renderIdfit();
+}
+function idfitDone() {
+  const name = prompt('Имя бойца:', _idfitDraft.name || 'МОЙ БОЕЦ');
+  if (!name || !name.trim()) return;
+  _idfitDraft.name = name.trim();
+  authUpdate({ customChar: { ..._idfitDraft }, character: 'custom', creatorVariant: 'idfit' });
+  refreshCustomChar();
+  state.playerChar  = 'custom';
+  state.playerLevel = authCurrent()?.level || 1;
+  const others = BASE_CHAR_IDS.filter(id => id !== 'custom');
+  state.botChar = others[Math.floor(Math.random() * others.length)];
+  playClick();
+  startMap();
 }
 
 // ═════════════════════════════════════════════════════════════════
@@ -2986,7 +3117,15 @@ function startCustomReels() {
   renderReels();
   show('s-reels');
 }
-function startCustomIdfit()      { alert('🕵 Фоторобот лица — на подходе. Пока используй ШАГИ'); startCustomSteps(); }
+function startCustomIdfit() {
+  const u = authCurrent();
+  _idfitDraft = Object.assign({
+    faceShape:'oval', eyes:'normal', nose:'small', mustache:'none', beard:'none', hair:'short',
+    color:'red', build:'norm', height:'medium', pants:'jeans', mood:'kind', name:''
+  }, (u?.customChar || {}));
+  renderIdfit();
+  show('s-idfit');
+}
 function startCustomVoice() {
   _voiceDraft = randomCustomChar();
   CHARS.custom = buildCustomCharFromObj(_voiceDraft);
