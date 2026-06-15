@@ -41,6 +41,11 @@
     }
     .corner-back:active{transform:scale(.95);}
     .screen.on .corner-back{display:inline-block;}
+    /* барабаны (вариант 2) */
+    .reel-row{display:flex;align-items:center;gap:8px;width:100%;max-width:340px;margin:6px 0;}
+    .reel-arrow{width:38px;height:38px;border:1.5px solid #6a4818;background:linear-gradient(180deg,rgba(40,30,15,.95),rgba(15,10,3,.95));border-radius:8px;color:#ffd100;font-size:18px;cursor:pointer;}
+    .reel-arrow:active{transform:scale(.92);background:#3a2d10;}
+    .reel-label{flex:1;font-family:'Impact',sans-serif;letter-spacing:1.5px;color:#ffd100;text-align:center;border:1.5px solid #3a2812;background:rgba(0,0,0,.45);border-radius:8px;padding:9px 4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     #s-battle{
       padding:0;
       justify-content:flex-start;
@@ -1748,6 +1753,43 @@
   <div style="font-family:sans-serif;font-size:11px;color:#666;margin-top:14px;text-align:center">тот что зайдёт — оставим, остальное уберём</div>
 </div>
 
+<!-- ── ВАРИАНТ 2: БАРАБАНЫ ФОТОРОБОТА ──────────── -->
+<div id="s-reels" class="screen" style="justify-content:flex-start;overflow-y:auto;padding-top:max(24px,env(safe-area-inset-top));padding-bottom:24px">
+  <button class="corner-back" onclick="show('s-creator-pick')">← НАЗАД</button>
+  <div style="font-family:'Impact',sans-serif;font-size:22px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 12px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-top:8px">🎰 БАРАБАНЫ</div>
+  <div style="font-family:sans-serif;font-size:11px;color:#888;letter-spacing:1.5px;margin-bottom:10px">КРУТИ СТРЕЛКАМИ — БОЕЦ МЕНЯЕТСЯ В РЕАЛТАЙМЕ</div>
+  <!-- БАРАБАН 1: ЛИЦО -->
+  <div class="reel-row">
+    <button class="reel-arrow" onclick="reelStep('head',-1)">◀</button>
+    <div class="reel-label">ЛИЦО · <span id="reel-head-label">—</span></div>
+    <button class="reel-arrow" onclick="reelStep('head',+1)">▶</button>
+  </div>
+  <!-- ПРЕВЬЮ -->
+  <div id="reels-preview" style="width:120px;min-height:240px;display:flex;align-items:flex-end;justify-content:center;margin:6px 0;filter:drop-shadow(0 6px 14px rgba(255,209,0,.25))"></div>
+  <!-- БАРАБАН 2: ТЕЛО (цвет) -->
+  <div class="reel-row">
+    <button class="reel-arrow" onclick="reelStep('color',-1)">◀</button>
+    <div class="reel-label">ТЕЛО · <span id="reel-color-label">—</span></div>
+    <button class="reel-arrow" onclick="reelStep('color',+1)">▶</button>
+  </div>
+  <!-- БАРАБАН 3: СЛОЖЕНИЕ -->
+  <div class="reel-row">
+    <button class="reel-arrow" onclick="reelStep('build',-1)">◀</button>
+    <div class="reel-label">СЛОЖЕНИЕ · <span id="reel-build-label">—</span></div>
+    <button class="reel-arrow" onclick="reelStep('build',+1)">▶</button>
+  </div>
+  <!-- БАРАБАН 4: НОГИ (штаны) -->
+  <div class="reel-row">
+    <button class="reel-arrow" onclick="reelStep('pants',-1)">◀</button>
+    <div class="reel-label">НОГИ · <span id="reel-pants-label">—</span></div>
+    <button class="reel-arrow" onclick="reelStep('pants',+1)">▶</button>
+  </div>
+  <div style="display:flex;gap:8px;width:100%;max-width:340px;margin-top:14px">
+    <button class="btn btn-dark" style="flex:1" onclick="reelsRandom()">🎲 РАНДОМ</button>
+    <button class="btn btn-gold" style="flex:1.4" onclick="reelsDone()">✨ ГОТОВО</button>
+  </div>
+</div>
+
 <!-- ── ВАРИАНТ 4: 12 АРХЕТИПОВ-КАРТОЧЕК ─────────── -->
 <div id="s-archetypes" class="screen" style="justify-content:flex-start;overflow-y:auto;padding-top:max(24px,env(safe-area-inset-top));padding-bottom:24px">
   <button class="corner-back" onclick="show('s-creator-pick')">← НАЗАД</button>
@@ -2467,6 +2509,7 @@ function buildCustomCharFromObj(cc) {
     _custom:true,
     _build: build,
     _heightScale: (CUSTOM_HEIGHTS.find(h=>h.id===cc.height) || CUSTOM_HEIGHTS[1]).scale,
+    _pants: cc.pants || 'jeans',
   };
 }
 function buildCustomChar() {
@@ -2606,8 +2649,72 @@ function randomCustomChar() {
     height: pick(CUSTOM_HEIGHTS).id,
     head:   pick(CUSTOM_HEADS).id,
     color:  pick(CUSTOM_COLORS).id,
+    pants:  pick(CUSTOM_PANTS).id,
     name:   'РАНДОМ',
   };
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  ВАРИАНТ 2 — БАРАБАНЫ. Один экран, стрелки крутят части.
+// ═════════════════════════════════════════════════════════════════
+const CUSTOM_PANTS = [
+  { id:'jeans',  label:'👖 ДЖИНСЫ' },
+  { id:'shorts', label:'🩳 ШОРТЫ' },
+  { id:'skinny', label:'🩲 ТРИКО' },
+  { id:'sweats', label:'🧦 СПОРТИВНЫЕ' },
+  { id:'formal', label:'👔 БРЮКИ' },
+];
+let _reelsDraft = null;
+const REEL_AXES = {
+  head:  () => CUSTOM_HEADS,
+  color: () => CUSTOM_COLORS,
+  build: () => CUSTOM_BUILDS,
+  pants: () => CUSTOM_PANTS,
+};
+function reelStep(key, dir) {
+  const arr = REEL_AXES[key]();
+  const cur = arr.findIndex(o => o.id === _reelsDraft[key]);
+  const next = (cur + dir + arr.length) % arr.length;
+  _reelsDraft[key] = arr[next].id;
+  playClick();
+  renderReels();
+}
+function renderReels() {
+  // лейблы
+  const labelOf = (key) => {
+    const arr = REEL_AXES[key]();
+    const opt = arr.find(o => o.id === _reelsDraft[key]) || arr[0];
+    return (opt.emoji ? opt.emoji + ' ' : '') + (opt.label || opt.id).replace(/^[^\s]+\s/, '');
+  };
+  document.getElementById('reel-head-label').textContent  = labelOf('head');
+  document.getElementById('reel-color-label').textContent = labelOf('color');
+  document.getElementById('reel-build-label').textContent = labelOf('build');
+  document.getElementById('reel-pants-label').textContent = labelOf('pants');
+  // превью
+  CHARS.custom = buildCustomCharFromObj(_reelsDraft);
+  document.getElementById('reels-preview').innerHTML = makeFighterSVG('custom', 110, 1);
+}
+function reelsRandom() {
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  _reelsDraft.head  = pick(CUSTOM_HEADS).id;
+  _reelsDraft.color = pick(CUSTOM_COLORS).id;
+  _reelsDraft.build = pick(CUSTOM_BUILDS).id;
+  _reelsDraft.pants = pick(CUSTOM_PANTS).id;
+  playClick();
+  renderReels();
+}
+function reelsDone() {
+  const name = prompt('Имя бойца:', _reelsDraft.name || 'МОЙ БОЕЦ');
+  if (!name || !name.trim()) return;
+  _reelsDraft.name = name.trim();
+  authUpdate({ customChar: { ..._reelsDraft }, character: 'custom', creatorVariant: 'reels' });
+  refreshCustomChar();
+  state.playerChar  = 'custom';
+  state.playerLevel = authCurrent()?.level || 1;
+  const others = BASE_CHAR_IDS.filter(id => id !== 'custom');
+  state.botChar = others[Math.floor(Math.random() * others.length)];
+  playClick();
+  startMap();
 }
 
 let _customDraft = null;
@@ -2633,7 +2740,14 @@ function openCreator(variant) {
   }
 }
 // заглушки для ещё не реализованных вариантов — пока ведут в steps
-function startCustomReels()      { alert('🎰 Барабаны — на подходе. Пока используй ШАГИ'); startCustomSteps(); }
+function startCustomReels() {
+  const u = authCurrent();
+  _reelsDraft = Object.assign({
+    head:'pirate', color:'red', build:'norm', pants:'jeans', mood:'kind', height:'medium', name:''
+  }, (u?.customChar || {}));
+  renderReels();
+  show('s-reels');
+}
 function startCustomIdfit()      { alert('🕵 Фоторобот лица — на подходе. Пока используй ШАГИ'); startCustomSteps(); }
 function startCustomVoice()      { alert('🎤 Голосовой набросок — на подходе. Пока используй ШАГИ'); startCustomSteps(); }
 function startCustomDnd()        { alert('🤲 Drag & Drop — на подходе. Пока используй ШАГИ'); startCustomSteps(); }
@@ -2789,12 +2903,59 @@ function makeFighterSVG(charId, w = FIGHTER_W, stage = 1) {
     <rect x="60" y="52" width="12" height="44" rx="5" fill="${c.bodyFill}" stroke="#000" stroke-width="1"/>
     <rect x="58" y="92" width="16" height="12" rx="4" fill="${c.armFill}"/>
   </g>
-  <rect x="21" y="104" width="16" height="46" rx="5" fill="${c.bodyFill}" stroke="#000" stroke-width="1"/>
-  <rect x="41" y="104" width="16" height="46" rx="5" fill="${c.bodyFill}" stroke="#000" stroke-width="1"/>
-  <rect x="17" y="144" width="22" height="8" rx="3" fill="${c.armFill}"/>
-  <rect x="39" y="144" width="22" height="8" rx="3" fill="${c.armFill}"/>
+  ${renderLegs(c)}
   <rect x="${torsoX}" y="50" width="${torsoW}" height="2" rx="1" fill="${c.accentFill}" opacity=".55"/>
 </svg>`;
+}
+
+// 5 типов штанов для варианта-барабанов
+function renderLegs(c) {
+  const t = c._pants || 'jeans';
+  const body = c.bodyFill, arm = c.armFill, accent = c.accentFill, belt = c.beltFill;
+  if (t === 'shorts') {
+    // короткие шорты + голые ноги
+    return `
+      <rect x="21" y="104" width="16" height="22" rx="4" fill="${body}" stroke="#000" stroke-width="1"/>
+      <rect x="41" y="104" width="16" height="22" rx="4" fill="${body}" stroke="#000" stroke-width="1"/>
+      <rect x="22" y="126" width="14" height="26" rx="3" fill="${c.skinFill}" stroke="#000" stroke-width="1"/>
+      <rect x="42" y="126" width="14" height="26" rx="3" fill="${c.skinFill}" stroke="#000" stroke-width="1"/>
+      <rect x="17" y="148" width="22" height="6" rx="3" fill="${arm}"/>
+      <rect x="39" y="148" width="22" height="6" rx="3" fill="${arm}"/>`;
+  }
+  if (t === 'skinny') {
+    // узкие облегающие
+    return `
+      <rect x="23" y="104" width="12" height="46" rx="5" fill="${body}" stroke="#000" stroke-width="1"/>
+      <rect x="43" y="104" width="12" height="46" rx="5" fill="${body}" stroke="#000" stroke-width="1"/>
+      <rect x="18" y="144" width="20" height="8" rx="3" fill="${arm}"/>
+      <rect x="40" y="144" width="20" height="8" rx="3" fill="${arm}"/>`;
+  }
+  if (t === 'sweats') {
+    // спортивные с полосами
+    return `
+      <rect x="20" y="104" width="18" height="46" rx="6" fill="${body}" stroke="#000" stroke-width="1"/>
+      <rect x="40" y="104" width="18" height="46" rx="6" fill="${body}" stroke="#000" stroke-width="1"/>
+      <rect x="28" y="106" width="2" height="42" fill="${accent}" opacity=".9"/>
+      <rect x="48" y="106" width="2" height="42" fill="${accent}" opacity=".9"/>
+      <rect x="16" y="144" width="24" height="9" rx="4" fill="${arm}"/>
+      <rect x="38" y="144" width="24" height="9" rx="4" fill="${arm}"/>`;
+  }
+  if (t === 'formal') {
+    // расклешённые брюки
+    return `
+      <path d="M 22 104 L 20 150 L 39 150 L 37 104 Z" fill="${body}" stroke="#000" stroke-width="1"/>
+      <path d="M 41 104 L 39 104 L 41 150 L 60 150 L 58 104 Z" fill="${body}" stroke="#000" stroke-width="1"/>
+      <line x1="29.5" y1="106" x2="28" y2="148" stroke="#000" stroke-width=".4" opacity=".5"/>
+      <line x1="50.5" y1="106" x2="51" y2="148" stroke="#000" stroke-width=".4" opacity=".5"/>
+      <rect x="15" y="146" width="26" height="8" rx="2" fill="${belt}"/>
+      <rect x="38" y="146" width="26" height="8" rx="2" fill="${belt}"/>`;
+  }
+  // jeans (default) — текущий вид
+  return `
+    <rect x="21" y="104" width="16" height="46" rx="5" fill="${body}" stroke="#000" stroke-width="1"/>
+    <rect x="41" y="104" width="16" height="46" rx="5" fill="${body}" stroke="#000" stroke-width="1"/>
+    <rect x="17" y="144" width="22" height="8" rx="3" fill="${arm}"/>
+    <rect x="39" y="144" width="22" height="8" rx="3" fill="${arm}"/>`;
 }
 
 function makeWalkerSVG(charId) {
