@@ -1753,6 +1753,21 @@
   <div style="font-family:sans-serif;font-size:11px;color:#666;margin-top:14px;text-align:center">тот что зайдёт — оставим, остальное уберём</div>
 </div>
 
+<!-- ── ВАРИАНТ 6: ГОЛОСОВОЙ НАБРОСОК (Web Speech API) ── -->
+<div id="s-voicekit" class="screen" style="justify-content:flex-start;overflow-y:auto;padding-top:max(24px,env(safe-area-inset-top));padding-bottom:24px">
+  <button class="corner-back" onclick="show('s-creator-pick')">← НАЗАД</button>
+  <div style="font-family:'Impact',sans-serif;font-size:22px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 12px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-top:8px">🎤 ОПИШИ СЕБЯ</div>
+  <div style="font-family:sans-serif;font-size:11px;color:#888;letter-spacing:1.5px;margin-bottom:10px;text-align:center;max-width:320px">СКАЖИ ВСЛУХ «я высокий толстый зелёный качок с ниндзя» — БОЕЦ ПОЯВИТСЯ</div>
+  <div id="voicekit-preview" style="width:120px;min-height:240px;display:flex;align-items:flex-end;justify-content:center;margin:6px 0 4px;filter:drop-shadow(0 6px 14px rgba(255,209,0,.25))"></div>
+  <div id="voicekit-heard" style="font-family:sans-serif;font-size:12px;color:#c8a868;min-height:36px;text-align:center;max-width:320px;padding:6px 10px;margin-bottom:6px;border:1px dashed #6a4818;border-radius:6px">«ничего пока не услышал»</div>
+  <div id="voicekit-matched" style="font-family:'Impact',sans-serif;font-size:12px;color:#9ad8ff;letter-spacing:1px;min-height:18px;margin-bottom:10px;text-align:center"></div>
+  <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:300px">
+    <button id="voicekit-mic" class="btn btn-mic" style="font-size:18px;padding:14px" onclick="voicekitListen()">🎤 ГОВОРИ</button>
+    <button id="voicekit-accept" class="btn btn-gold" style="display:none" onclick="voicekitAccept()">✨ БЕРУ ЭТОГО</button>
+    <button class="btn btn-dark" style="font-size:12px" onclick="voicekitTips()">💡 какие слова понимаются</button>
+  </div>
+</div>
+
 <!-- ── ВАРИАНТ 2: БАРАБАНЫ ФОТОРОБОТА ──────────── -->
 <div id="s-reels" class="screen" style="justify-content:flex-start;overflow-y:auto;padding-top:max(24px,env(safe-area-inset-top));padding-bottom:24px">
   <button class="corner-back" onclick="show('s-creator-pick')">← НАЗАД</button>
@@ -2655,6 +2670,137 @@ function randomCustomChar() {
 }
 
 // ═════════════════════════════════════════════════════════════════
+//  ВАРИАНТ 6 — ГОЛОСОВОЙ НАБРОСОК. Парсим ключевые слова из ru-речи.
+// ═════════════════════════════════════════════════════════════════
+const VOICE_DICT = {
+  mood: {
+    kind:  ['добрый','добрая','милый','хороший','позитив'],
+    angry: ['злой','злая','злюка','свирепый','бешен'],
+    sly:   ['хитрый','хитрая','хитрюга','коварный'],
+    brave: ['дерзкий','смелый','наглый','борзый','качок','герой'],
+  },
+  build: {
+    slim: ['худой','тощий','стройный','доска','скелет'],
+    norm: ['обычный','средний'],
+    big:  ['толстый','полный','жирный','круглый','пузатый'],
+    jock: ['качок','качалка','качек','бугай','здоровяк','мощный','накачан'],
+  },
+  height: {
+    short:  ['низкий','маленький','коротыш','гном','карлик'],
+    medium: ['средний','обычный рост'],
+    tall:   ['высокий','длинный','каланча','долговязый'],
+  },
+  head: {
+    pirate:  ['пират','пираты','флибустьер','капитан'],
+    wizard:  ['маг','волшебник','чародей','колдун'],
+    ninja:   ['ниндзя','нинзя'],
+    gangsta: ['гангста','гангстер','очки','модник','босс','рэпер'],
+    troll:   ['тролль','демон','чёрт','черт','страш'],
+    robot:   ['робот','киборг','машина'],
+    alien:   ['пришелец','инопланет','зелёный человечек','зеленый человечек','альен'],
+    cowboy:  ['ковбой','шериф','техасец'],
+  },
+  color: {
+    red:    ['красный','алый','бордов'],
+    blue:   ['синий','голубой','лазур'],
+    green:  ['зелёный','зеленый','травян'],
+    yellow: ['жёлтый','желтый','золот','золото'],
+    purple: ['фиолетов','лиловый','сирен','пурпур'],
+    black:  ['чёрный','черный','тёмный','темный'],
+    orange: ['оранжев','рыжий','огнен'],
+    cyan:   ['голубой','бирюз','аквамарин','водяной','водяного'],
+  },
+  pants: {
+    jeans:  ['джинсы','штаны'],
+    shorts: ['шорты','шортах','бридж'],
+    skinny: ['трико','лосины','облегающие'],
+    sweats: ['спортивн','треники','адидас','полос'],
+    formal: ['брюки','деловые','классическ'],
+  },
+};
+function parseVoiceDescription(raw) {
+  const text = ' ' + raw.toLowerCase().replace(/\s+/g, ' ').trim() + ' ';
+  const out = {};
+  const matched = [];
+  for (const axis in VOICE_DICT) {
+    for (const id in VOICE_DICT[axis]) {
+      for (const kw of VOICE_DICT[axis][id]) {
+        if (text.includes(kw)) { out[axis] = id; matched.push(`${axis}=${id}(${kw})`); break; }
+      }
+      if (out[axis]) break;
+    }
+  }
+  return { ...out, _matched: matched };
+}
+let _voiceDraft = null;
+let _voiceSR = null;
+function voicekitListen() {
+  if (!HAS_SR) {
+    alert('Браузер не поддерживает голосовой ввод. Попробуй Chrome/Safari.');
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (_voiceSR) { try { _voiceSR.stop(); } catch(e){} }
+  _voiceSR = new SR();
+  _voiceSR.lang = 'ru-RU';
+  _voiceSR.interimResults = true;
+  _voiceSR.continuous = false;
+  const micBtn = document.getElementById('voicekit-mic');
+  micBtn.textContent = '🔴 СЛУШАЮ... ГОВОРИ';
+  micBtn.disabled = true;
+  _voiceSR.onresult = (e) => {
+    const transcript = Array.from(e.results).map(r => r[0].transcript).join(' ');
+    document.getElementById('voicekit-heard').textContent = '«' + transcript + '»';
+    if (e.results[e.results.length-1].isFinal) {
+      const parsed = parseVoiceDescription(transcript);
+      const matched = (parsed._matched || []);
+      delete parsed._matched;
+      _voiceDraft = { ..._voiceDraft, ...parsed };
+      CHARS.custom = buildCustomCharFromObj(_voiceDraft);
+      document.getElementById('voicekit-preview').innerHTML = makeFighterSVG('custom', 110, 1);
+      document.getElementById('voicekit-matched').textContent = matched.length
+        ? '✓ распознано: ' + matched.map(m => m.split('=')[0]).join(', ')
+        : '⚠ ничего не распознал — попробуй слова из подсказки';
+      document.getElementById('voicekit-accept').style.display = '';
+    }
+  };
+  _voiceSR.onerror = (e) => {
+    document.getElementById('voicekit-heard').textContent = 'ошибка: ' + (e.error || 'неизвестно');
+  };
+  _voiceSR.onend = () => {
+    micBtn.textContent = '🎤 ГОВОРИ ЕЩЁ';
+    micBtn.disabled = false;
+    _voiceSR = null;
+  };
+  try { _voiceSR.start(); } catch(e) { console.warn(e); }
+}
+function voicekitAccept() {
+  const name = prompt('Имя бойца:', _voiceDraft.name && _voiceDraft.name !== 'РАНДОМ' ? _voiceDraft.name : 'МОЙ БОЕЦ');
+  if (!name || !name.trim()) return;
+  _voiceDraft.name = name.trim();
+  authUpdate({ customChar: { ..._voiceDraft }, character: 'custom', creatorVariant: 'voice' });
+  refreshCustomChar();
+  state.playerChar  = 'custom';
+  state.playerLevel = authCurrent()?.level || 1;
+  const others = BASE_CHAR_IDS.filter(id => id !== 'custom');
+  state.botChar = others[Math.floor(Math.random() * others.length)];
+  playClick();
+  startMap();
+}
+function voicekitTips() {
+  alert(
+    'Понимаемые слова:\n\n' +
+    '• Характер: добрый, злой, хитрый, дерзкий\n' +
+    '• Сложение: худой, обычный, толстый, качок\n' +
+    '• Рост: низкий, средний, высокий\n' +
+    '• Лицо: пират, маг, ниндзя, гангста, тролль, робот, пришелец, ковбой\n' +
+    '• Цвет: красный, синий, зелёный, золото, фиолет, чёрный, оранжевый, бирюзовый\n' +
+    '• Штаны: джинсы, шорты, трико, спортивные, брюки\n\n' +
+    'Пример: «я высокий толстый зелёный качок в трико, ниндзя»'
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════
 //  ВАРИАНТ 2 — БАРАБАНЫ. Один экран, стрелки крутят части.
 // ═════════════════════════════════════════════════════════════════
 const CUSTOM_PANTS = [
@@ -2749,7 +2895,15 @@ function startCustomReels() {
   show('s-reels');
 }
 function startCustomIdfit()      { alert('🕵 Фоторобот лица — на подходе. Пока используй ШАГИ'); startCustomSteps(); }
-function startCustomVoice()      { alert('🎤 Голосовой набросок — на подходе. Пока используй ШАГИ'); startCustomSteps(); }
+function startCustomVoice() {
+  _voiceDraft = randomCustomChar();
+  CHARS.custom = buildCustomCharFromObj(_voiceDraft);
+  document.getElementById('voicekit-preview').innerHTML = makeFighterSVG('custom', 110, 1);
+  document.getElementById('voicekit-heard').textContent = '«ничего пока не услышал»';
+  document.getElementById('voicekit-matched').textContent = '';
+  document.getElementById('voicekit-accept').style.display = 'none';
+  show('s-voicekit');
+}
 function startCustomDnd()        { alert('🤲 Drag & Drop — на подходе. Пока используй ШАГИ'); startCustomSteps(); }
 // готовые в этом пакете — реализуются ниже
 
