@@ -1731,6 +1731,46 @@
   <button id="select-confirm" class="btn btn-gold" disabled style="opacity:.4">ВЫБЕРИ ПЕРСОНАЖА</button>
 </div>
 
+<!-- ── ВЫБОР ВАРИАНТА КОНСТРУКТОРА (Толик с тобой тестят какой лучше) ── -->
+<div id="s-creator-pick" class="screen" style="justify-content:flex-start;overflow-y:auto;padding-top:max(24px,env(safe-area-inset-top));padding-bottom:24px">
+  <button class="corner-back" onclick="goHome()">← В МЕНЮ</button>
+  <div style="font-family:'Impact',sans-serif;font-size:24px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 12px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-bottom:2px;text-align:center;margin-top:8px">🎨 КАК СОБИРАТЬ?</div>
+  <div style="font-family:sans-serif;font-size:11px;color:#888;letter-spacing:1.5px;margin-bottom:18px;text-align:center;max-width:300px">7 СПОСОБОВ. ПОПРОБУЙ КАЖДЫЙ — ПОТОМ ВЫБЕРЕМ ЛУЧШИЙ</div>
+  <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:360px">
+    <button class="btn btn-dark"   style="font-size:14px;text-align:left;padding:13px 14px" onclick="openCreator('steps')">📋 <b>ШАГИ</b> · мастер 6 экранов <span style="float:right;color:#8a8060;font-size:10px">v1</span></button>
+    <button class="btn btn-dark"   style="font-size:14px;text-align:left;padding:13px 14px" onclick="openCreator('reels')">🎰 <b>БАРАБАНЫ</b> · 1 экран, свайп <span style="float:right;color:#8a8060;font-size:10px">v2</span></button>
+    <button class="btn btn-dark"   style="font-size:14px;text-align:left;padding:13px 14px" onclick="openCreator('idfit')">🕵 <b>ФОТОРОБОТ ЛИЦА</b> · черты лица <span style="float:right;color:#8a8060;font-size:10px">v3</span></button>
+    <button class="btn btn-dark"   style="font-size:14px;text-align:left;padding:13px 14px" onclick="openCreator('archetypes')">🎭 <b>АРХЕТИПЫ</b> · 12 готовых угарных <span style="float:right;color:#8a8060;font-size:10px">v4</span></button>
+    <button class="btn btn-dark"   style="font-size:14px;text-align:left;padding:13px 14px" onclick="openCreator('lottery')">🎲 <b>ЛОТЕРЕЯ</b> · рандом одной кнопкой <span style="float:right;color:#8a8060;font-size:10px">v5</span></button>
+    <button class="btn btn-dark"   style="font-size:14px;text-align:left;padding:13px 14px" onclick="openCreator('voice')">🎤 <b>ГОЛОСОМ</b> · опиши себя вслух <span style="float:right;color:#8a8060;font-size:10px">v6</span></button>
+    <button class="btn btn-dark"   style="font-size:14px;text-align:left;padding:13px 14px" onclick="openCreator('dnd')">🤲 <b>DRAG &amp; DROP</b> · одеваешь манекен <span style="float:right;color:#8a8060;font-size:10px">v7</span></button>
+  </div>
+  <div style="font-family:sans-serif;font-size:11px;color:#666;margin-top:14px;text-align:center">тот что зайдёт — оставим, остальное уберём</div>
+</div>
+
+<!-- ── ВАРИАНТ 4: 12 АРХЕТИПОВ-КАРТОЧЕК ─────────── -->
+<div id="s-archetypes" class="screen" style="justify-content:flex-start;overflow-y:auto;padding-top:max(24px,env(safe-area-inset-top));padding-bottom:24px">
+  <button class="corner-back" onclick="show('s-creator-pick')">← НАЗАД</button>
+  <div style="font-family:'Impact',sans-serif;font-size:22px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 12px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-top:8px">🎭 АРХЕТИПЫ</div>
+  <div style="font-family:sans-serif;font-size:11px;color:#888;letter-spacing:1.5px;margin-bottom:14px">ТЫК НА УГАРНОГО — ИГРАЙ ЗА НЕГО</div>
+  <div id="archetypes-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:380px;margin-bottom:14px"></div>
+</div>
+
+<!-- ── ВАРИАНТ 5: ЛОТЕРЕЯ-БАРАБАН ──────────────── -->
+<div id="s-lottery" class="screen" style="justify-content:flex-start;overflow-y:auto;padding-top:max(24px,env(safe-area-inset-top));padding-bottom:24px">
+  <button class="corner-back" onclick="show('s-creator-pick')">← НАЗАД</button>
+  <div style="font-family:'Impact',sans-serif;font-size:24px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 12px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-top:8px">🎲 ЛОТЕРЕЯ</div>
+  <div style="font-family:sans-serif;font-size:11px;color:#888;letter-spacing:1.5px;margin-bottom:14px">КРУТАНУЛ — ИГРАЕШЬ. НЕ ВЕЗЁТ — КРУТАНУЛ ЕЩЁ</div>
+  <div id="lottery-preview" style="width:120px;min-height:240px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:10px;filter:drop-shadow(0 6px 14px rgba(255,209,0,.25))"></div>
+  <div id="lottery-name-badge" style="font-family:'Impact',sans-serif;font-size:22px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 12px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-bottom:6px;min-height:30px;text-align:center">КРУТИ</div>
+  <div id="lottery-role" style="font-family:sans-serif;font-size:11px;color:#888;letter-spacing:1.5px;margin-bottom:18px;min-height:14px;text-align:center">⬇</div>
+  <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:300px">
+    <button id="lottery-spin" class="btn btn-gold" style="font-size:18px;padding:14px" onclick="lotterySpin()">🎰 КРУТАНУТЬ</button>
+    <button id="lottery-accept" class="btn btn-listen" style="display:none" onclick="lotteryAccept()">✨ БЕРУ ЭТОГО</button>
+    <button id="lottery-rename" class="btn btn-dark" style="display:none;font-size:12px" onclick="lotteryRename()">✏ ПОМЕНЯТЬ ИМЯ</button>
+  </div>
+</div>
+
 <!-- ── CUSTOM CHARACTER CONSTRUCTOR ─────────────── -->
 <div id="s-custom" class="screen" style="justify-content:flex-start;overflow-y:auto;padding-top:max(40px,env(safe-area-inset-top));padding-bottom:24px">
   <button class="corner-back" onclick="customBack()">← НАЗАД</button>
@@ -2443,10 +2483,163 @@ const CUSTOM_STEPS = [
   { key:'color',  title:'ЦВЕТ ЭКИПИРОВКИ?',  opts:CUSTOM_COLORS,  cols:2 },
   { key:'name',   title:'КАК ЕГО ЗОВУТ?',    opts:null,           cols:1 },
 ];
+// ═════════════════════════════════════════════════════════════════
+//  ВАРИАНТ 4 — 12 АРХЕТИПОВ. Каждый — готовый набор customChar.
+// ═════════════════════════════════════════════════════════════════
+const ARCHETYPES = [
+  { name:'БИЗНЕС-ТОЛЯ',    role:'продаёт мечту',     emoji:'💼', cc:{ mood:'sly',   build:'norm', height:'medium', head:'gangsta', color:'black'  } },
+  { name:'СОМЕЛЬЕ',        role:'нюхает всё',        emoji:'🍷', cc:{ mood:'kind',  build:'slim', height:'tall',   head:'wizard',  color:'purple' } },
+  { name:'ДЕД-СТРИПЕР',    role:'82, всё ещё в форме',emoji:'🧓', cc:{ mood:'brave', build:'slim', height:'short',  head:'gangsta', color:'orange' } },
+  { name:'КЛОУН-ПУСИ',     role:'играет в открытую', emoji:'🤡', cc:{ mood:'sly',   build:'big',  height:'medium', head:'troll',   color:'red'    } },
+  { name:'КАЧОК-В-РОЗОВОМ', role:'сила и нежность',  emoji:'💪', cc:{ mood:'brave', build:'jock', height:'tall',   head:'pirate',  color:'purple' } },
+  { name:'АЛКАШ-ПРИШЕЛЕЦ', role:'из бара в космос',  emoji:'👽', cc:{ mood:'angry', build:'slim', height:'short',  head:'alien',   color:'green'  } },
+  { name:'ЛОРД-УТКА',      role:'крякает по-аристократски', emoji:'🦆', cc:{ mood:'kind', build:'norm', height:'medium', head:'cowboy', color:'yellow' } },
+  { name:'МАГ-ПРОКРАСТИНАТОР', role:'отложу на завтра', emoji:'🧙', cc:{ mood:'sly', build:'norm', height:'tall', head:'wizard', color:'cyan' } },
+  { name:'СУПЕР-НИЧЕГО',   role:'умеет всё, но лень',emoji:'🦸', cc:{ mood:'kind',  build:'jock', height:'medium', head:'robot',   color:'blue'   } },
+  { name:'ЖАБКА-CEO',      role:'лужа и LinkedIn',   emoji:'🐸', cc:{ mood:'angry', build:'big',  height:'short',  head:'troll',   color:'green'  } },
+  { name:'КОВБОЙ-ДЕПРЕССАНТ', role:'кактус и виски',emoji:'🤠', cc:{ mood:'angry', build:'slim', height:'tall',   head:'cowboy',  color:'orange' } },
+  { name:'ВАМПИР-ВЕГАН',   role:'кровь только из помидоров', emoji:'🧛', cc:{ mood:'sly', build:'slim', height:'tall', head:'gangsta', color:'black' } },
+];
+function startCustomArchetypes() {
+  const grid = document.getElementById('archetypes-grid');
+  grid.innerHTML = ARCHETYPES.map((a, i) => `
+    <button class="btn btn-dark" style="font-size:12px;padding:8px 6px;line-height:1.2;text-align:center;flex-direction:column;display:flex;align-items:center;gap:4px" onclick="pickArchetype(${i})">
+      <span style="display:inline-block;background:radial-gradient(circle at 35% 30%,rgba(255,209,0,.18),transparent 70%);border-radius:50%;width:54px;height:54px;line-height:54px;font-size:30px;border:1.5px solid #6a4818">${a.emoji}</span>
+      <span style="color:#ffd100;font-family:'Impact',sans-serif;letter-spacing:1px;font-size:11px">${a.name}</span>
+      <span style="color:#8a8060;font-size:10px;letter-spacing:0">${a.role}</span>
+    </button>`).join('');
+  show('s-archetypes');
+}
+function pickArchetype(i) {
+  const a = ARCHETYPES[i];
+  const cc = { ...a.cc, name: a.name };
+  authUpdate({ customChar: cc, character: 'custom', creatorVariant: 'archetypes' });
+  refreshCustomChar();
+  state.playerChar  = 'custom';
+  state.playerLevel = authCurrent()?.level || 1;
+  const others = BASE_CHAR_IDS.filter(id => id !== 'custom');
+  state.botChar = others[Math.floor(Math.random() * others.length)];
+  playClick();
+  startMap();
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  ВАРИАНТ 5 — ЛОТЕРЕЯ. Рандомный персонаж с угарным именем.
+// ═════════════════════════════════════════════════════════════════
+const LOTTERY_NAMES = [
+  'Гриша-Печкин','Толик-Бракодел','Влад-Невыходной','Серёга-Лысый','Витя-Гладиатор',
+  'Андрей-Жмых','Виталик-Ноготок','Лёха-Танкер','Игнат-Куда-Спешим','Боря-Без-Тормозов',
+  'Эдик-Стельных','Жора-Сила-Ума','Витамин-Дед','Ноах-С-Района','Босс-Качалки',
+  'Папа-Доллара','Денчик-Шкаф','Слава-Подвальный','Гена-Из-Подъезда','Антоха-Морфей',
+];
+const LOTTERY_ROLES = [
+  'без миссии но при делах','знает всё про всё','качается с детства','пиво и поэзия',
+  'переехал и пропал','когда-то был профи','родом из 90-х','работает по средам','ученик жизни','любит просто посидеть',
+];
+let _lotteryResult = null;
+function startCustomLottery() {
+  _lotteryResult = null;
+  document.getElementById('lottery-preview').innerHTML = '<div style="font-size:80px;opacity:.25">🎰</div>';
+  document.getElementById('lottery-name-badge').textContent = 'КРУТИ';
+  document.getElementById('lottery-role').textContent = '⬇';
+  document.getElementById('lottery-spin').textContent = '🎰 КРУТАНУТЬ';
+  document.getElementById('lottery-accept').style.display = 'none';
+  document.getElementById('lottery-rename').style.display = 'none';
+  show('s-lottery');
+}
+function lotterySpin() {
+  const btn = document.getElementById('lottery-spin');
+  btn.disabled = true; btn.style.opacity = '.6';
+  const tick = () => {
+    const cc = randomCustomChar();
+    CHARS.custom = buildCustomCharFromObj(cc);
+    document.getElementById('lottery-preview').innerHTML = makeFighterSVG('custom', 100, 1);
+    document.getElementById('lottery-name-badge').textContent = LOTTERY_NAMES[Math.floor(Math.random() * LOTTERY_NAMES.length)];
+    document.getElementById('lottery-role').textContent = LOTTERY_ROLES[Math.floor(Math.random() * LOTTERY_ROLES.length)];
+  };
+  let count = 0;
+  const ivl = setInterval(() => {
+    tick();
+    playClick();
+    if (++count >= 18) {
+      clearInterval(ivl);
+      // финальная остановка
+      const cc = randomCustomChar();
+      const finalName = LOTTERY_NAMES[Math.floor(Math.random() * LOTTERY_NAMES.length)];
+      const finalRole = LOTTERY_ROLES[Math.floor(Math.random() * LOTTERY_ROLES.length)];
+      _lotteryResult = { cc: { ...cc, name: finalName }, role: finalRole };
+      CHARS.custom = buildCustomCharFromObj(_lotteryResult.cc);
+      document.getElementById('lottery-preview').innerHTML = makeFighterSVG('custom', 110, 1);
+      document.getElementById('lottery-name-badge').textContent = finalName;
+      document.getElementById('lottery-role').textContent = finalRole;
+      document.getElementById('lottery-accept').style.display = '';
+      document.getElementById('lottery-rename').style.display = '';
+      btn.textContent = '🔁 КРУТНУТЬ ЕЩЁ';
+      btn.disabled = false; btn.style.opacity = '1';
+    }
+  }, 90);
+}
+function lotteryRename() {
+  if (!_lotteryResult) return;
+  const newName = prompt('Имя бойца:', _lotteryResult.cc.name);
+  if (!newName || !newName.trim()) return;
+  _lotteryResult.cc.name = newName.trim();
+  CHARS.custom = buildCustomCharFromObj(_lotteryResult.cc);
+  document.getElementById('lottery-name-badge').textContent = _lotteryResult.cc.name;
+}
+function lotteryAccept() {
+  if (!_lotteryResult) return;
+  authUpdate({ customChar: _lotteryResult.cc, character: 'custom', creatorVariant: 'lottery' });
+  refreshCustomChar();
+  state.playerChar  = 'custom';
+  state.playerLevel = authCurrent()?.level || 1;
+  const others = BASE_CHAR_IDS.filter(id => id !== 'custom');
+  state.botChar = others[Math.floor(Math.random() * others.length)];
+  playClick();
+  startMap();
+}
+function randomCustomChar() {
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  return {
+    mood:   pick(CUSTOM_MOODS).id,
+    build:  pick(CUSTOM_BUILDS).id,
+    height: pick(CUSTOM_HEIGHTS).id,
+    head:   pick(CUSTOM_HEADS).id,
+    color:  pick(CUSTOM_COLORS).id,
+    name:   'РАНДОМ',
+  };
+}
+
 let _customDraft = null;
 let _customStep  = 0;
 
+// ── ВХОДНАЯ ТОЧКА: всегда показываем экран выбора варианта конструктора ──
+// (Толик тестирует, пускай попробует все 7; когда выберем лучший — поменяем поведение)
 function startCustom() {
+  show('s-creator-pick');
+}
+function openCreator(variant) {
+  // запоминаем последний выбор юзера
+  authUpdate({ creatorVariant: variant });
+  switch (variant) {
+    case 'steps':      return startCustomSteps();
+    case 'reels':      return startCustomReels();
+    case 'idfit':      return startCustomIdfit();
+    case 'archetypes': return startCustomArchetypes();
+    case 'lottery':    return startCustomLottery();
+    case 'voice':      return startCustomVoice();
+    case 'dnd':        return startCustomDnd();
+    default:           return show('s-creator-pick');
+  }
+}
+// заглушки для ещё не реализованных вариантов — пока ведут в steps
+function startCustomReels()      { alert('🎰 Барабаны — на подходе. Пока используй ШАГИ'); startCustomSteps(); }
+function startCustomIdfit()      { alert('🕵 Фоторобот лица — на подходе. Пока используй ШАГИ'); startCustomSteps(); }
+function startCustomVoice()      { alert('🎤 Голосовой набросок — на подходе. Пока используй ШАГИ'); startCustomSteps(); }
+function startCustomDnd()        { alert('🤲 Drag & Drop — на подходе. Пока используй ШАГИ'); startCustomSteps(); }
+// готовые в этом пакете — реализуются ниже
+
+function startCustomSteps() {
   const u = authCurrent();
   _customDraft = Object.assign({
     mood:'kind', build:'norm', height:'medium', head:'pirate', color:'red', name:''
@@ -2457,7 +2650,7 @@ function startCustom() {
 }
 
 function customBack() {
-  if (_customStep <= 0) { goHome(); return; }
+  if (_customStep <= 0) { show('s-creator-pick'); return; }
   _customStep--;
   renderCustomStep();
 }
