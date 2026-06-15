@@ -1705,7 +1705,7 @@
 <div id="s-select" class="screen">
   <button class="corner-back" onclick="goHome()">← В МЕНЮ</button>
   <div class="select-title">🎨 ВЫБЕРИ БОЙЦА</div>
-  <div class="select-sub">ПОКА ВЫБЕРИ ИЗ ГОТОВЫХ — КОНСТРУКТОР СВОЕГО СКОРО</div>
+  <div class="select-sub">ВОЗЬМИ ГОТОВОГО ИЛИ <span style="color:#ffd100;cursor:pointer;text-decoration:underline" onclick="startCustom()">СОБЕРИ СВОЕГО</span></div>
   <div class="char-grid" id="char-grid">
     <div class="char-card" data-id="subzero">
       <div class="char-portrait" id="portrait-subzero"></div>
@@ -1729,6 +1729,23 @@
     </div>
   </div>
   <button id="select-confirm" class="btn btn-gold" disabled style="opacity:.4">ВЫБЕРИ ПЕРСОНАЖА</button>
+</div>
+
+<!-- ── CUSTOM CHARACTER CONSTRUCTOR ─────────────── -->
+<div id="s-custom" class="screen" style="justify-content:flex-start;overflow-y:auto;padding-top:max(40px,env(safe-area-inset-top));padding-bottom:24px">
+  <button class="corner-back" onclick="customBack()">← НАЗАД</button>
+  <div style="font-family:'Impact',sans-serif;font-size:26px;color:#ffd100;letter-spacing:2px;text-shadow:0 0 12px rgba(255,209,0,.5),0 3px 0 #5a4010;margin-bottom:2px">🎨 СОЗДАНИЕ БОЙЦА</div>
+  <div id="custom-step-info" style="font-family:sans-serif;font-size:11px;color:#888;letter-spacing:1.5px;margin-bottom:10px">ШАГ 1 / 6</div>
+  <div id="custom-preview" style="width:100px;min-height:200px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:6px;filter:drop-shadow(0 6px 14px rgba(255,209,0,.25))"></div>
+  <div id="custom-q-title" style="font-family:'Impact',sans-serif;font-size:18px;color:#ffd100;letter-spacing:1.5px;margin-bottom:10px;text-align:center">КАКОЙ ХАРАКТЕР?</div>
+  <div id="custom-opts" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:340px;margin-bottom:14px"></div>
+  <div id="custom-name-row" style="display:none;width:100%;max-width:340px;margin-bottom:14px">
+    <input id="custom-name-input" type="text" maxlength="20" placeholder="ИМЯ БОЙЦА" style="width:100%;padding:12px 14px;background:rgba(0,0,0,.5);border:2px solid #6a4818;color:#ffd100;border-radius:6px;font-family:'Impact',sans-serif;font-size:18px;letter-spacing:2px;text-align:center"/>
+  </div>
+  <div style="display:flex;gap:8px;width:100%;max-width:340px">
+    <button id="custom-prev-btn" class="btn btn-dark" style="flex:1" onclick="customBack()">← НАЗАД</button>
+    <button id="custom-next-btn" class="btn btn-gold" style="flex:1.4" onclick="customNext()">ДАЛЬШЕ →</button>
+  </div>
 </div>
 
 <!-- ── CITY MAP — choose location ─────────────────── -->
@@ -2334,6 +2351,197 @@ const CHARS = {
   },
 };
 
+// ═════════════════════════════════════════════════════════════════
+//  CUSTOM CHARACTER CONSTRUCTOR — пользователь собирает своего бойца
+// ═════════════════════════════════════════════════════════════════
+// Шаги: характер → сложение → рост → голова → цвет одежды → имя.
+// Хранится в user.customChar; персонаж пользователя при этом = 'custom'.
+const CUSTOM_MOODS = [
+  { id:'kind',  label:'😊 ДОБРЫЙ',   accent:'#9ad8ff' },
+  { id:'angry', label:'😠 ЗЛОЙ',     accent:'#ff5a4a' },
+  { id:'sly',   label:'😏 ХИТРЫЙ',   accent:'#c8a040' },
+  { id:'brave', label:'💪 ДЕРЗКИЙ',  accent:'#ffd100' },
+];
+const CUSTOM_BUILDS = [
+  { id:'slim', label:'🥒 ХУДОЙ',   torsoX:23, torsoW:32 },
+  { id:'norm', label:'🧍 ОБЫЧНЫЙ', torsoX:19, torsoW:40 },
+  { id:'big',  label:'🐻 ТОЛСТЫЙ', torsoX:14, torsoW:50 },
+  { id:'jock', label:'🏋 КАЧОК',    torsoX:16, torsoW:46 },
+];
+const CUSTOM_HEIGHTS = [
+  { id:'short',  label:'🐰 НИЗКИЙ',  scale:0.85 },
+  { id:'medium', label:'🚶 СРЕДНИЙ', scale:1.0  },
+  { id:'tall',   label:'🦒 ВЫСОКИЙ', scale:1.12 },
+];
+const CUSTOM_HEADS = [
+  { id:'pirate',  emoji:'🏴‍☠️', label:'ПИРАТ',      skin:'#e8c8a0' },
+  { id:'wizard',  emoji:'🧙',  label:'МАГ',         skin:'#f0d5b8' },
+  { id:'ninja',   emoji:'🥷',  label:'НИНДЗЯ',      skin:'#c8a888' },
+  { id:'gangsta', emoji:'😎',  label:'ГАНГСТА',     skin:'#d8b894' },
+  { id:'troll',   emoji:'👹',  label:'ТРОЛЛЬ',      skin:'#a8b878' },
+  { id:'robot',   emoji:'🤖',  label:'РОБОТ',       skin:'#c0c8d0' },
+  { id:'alien',   emoji:'👽',  label:'ПРИШЕЛЕЦ',    skin:'#a8d8a8' },
+  { id:'cowboy',  emoji:'🤠',  label:'КОВБОЙ',      skin:'#e8c098' },
+];
+const CUSTOM_COLORS = [
+  { id:'red',    label:'🔴 КРАСНЫЙ',   body:'#c83434', accent:'#ffd100', arm:'#982828', belt:'#1a1822' },
+  { id:'blue',   label:'🔵 СИНИЙ',     body:'#2a4a98', accent:'#60d8ff', arm:'#1a2858', belt:'#08101e' },
+  { id:'green',  label:'🟢 ЗЕЛЁНЫЙ',   body:'#3a8848', accent:'#c8ff60', arm:'#1a5828', belt:'#0a2010' },
+  { id:'yellow', label:'🟡 ЗОЛОТО',    body:'#c8a020', accent:'#ffe060', arm:'#886818', belt:'#3a2810' },
+  { id:'purple', label:'🟣 ФИОЛЕТ',    body:'#7a3098', accent:'#e070ff', arm:'#4a1858', belt:'#1a0828' },
+  { id:'black',  label:'⚫ ЧЁРНЫЙ',    body:'#222230', accent:'#c8c8d0', arm:'#0a0a14', belt:'#000004' },
+  { id:'orange', label:'🟠 ОГНЕННЫЙ',  body:'#e07020', accent:'#ffd100', arm:'#a04810', belt:'#3a1808' },
+  { id:'cyan',   label:'🔷 ВОДЯНОЙ',   body:'#2a90a8', accent:'#a0f0ff', arm:'#185868', belt:'#082028' },
+];
+function customHeadSVG(headId) {
+  const head = CUSTOM_HEADS.find(h => h.id === headId) || CUSTOM_HEADS[0];
+  // голова: круг кожи + большой эмодзи поверх лица — забавно и быстро
+  return `
+    <circle cx="39" cy="24" r="20" fill="${head.skin}" stroke="#000" stroke-width="1.6"/>
+    <text x="39" y="34" font-size="32" text-anchor="middle">${head.emoji}</text>`;
+}
+// базовые ID (готовые персонажи) — без custom. Используется в select-grid и при выборе бота.
+const BASE_CHAR_IDS = ['subzero','shrek','barbie','merkel'];
+// держит CHARS.custom в синхроне с u.customChar — чтобы все CHARS[id]?.name работали прозрачно
+function refreshCustomChar() {
+  try { CHARS.custom = buildCustomChar(); } catch(e) {}
+}
+function buildCustomCharFromObj(cc) {
+  cc = cc || {};
+  const build  = CUSTOM_BUILDS.find(b => b.id === cc.build)   || CUSTOM_BUILDS[1];
+  const head   = CUSTOM_HEADS.find(h => h.id === cc.head)     || CUSTOM_HEADS[0];
+  const color  = CUSTOM_COLORS.find(p => p.id === cc.color)   || CUSTOM_COLORS[0];
+  const mood   = CUSTOM_MOODS.find(m => m.id === cc.mood)     || CUSTOM_MOODS[0];
+  const accent = mood.accent || color.accent;
+  return {
+    name: (cc.name || 'МОЙ БОЕЦ').toUpperCase(),
+    role: ((mood.label.split(' ').pop()||'').toLowerCase() + ' ' +
+           (build.label.split(' ').pop()||'').toLowerCase()).trim() || 'свой персонаж',
+    bodyFill:  color.body,
+    accentFill:accent,
+    armFill:   color.arm,
+    skinFill:  head.skin,
+    beltFill:  color.belt,
+    buckleFill:accent,
+    headSVG:   customHeadSVG(head.id),
+    _custom:true,
+    _build: build,
+    _heightScale: (CUSTOM_HEIGHTS.find(h=>h.id===cc.height) || CUSTOM_HEIGHTS[1]).scale,
+  };
+}
+function buildCustomChar() {
+  const u = (typeof authCurrent === 'function') ? authCurrent() : null;
+  return buildCustomCharFromObj(u?.customChar);
+}
+
+// ── flow конструктора: 6 шагов с превью ──
+const CUSTOM_STEPS = [
+  { key:'mood',   title:'КАКОЙ ХАРАКТЕР?',   opts:CUSTOM_MOODS,   cols:2 },
+  { key:'build',  title:'КАКОЕ СЛОЖЕНИЕ?',   opts:CUSTOM_BUILDS,  cols:2 },
+  { key:'height', title:'КАКОЙ РОСТ?',       opts:CUSTOM_HEIGHTS, cols:3 },
+  { key:'head',   title:'КАКАЯ ГОЛОВА?',     opts:CUSTOM_HEADS,   cols:4 },
+  { key:'color',  title:'ЦВЕТ ЭКИПИРОВКИ?',  opts:CUSTOM_COLORS,  cols:2 },
+  { key:'name',   title:'КАК ЕГО ЗОВУТ?',    opts:null,           cols:1 },
+];
+let _customDraft = null;
+let _customStep  = 0;
+
+function startCustom() {
+  const u = authCurrent();
+  _customDraft = Object.assign({
+    mood:'kind', build:'norm', height:'medium', head:'pirate', color:'red', name:''
+  }, (u?.customChar || {}));
+  _customStep = 0;
+  renderCustomStep();
+  show('s-custom');
+}
+
+function customBack() {
+  if (_customStep <= 0) { goHome(); return; }
+  _customStep--;
+  renderCustomStep();
+}
+
+function customPickOption(key, id) {
+  _customDraft[key] = id;
+  renderCustomPreview();
+  renderCustomOpts();   // подсветить выбранную
+  // авто-переход к следующему шагу для одиночного выбора
+  if (CUSTOM_STEPS[_customStep].key !== 'name') {
+    setTimeout(() => customNext(), 220);
+  }
+}
+
+function customNext() {
+  if (CUSTOM_STEPS[_customStep].key === 'name') {
+    const v = (document.getElementById('custom-name-input').value || '').trim();
+    if (!v) { document.getElementById('custom-name-input').focus(); return; }
+    _customDraft.name = v;
+    customFinish();
+    return;
+  }
+  if (_customStep < CUSTOM_STEPS.length - 1) {
+    _customStep++;
+    renderCustomStep();
+  } else {
+    customFinish();
+  }
+}
+
+function customFinish() {
+  // сохранить кастомного и сделать его текущим персонажем
+  authUpdate({ customChar: { ..._customDraft }, character: 'custom' });
+  refreshCustomChar();
+  // звук + закрыть
+  playClick();
+  // если новичок — отправляю на карту, как и обычный select-confirm
+  const u = authCurrent();
+  state.playerChar  = 'custom';
+  state.playerLevel = u?.level || 1;
+  const others = BASE_CHAR_IDS.filter(id => id !== 'custom');
+  state.botChar = others[Math.floor(Math.random() * others.length)];
+  startMap();
+}
+
+function renderCustomStep() {
+  const step = CUSTOM_STEPS[_customStep];
+  document.getElementById('custom-step-info').textContent = `ШАГ ${_customStep + 1} / ${CUSTOM_STEPS.length}`;
+  document.getElementById('custom-q-title').textContent   = step.title;
+  const nextBtn = document.getElementById('custom-next-btn');
+  nextBtn.textContent = (_customStep === CUSTOM_STEPS.length - 1) ? '✨ ГОТОВО' : 'ДАЛЬШЕ →';
+  const nameRow = document.getElementById('custom-name-row');
+  const optsRow = document.getElementById('custom-opts');
+  if (step.key === 'name') {
+    optsRow.innerHTML = '';
+    nameRow.style.display = 'block';
+    const input = document.getElementById('custom-name-input');
+    input.value = _customDraft.name || '';
+    setTimeout(() => input.focus(), 100);
+  } else {
+    nameRow.style.display = 'none';
+    renderCustomOpts();
+  }
+  renderCustomPreview();
+}
+
+function renderCustomOpts() {
+  const step = CUSTOM_STEPS[_customStep];
+  if (!step.opts) return;
+  const grid = document.getElementById('custom-opts');
+  grid.style.gridTemplateColumns = `repeat(${step.cols},1fr)`;
+  const cur = _customDraft[step.key];
+  grid.innerHTML = step.opts.map(opt => {
+    const selected = opt.id === cur;
+    return `<button class="btn ${selected ? 'btn-gold' : 'btn-dark'}" style="font-size:13px;padding:12px 8px;margin:0;line-height:1.2" onclick="customPickOption('${step.key}','${opt.id}')">${opt.emoji ? opt.emoji + ' ' : ''}${opt.label || (opt.id||'').toUpperCase()}</button>`;
+  }).join('');
+}
+
+function renderCustomPreview() {
+  // подсовываем драфт прямо в CHARS.custom и рисуем — без touching сохранений
+  CHARS.custom = buildCustomCharFromObj(_customDraft);
+  document.getElementById('custom-preview').innerHTML = makeFighterSVG('custom', 90, 1);
+}
+
 // stage = сколько локаций пройдено (0..4). Визуальная прокачка персонажа:
 // 0 — хилый: бледный, мешки под глазами, тощий
 // 1 — поел: нормальный цвет
@@ -2347,11 +2555,17 @@ function playerStage() {
 
 let _faceUid = 0;
 function makeFighterSVG(charId, w = FIGHTER_W, stage = 1) {
-  const c = CHARS[charId] || CHARS.subzero;
-  const h = w * 2;
+  const c = charId === 'custom'
+    ? (CHARS.custom || buildCustomChar())   // CHARS.custom обновляется renderCustomPreview во время конструктора
+    : (CHARS[charId] || CHARS.subzero);
+  // высота через viewBox: «высокий» = выше, «низкий» = ниже (с сохранением ширины тела)
+  const heightScale = c._heightScale || 1;
+  const h = w * 2 * heightScale;
   const weak = stage === 0;
   const svgFilter = weak ? 'filter:grayscale(.55) brightness(.85);' : '';
-  const torsoX = weak ? 23 : 19, torsoW = weak ? 32 : 40;   // тощий торс
+  // сложение из кастомного перекрывает дефолт
+  let torsoX = weak ? 23 : 19, torsoW = weak ? 32 : 40;
+  if (c._build) { torsoX = c._build.torsoX; torsoW = c._build.torsoW; }
   // фото-голова: реальное лицо в круге на мультяшном теле (максимально забавно)
   let headBlock = c.headSVG;
   if (c.photo && c.face) {
@@ -2618,6 +2832,8 @@ function authCurrent() {
     u.completed = u.completed.map(id => id === 'barber' ? 'gym' : id);
     authSave(data);
   }
+  // синхронизируем CHARS.custom с пользователем — чтобы UI находил имя кастомного
+  if (typeof refreshCustomChar === 'function') refreshCustomChar();
   return { username: data.currentUser, ...u };
 }
 function authUpdate(updates) {
@@ -2775,20 +2991,22 @@ function smartPlay() {
   const u = authCurrent();
   if (!u) { show('s-login'); return; }
   warmupAudio();
-  // первый запуск — интро «как играть»
+  // первый запуск — интро «как играть» + сразу конструктор
   if (!u.character && !u.introSeen) {
-    showTutor('⚔', 'КАК ИГРАТЬ',
-      'Это драка на английском. 1) Выбери бойца. 2) Попадёшь на карту города — веди пальцем к локации. 3) В локации бой: видишь фразу — скажи её ПО-АНГЛИЙСКИ вслух, и твой боец бьёт. 4) Пройди все 4 локации — откроются Мир и онлайн-бои.',
-      () => { authUpdate({ introSeen: true }); startGame(); });
+    showTutor('🎨', 'КАК ИГРАТЬ',
+      'Сначала собери своего бойца — характер, сложение, голова, цвет. Потом ты на карте города. В каждой локации бой: видишь фразу — скажи её ПО-АНГЛИЙСКИ вслух, твой боец бьёт. Пройди 4 локации — откроются Район и Онлайн.',
+      () => { authUpdate({ introSeen: true }); startCustom(); });
     return;
   }
-  if (allLocationsDone() && u.character) {
+  // если персонажа ещё нет (интро уже видел) — ведём в конструктор
+  if (!u.character) { startCustom(); return; }
+  if (allLocationsDone()) {
     state.playerChar = u.character;
     state.playerLevel = u.level || 1;
     startWorld();
     return;
   }
-  startGame();   // выбор персонажа (если нет) или карта
+  startGame();   // карта
 }
 function pathWorld() {
   if (!allLocationsDone()) { playMiss(); return; }
@@ -3246,8 +3464,11 @@ async function showLeaderboard() {
   }
 }
 function forceCharSelect() {
-  // jump straight to character pick from home (lets user change saved character)
-  startSelect();
+  // если у юзера уже кастомный — открываем конструктор (пересоздать своего);
+  // иначе пускай выберет из готовых или соберёт своего
+  const u = authCurrent();
+  if (u?.character === 'custom' && u?.customChar) startCustom();
+  else startSelect();
 }
 
 // On Enter in name field → enter the game
@@ -3345,7 +3566,7 @@ function startGame() {
 
   // skip character select if user already chose one — go straight to map
   if (state.playerChar && CHARS[state.playerChar]) {
-    const others = Object.keys(CHARS).filter(id => id !== state.playerChar);
+    const others = BASE_CHAR_IDS.filter(id => id !== state.playerChar);
     state.botChar = others[Math.floor(Math.random() * others.length)];
     renderBattleFighters();
     resetFighters();
@@ -3359,8 +3580,8 @@ function startGame() {
 //  CHARACTER SELECT
 // ═════════════════════════════════════════════════════════════════
 function startSelect() {
-  // render portraits
-  for (const id of Object.keys(CHARS)) {
+  // render portraits (только базовые — кастомного тут нет)
+  for (const id of BASE_CHAR_IDS) {
     const el = document.getElementById(`portrait-${id}`);
     if (el) el.innerHTML = makeFighterSVG(id, 64);
   }
@@ -3438,7 +3659,7 @@ document.getElementById('select-confirm').addEventListener('click', () => {
   warmupAudio();
   // SAVE chosen character to the user's profile
   authUpdate({ character: state.playerChar });
-  const others = Object.keys(CHARS).filter(id => id !== state.playerChar);
+  const others = BASE_CHAR_IDS.filter(id => id !== state.playerChar);
   state.botChar = others[Math.floor(Math.random() * others.length)];
   renderBattleFighters();
   resetFighters();
@@ -4341,7 +4562,7 @@ function goBackToMap() {
   setHP('right', 100);
   document.getElementById('diff-badge').textContent = 'EASY';
   document.getElementById('diff-badge').className   = 'diff-badge';
-  const others = Object.keys(CHARS).filter(id => id !== state.playerChar);
+  const others = BASE_CHAR_IDS.filter(id => id !== state.playerChar);
   state.botChar = others[Math.floor(Math.random() * others.length)];
   renderBattleFighters();
   if (state.fromWorld) { state.fromWorld = false; startWorld(); }
@@ -4414,7 +4635,7 @@ function startWorld() {
   document.getElementById('world-power-fill').style.width = `${Math.min(10, u?.level || 1) * 10}%`;
   // 4 ближайших «игрока» (пока боты, подаются как люди)
   if (!worldPlayers.length) {
-    const chars = Object.keys(CHARS);
+    const chars = BASE_CHAR_IDS;
     const names = [...WORLD_NAMES].sort(() => Math.random() - .5).slice(0, 4);
     const spots = [{x:25,y:25},{x:70,y:32},{x:30,y:62},{x:68,y:68}];
     worldPlayers = names.map((name, i) => ({
@@ -4508,7 +4729,7 @@ function worldFight() {
 function worldCollab() {
   if (!worldSelected) return;
   // по пути к союзнику — алкаш-препятствие
-  const drunkChars = Object.keys(CHARS).filter(c => c !== state.playerChar);
+  const drunkChars = BASE_CHAR_IDS.filter(c => c !== state.playerChar);
   const drunk = {
     name: 'АЛКАШ ПЕТРОВИЧ',
     char: drunkChars[Math.floor(Math.random() * drunkChars.length)],
