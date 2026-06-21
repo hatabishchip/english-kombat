@@ -2193,6 +2193,23 @@
     <button class="btn btn-gold" onclick="acknowledgeDeath()">⚔ НАЧАТЬ ЗАНОВО</button>
   </div>
 </div>
+<!-- ── МИКРОФОН-ГЕЙТ (блокирует бой пока нет permission) ── -->
+<div id="ov-mic-gate" class="ov" style="background:rgba(8,5,2,.94);z-index:200">
+  <div class="tutor-card" style="max-width:360px;padding:24px 22px">
+    <div style="font-size:80px;line-height:1;margin-bottom:6px;text-align:center">🎤</div>
+    <div class="tutor-title" style="font-size:26px;margin-bottom:8px">НУЖЕН МИКРОФОН</div>
+    <div class="tutor-text" style="margin-bottom:18px;line-height:1.45">
+      В этой игре ты говоришь английские фразы вслух — без микрофона нельзя пройти уровень.
+    </div>
+    <button id="mic-gate-allow" class="btn btn-gold" style="font-size:17px;padding:16px;width:100%" onclick="micGateAllow()">🎙 РАЗРЕШИТЬ МИКРОФОН</button>
+    <div id="mic-gate-help" style="display:none;margin-top:14px;padding:12px;background:rgba(40,30,15,.7);border:1.5px solid #6a4818;border-radius:6px;font-family:sans-serif;font-size:12px;color:#c8a868;line-height:1.5;text-align:left">
+      <div style="font-family:'Impact',sans-serif;color:#ffd100;font-size:13px;letter-spacing:1.5px;margin-bottom:6px">⚠ ДОСТУП ЗАБЛОКИРОВАН</div>
+      <div id="mic-gate-help-text">Открой настройки сайта и разреши микрофон.</div>
+      <button class="btn btn-dark" style="margin-top:8px;font-size:12px;padding:8px" onclick="micGateRetry()">🔁 Я РАЗРЕШИЛ — ПРОВЕРИТЬ</button>
+    </div>
+  </div>
+</div>
+
 <div id="ov-tutor"  class="ov">
   <div class="tutor-card">
     <div id="tutor-emoji" class="tutor-emoji">⚔</div>
@@ -4691,9 +4708,11 @@ function goBattle(mode) {
     if (meter) meter.style.display = state.battleMode === 'cards' ? 'none' : '';
     if (cards) cards.style.display = state.battleMode === 'cards' ? '' : 'none';
     state.phase = 'countdown';
-    // show onboarding hint before countdown for the first 4 battles
-    const startCountdown = () => runCountdown(() => startTurn());
-    maybeShowBattleTutor(startCountdown) || startCountdown();
+    // микрофон-гейт ПЕРЕД любым countdown'ом — иначе ничего не имеет смысла
+    requireMicThen(() => {
+      const startCountdown = () => runCountdown(() => startTurn());
+      maybeShowBattleTutor(startCountdown) || startCountdown();
+    });
   };
   if (fromWalkOrTrain) playDoorTransition(launch);
   else launch();
@@ -6212,6 +6231,98 @@ function stopMeter() {
 //  SPEECH RECOGNITION
 // ═════════════════════════════════════════════════════════════════
 const HAS_SR = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+// ═════════════════════════════════════════════════════════════════
+//  МИКРОФОН-ГЕЙТ. Блокирует бой пока permission != granted.
+// ═════════════════════════════════════════════════════════════════
+let _micResume = null;  // что запустить после получения permission
+function browserHelpText() {
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    return 'В Safari/Chrome на iPhone: aA в адресной строке слева → Настройки сайта → Микрофон → Разрешить. Потом тапни «Я разрешил».';
+  }
+  if (/Android/i.test(ua) && /Chrome/i.test(ua)) {
+    return 'В Chrome тапни 🔒/ⓘ рядом с адресом сайта → Разрешения → Микрофон → Разрешить. Потом тапни «Я разрешил».';
+  }
+  if (/Safari/i.test(ua) && !/Chrome|CriOS|Android/i.test(ua)) {
+    return 'В Safari открой Safari → Настройки сайта → Микрофон → Разрешить для этого сайта. Потом тапни «Я разрешил».';
+  }
+  // Chrome desktop / другие
+  return 'Тапни иконку 🔒 в адресной строке слева → Microphone → Allow. Потом тапни «Я разрешил».';
+}
+function showMicGate(showHelp = false) {
+  document.getElementById('ov-mic-gate').classList.add('on');
+  const help = document.getElementById('mic-gate-help');
+  if (showHelp) {
+    help.style.display = 'block';
+    document.getElementById('mic-gate-help-text').textContent = browserHelpText();
+  } else {
+    help.style.display = 'none';
+  }
+}
+function hideMicGate() {
+  document.getElementById('ov-mic-gate').classList.remove('on');
+}
+// проверка permission. Возвращает 'granted'|'denied'|'prompt'|'unknown'
+async function micPermissionState() {
+  if (!navigator.permissions || !navigator.permissions.query) return 'unknown';
+  try {
+    const p = await navigator.permissions.query({ name: 'microphone' });
+    return p.state;
+  } catch (e) { return 'unknown'; }
+}
+// гейт перед боем: если permission уже granted — сразу cb(); иначе показываем оверлей и паузим
+async function requireMicThen(cb) {
+  if (!HAS_SR) {
+    // браузер совсем не поддерживает — показываем gate с пояснением
+    _micResume = cb;
+    showMicGate(true);
+    document.getElementById('mic-gate-help-text').textContent =
+      'Этот браузер не умеет распознавать речь. Открой игру в Chrome или Safari.';
+    document.getElementById('mic-gate-allow').style.display = 'none';
+    pauseBattleForMic();
+    return;
+  }
+  const st = await micPermissionState();
+  if (st === 'granted') { cb(); return; }
+  // paused — ждём пока юзер разрешит
+  _micResume = cb;
+  showMicGate(st === 'denied');
+  pauseBattleForMic();
+}
+function pauseBattleForMic() {
+  // глушим все таймеры боя — бот не атакует, фразу не подаём
+  clearTimeout(state.botAttackTimer);
+  state.botAttackTimer = null;
+  state.phase = 'paused_mic';
+  // визуально замираем
+  setStatus('🎤 ожидаем доступ к микрофону...', 'mine');
+}
+// тап «РАЗРЕШИТЬ» — запрашиваем нативный диалог
+async function micGateAllow() {
+  if (!HAS_SR) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // сразу останавливаем дорожку — она нам не нужна, нужен только permission
+    stream.getTracks().forEach(t => t.stop());
+    onMicGranted();
+  } catch (e) {
+    // юзер deny в диалоге → показываем инструкцию как разблокировать
+    showMicGate(true);
+  }
+}
+async function micGateRetry() {
+  const st = await micPermissionState();
+  if (st === 'granted') { onMicGranted(); return; }
+  // ещё нет — пытаемся снова попросить (в Chrome это re-prompts только если не denied навсегда)
+  micGateAllow();
+}
+function onMicGranted() {
+  hideMicGate();
+  const cb = _micResume;
+  _micResume = null;
+  if (typeof cb === 'function') cb();
+}
 let recognition = null, listening = false, lastInterim = '', answerSent = false;
 
 function updateMic(active) {
@@ -6279,8 +6390,12 @@ function startListen() {
     listening = false;
     stopMeter();
     updateMic(state.phase === 'player_turn');
+    // permission отозвали посреди боя → паузим и показываем гейт
+    if (e.error === 'not-allowed') {
+      requireMicThen(() => { startTurn(); });
+      return;
+    }
     const msgs = {
-      'not-allowed':   '⚠ Разреши доступ к микрофону',
       'no-speech':     '⚠ Ничего не услышал — говори громче',
       'network':       '⚠ Нет сети для распознавания',
       'audio-capture': '⚠ Микрофон не найден',
