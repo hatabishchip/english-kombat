@@ -155,6 +155,36 @@
   .mic-btn.listening{background:linear-gradient(180deg,#c83434,#7a1818);border-color:#ff7070;animation:pulse 1s ease-in-out infinite;}
   @keyframes pulse{0%,100%{box-shadow:0 6px 18px rgba(200,52,52,.5);}50%{box-shadow:0 6px 28px rgba(255,80,80,.8);}}
 
+  /* ── EQUALIZER (показывает что микрофон ловит голос) ── */
+  .meter{
+    display:none;align-items:flex-end;justify-content:center;gap:4px;
+    height:54px;padding:8px 14px;margin:6px auto 0;
+    width:240px;max-width:88%;
+    background:rgba(0,0,0,.6);border:2px solid #3a2808;border-radius:12px;
+    box-shadow:inset 0 0 12px rgba(0,0,0,.6);
+  }
+  .meter.on{display:flex;animation:meter-glow 1.4s ease-in-out infinite;}
+  @keyframes meter-glow{
+    0%,100%{border-color:#ffd100;box-shadow:inset 0 0 12px rgba(0,0,0,.55),0 0 12px rgba(255,209,0,.4);}
+    50%{border-color:#fff0a0;box-shadow:inset 0 0 12px rgba(0,0,0,.55),0 0 22px rgba(255,209,0,.7);}
+  }
+  body.theme-barbie .meter.on{animation:meter-glow-pink 1.4s ease-in-out infinite;}
+  @keyframes meter-glow-pink{
+    0%,100%{border-color:#ff66b3;box-shadow:inset 0 0 12px rgba(0,0,0,.4),0 0 12px rgba(255,102,179,.5);}
+    50%{border-color:#ffb0d8;box-shadow:inset 0 0 12px rgba(0,0,0,.4),0 0 22px rgba(255,102,179,.8);}
+  }
+  body.theme-halk .meter.on{animation:meter-glow-green 1.4s ease-in-out infinite;}
+  @keyframes meter-glow-green{
+    0%,100%{border-color:#1aff66;box-shadow:inset 0 0 12px rgba(0,0,0,.4),0 0 12px rgba(26,255,102,.5);}
+    50%{border-color:#7fff9f;box-shadow:inset 0 0 12px rgba(0,0,0,.4),0 0 22px rgba(26,255,102,.8);}
+  }
+  .abar{
+    flex:1;min-height:5px;max-height:38px;height:5px;
+    border-radius:3px 3px 0 0;
+    background:linear-gradient(180deg,#3a2808,#1a1208);
+    transition:height .05s ease,background .15s ease;
+  }
+
   /* prep card */
   .prep-card{
     width:100%;max-width:380px;padding:24px 20px;border-radius:16px;
@@ -272,6 +302,10 @@
     <div id="prep-en" class="prep-en">—</div>
     <div id="prep-heard" class="heard">тапни 🎤 и скажи фразу</div>
   </div>
+  <div id="prep-meter" class="meter">
+    <div class="abar"></div><div class="abar"></div><div class="abar"></div><div class="abar"></div>
+    <div class="abar"></div><div class="abar"></div><div class="abar"></div><div class="abar"></div>
+  </div>
   <button id="prep-mic" class="mic-btn" onclick="prepListen()">🎤 СКАЗАТЬ</button>
   <button class="big-btn btn-dark" style="margin-top:8px;font-size:16px;padding:14px" onclick="prepSkip()">→ ПРОПУСТИТЬ</button>
 </div>
@@ -296,6 +330,10 @@
     <div id="battle-phrase-ru" class="phrase-ru">—</div>
     <div id="battle-phrase-hint" class="phrase-hint">🎤 СКАЖИ ФРАЗУ ПО-АНГЛИЙСКИ</div>
     <div id="battle-heard" class="heard">&nbsp;</div>
+    <div id="battle-meter" class="meter">
+      <div class="abar"></div><div class="abar"></div><div class="abar"></div><div class="abar"></div>
+      <div class="abar"></div><div class="abar"></div><div class="abar"></div><div class="abar"></div>
+    </div>
     <button id="battle-mic" class="mic-btn" onclick="battleListen()">🎤 ГОВОРИ</button>
   </div>
 </div>
@@ -760,6 +798,54 @@ function sendWhatsapp() {
 const HAS_SR = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 let recognition = null;
 
+// ── ЭКВАЛАЙЗЕР: визуализация громкости голоса с микрофона ──
+let _meterStream = null, _meterCtx = null, _meterAnalyser = null, _meterAnim = null, _meterEl = null;
+async function startMeter() {
+  // показываем эквалайзер активного экрана
+  _meterEl = document.querySelector('.screen.on .meter');
+  if (_meterEl) _meterEl.classList.add('on');
+  try {
+    _meterStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    _meterCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_meterCtx.state === 'suspended') { try { await _meterCtx.resume(); } catch(e){} }
+    _meterAnalyser = _meterCtx.createAnalyser();
+    _meterAnalyser.fftSize = 128;
+    _meterAnalyser.smoothingTimeConstant = 0.72;
+    _meterCtx.createMediaStreamSource(_meterStream).connect(_meterAnalyser);
+    const data = new Uint8Array(_meterAnalyser.frequencyBinCount);
+    const bars = _meterEl ? _meterEl.querySelectorAll('.abar') : [];
+    const step = Math.max(1, Math.floor(_meterAnalyser.frequencyBinCount / bars.length));
+    function frame() {
+      _meterAnalyser.getByteFrequencyData(data);
+      bars.forEach((b, i) => {
+        const v = data[i * step + 1] || 0;
+        const h = Math.max(5, (v / 255) * 36);
+        b.style.height = h + 'px';
+        b.style.background = v > 180
+          ? 'linear-gradient(180deg,#ff5050,#c01010)'
+          : v > 90
+          ? 'linear-gradient(180deg,#ffd100,#c89538)'
+          : 'linear-gradient(180deg,#6a8a2a,#2a4810)';
+      });
+      _meterAnim = requestAnimationFrame(frame);
+    }
+    _meterAnim = requestAnimationFrame(frame);
+  } catch(e) { console.warn('meter:', e); }
+}
+function stopMeter() {
+  if (_meterAnim) { cancelAnimationFrame(_meterAnim); _meterAnim = null; }
+  if (_meterStream) { _meterStream.getTracks().forEach(t => t.stop()); _meterStream = null; }
+  if (_meterCtx) { try { _meterCtx.close(); } catch(e){} _meterCtx = null; }
+  _meterAnalyser = null;
+  document.querySelectorAll('.meter').forEach(m => {
+    m.classList.remove('on');
+    m.querySelectorAll('.abar').forEach(b => {
+      b.style.height = '5px';
+      b.style.background = 'linear-gradient(180deg,#3a2808,#1a1208)';
+    });
+  });
+}
+
 function startListen(lang, onResult, onStart, onEnd) {
   if (!HAS_SR) return;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -768,22 +854,24 @@ function startListen(lang, onResult, onStart, onEnd) {
   recognition.lang = lang || 'en-US';
   recognition.interimResults = true;
   recognition.continuous = false;
-  recognition.onstart = onStart;
+  recognition.onstart = () => { startMeter(); onStart && onStart(); };
   recognition.onresult = (e) => {
     const transcript = Array.from(e.results).map(r => r[0].transcript).join(' ').trim();
     const isFinal = e.results[e.results.length-1].isFinal;
     onResult(transcript, isFinal);
   };
   recognition.onerror = (e) => {
+    stopMeter();
     if (e.error === 'not-allowed') requireMicThen(() => {});
     onEnd && onEnd();
   };
-  recognition.onend = onEnd;
+  recognition.onend = () => { stopMeter(); onEnd && onEnd(); };
   try { recognition.start(); } catch(e) { console.warn(e); }
 }
 
 function stopListen() {
   if (recognition) { try { recognition.stop(); } catch(e){} recognition = null; }
+  stopMeter();
 }
 
 function norm(s) {
