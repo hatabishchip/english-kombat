@@ -311,12 +311,11 @@
     <div id="prep-en" class="prep-en">—</div>
     <div id="prep-heard" class="heard">тапни 🎤 и скажи фразу</div>
   </div>
-  <div id="prep-meter" class="meter">
+  <div id="prep-meter" class="meter on">
     <div class="abar"></div><div class="abar"></div><div class="abar"></div><div class="abar"></div>
     <div class="abar"></div><div class="abar"></div><div class="abar"></div><div class="abar"></div>
   </div>
-  <button id="prep-mic" class="mic-btn" onclick="prepListen()">🎤 СКАЗАТЬ</button>
-  <button class="big-btn btn-dark" style="margin-top:8px;font-size:16px;padding:14px" onclick="prepSkip()">→ ПРОПУСТИТЬ</button>
+  <div id="prep-mic-label" style="font-family:'Russo One',sans-serif;font-size:20px;letter-spacing:2px;color:#ffd100;margin-top:14px;text-shadow:0 0 10px rgba(255,209,0,.5)">🎤 ГОВОРИ ВСЛУХ</div>
 </div>
 
 <!-- ── 4. BATTLE ── -->
@@ -534,6 +533,7 @@ function show(id) {
 }
 
 function goSexPick() {
+  state.prepActive = false;
   stopTimer(); stopListen();
   state.sex = null; state.charKey = null;
   state.hp = { player:100, bot:100 };
@@ -559,67 +559,71 @@ function pickSex(sex) {
 // ═════════════════════════════════════════════════════════════════
 function goPrep() {
   requireMicThen(() => {
+    if (!HAS_SR) { goBattle(true); return; }
     state.prepIdx = 0;
+    state.prepActive = true;
+    state.prepAdvancing = false;
     document.getElementById('prep-hero-mini').innerHTML = CHARS[state.charKey].svg(90);
     renderPrep();
     show('s-prep');
+    prepStartListening();
   });
 }
 
 function renderPrep() {
   const phrase = PHRASES[state.charKey][state.prepIdx];
-  document.getElementById('prep-progress').textContent = `ФРАЗА ${state.prepIdx + 1} ИЗ 3`;
   document.querySelector('#s-prep .prep-progress').textContent = `ФРАЗА ${state.prepIdx + 1} ИЗ 3 — ВЫУЧИ:`;
   document.getElementById('prep-ru').textContent = phrase.ru;
   document.getElementById('prep-en').textContent = phrase.en;
-  document.getElementById('prep-heard').textContent = 'тапни 🎤 и скажи фразу по-английски';
+  document.getElementById('prep-heard').textContent = 'просто скажи фразу вслух';
   document.getElementById('prep-heard').className = 'heard';
-  const mic = document.getElementById('prep-mic');
-  mic.textContent = '🎤 СКАЗАТЬ ПО-АНГЛИЙСКИ';
-  mic.classList.remove('listening');
 }
 
-function prepSkip() {
-  state.prepIdx++;
-  if (state.prepIdx >= 3) goBattle(true);
-  else renderPrep();
-}
-
-function prepListen() {
-  if (!HAS_SR) { goBattle(true); return; }
-  startListen('en-US', (transcript, isFinal) => {
-    document.getElementById('prep-heard').textContent = `«${transcript}»`;
-    if (isFinal) {
+// непрерывное прослушивание: распознал — рестарт, ничего тыкать не надо
+function prepStartListening() {
+  if (!state.prepActive) return;
+  startListen('en-US',
+    (transcript, isFinal) => {
+      if (state.prepAdvancing) return;
+      document.getElementById('prep-heard').textContent = `«${transcript}»`;
       const phrase = PHRASES[state.charKey][state.prepIdx];
-      const ok = checkAnswer(transcript, phrase.alts);
-      if (ok) {
-        document.getElementById('prep-heard').textContent = `✅ верно: «${transcript}»`;
+      if (checkAnswer(transcript, phrase.alts)) {
+        // верно → следующая фраза автоматически
+        state.prepAdvancing = true;
+        stopListen();
+        document.getElementById('prep-heard').textContent = `✅ верно!`;
         document.getElementById('prep-heard').className = 'heard';
-        setTimeout(() => prepSkip(), 900);
-      } else {
-        document.getElementById('prep-heard').textContent = `❌ услышал «${transcript}» — было «${phrase.en}»`;
-        document.getElementById('prep-heard').className = 'heard fail';
         setTimeout(() => {
-          document.getElementById('prep-heard').textContent = 'попробуй ещё раз';
-          document.getElementById('prep-heard').className = 'heard';
-        }, 2200);
+          state.prepIdx++;
+          if (state.prepIdx >= 3) {
+            state.prepActive = false;
+            goBattle(true);
+          } else {
+            renderPrep();
+            state.prepAdvancing = false;
+            prepStartListening();
+          }
+        }, 800);
+      } else if (isFinal) {
+        document.getElementById('prep-heard').textContent = `ещё раз: «${phrase.en}»`;
+        document.getElementById('prep-heard').className = 'heard fail';
+      }
+    },
+    () => {},   // onStart — метка/эквалайзер уже активны
+    () => {     // onEnd — авто-рестарт пока учим
+      if (state.prepActive && !state.prepAdvancing) {
+        setTimeout(() => prepStartListening(), 200);
       }
     }
-  }, () => {
-    const mic = document.getElementById('prep-mic');
-    mic.textContent = '🎤 СЛУШАЮ...';
-    mic.classList.add('listening');
-  }, () => {
-    const mic = document.getElementById('prep-mic');
-    mic.textContent = '🎤 СКАЗАТЬ ПО-АНГЛИЙСКИ';
-    mic.classList.remove('listening');
-  });
+  );
 }
 
 // ═════════════════════════════════════════════════════════════════
 //  БОЙ
 // ═════════════════════════════════════════════════════════════════
 function goBattle(fromPrep) {
+  state.prepActive = false;
+  stopListen();
   requireMicThen(() => {
     state.hp = { player:100, bot:100 };
     state.turn = 'player';
