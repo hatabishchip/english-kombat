@@ -101,10 +101,17 @@
     background:linear-gradient(180deg,#1a1208 0%,#080603 100%);
     border-top:2px solid #2a1c08;
   }
-  .fighter{display:flex;align-items:flex-end;justify-content:center;position:relative;z-index:2;}
+  .fighter{display:flex;align-items:flex-end;justify-content:center;position:relative;z-index:2;
+    transition:transform .3s ease,filter .3s ease,opacity .3s ease;transform-origin:bottom center;}
   .fighter svg{max-height:32vh;width:auto;height:auto;}
   .fighter > div{display:flex;}
   .fighter > div svg{max-height:32vh;width:auto;height:auto;}
+  /* активный боец вырастает и светится, пассивный тускнеет */
+  .fighter.active{transform:scale(1.12);filter:drop-shadow(0 0 18px rgba(255,233,120,.9));}
+  .fighter.idle{transform:scale(.9);filter:grayscale(.5) brightness(.6);opacity:.7;}
+  /* подсветка арены по очереди */
+  #battle-arena.turn-player{box-shadow:inset 0 0 60px rgba(60,255,120,.35);}
+  #battle-arena.turn-bot{box-shadow:inset 0 0 60px rgba(255,60,60,.4);}
   .hp-row{
     display:flex;align-items:center;gap:6px;width:42%;
     position:absolute;top:14px;
@@ -117,13 +124,27 @@
   .hp-fill.low{background:linear-gradient(180deg,#ff7f3f,#c83020);}
   .hp-fill.crit{background:linear-gradient(180deg,#ff3a3a,#a01010);}
   .turn-badge{
-    position:absolute;top:36px;left:50%;transform:translateX(-50%);
-    font-family:'Russo One',sans-serif;letter-spacing:2px;font-size:14px;
-    color:#ffd100;text-shadow:0 0 10px rgba(255,209,0,.6),0 1px 2px #000;
-    z-index:3;
+    position:absolute;top:34px;left:50%;transform:translateX(-50%);
+    font-family:'Russo One',sans-serif;letter-spacing:1.5px;font-size:clamp(15px,2.4vh,19px);
+    z-index:3;white-space:nowrap;padding:6px 16px;border-radius:20px;
+    border:2px solid;
+  }
+  .turn-badge.player{
+    color:#0a2812;background:linear-gradient(180deg,#7fff8f,#1aff66);border-color:#bfffcf;
+    text-shadow:0 1px 0 rgba(255,255,255,.4);
+    box-shadow:0 0 16px rgba(60,255,120,.6);
+    animation:turn-pulse 1s ease-in-out infinite;
+  }
+  .turn-badge.bot{
+    color:#fff;background:linear-gradient(180deg,#ff5a5a,#c81818);border-color:#ff9a9a;
+    text-shadow:0 1px 2px #000;box-shadow:0 0 14px rgba(255,60,60,.5);
+  }
+  @keyframes turn-pulse{
+    0%,100%{transform:translateX(-50%) scale(1);box-shadow:0 0 16px rgba(60,255,120,.6);}
+    50%{transform:translateX(-50%) scale(1.08);box-shadow:0 0 28px rgba(60,255,120,.95);}
   }
   .timer-big{
-    position:absolute;top:64px;left:50%;transform:translateX(-50%);
+    position:absolute;top:82px;left:50%;transform:translateX(-50%);
     font-family:'Russo One',sans-serif;font-size:42px;letter-spacing:1px;
     color:#fff;text-shadow:0 0 14px rgba(255,209,0,.7),0 3px 0 #5a4010;
     z-index:3;
@@ -509,20 +530,35 @@ function heroBarbieSVG(w = 180) {
 }
 
 // ═════════════════════════════════════════════════════════════════
-//  ФРАЗЫ — по 3 для подготовки и боя (повторяются)
+//  ФРАЗЫ — пул отношений (тема пары). Парень=halk, девушка=barbie.
+//  На игру берём 3 случайных из 7 (разнообразие при перезаходе).
 // ═════════════════════════════════════════════════════════════════
-const PHRASES = {
-  halk: [
-    { ru:'Я голоден', en:'I am hungry',         alts:['i am hungry','im hungry'] },
-    { ru:'Где мой обед', en:'Where is my lunch', alts:['where is my lunch','wheres my lunch'] },
-    { ru:'Я тебя ударю', en:'I will smash you',  alts:['i will smash you','ill smash you','i smash you'] },
+const PHRASE_POOL = {
+  halk: [   // парень
+    { ru:'У тебя красивые глаза',          en:'You have beautiful eyes',            alts:['you have beautiful eyes'] },
+    { ru:'Я не готов к серьёзным отношениям', en:"I'm not ready for a serious relationship", alts:["i'm not ready for a serious relationship",'im not ready for a serious relationship'] },
+    { ru:'Я не смотрел на неё',            en:"I wasn't looking at her",            alts:["i wasn't looking at her",'i was not looking at her'] },
+    { ru:'Мы слишком разные',              en:"We're too different",                alts:["we're too different",'we are too different'] },
+    { ru:'Посмотрим',                      en:"We'll see",                          alts:["we'll see",'we will see'] },
+    { ru:'Мне нужно подумать',             en:'I need to think about it',           alts:['i need to think about it'] },
+    { ru:'Я просто забыл',                 en:'I just forgot',                      alts:['i just forgot'] },
   ],
-  barbie: [
-    { ru:'Где моя розовая сумка', en:'Where is my pink bag', alts:['where is my pink bag','wheres my pink bag'] },
-    { ru:'Я хочу мороженое',      en:'I want ice cream',     alts:['i want ice cream','i want some ice cream'] },
-    { ru:'Это так мило',          en:"It's so cute",         alts:['its so cute','it is so cute','so cute'] },
+  barbie: [ // девушка
+    { ru:'Купи цветы',                     en:'Buy me flowers',                     alts:['buy me flowers'] },
+    { ru:'Ты смешной',                     en:"You're funny",                       alts:["you're funny",'you are funny','youre funny'] },
+    { ru:'Давай останемся друзьями',       en:"Let's stay friends",                 alts:["let's stay friends",'lets stay friends'] },
+    { ru:'Нам надо поговорить',            en:'We need to talk',                    alts:['we need to talk'] },
+    { ru:'Я не знаю, чего хочу',           en:"I don't know what I want",           alts:["i don't know what i want",'i do not know what i want'] },
+    { ru:'Ты меня любишь?',                en:'Do you love me?',                    alts:['do you love me'] },
+    { ru:'Ты меня вообще не слушаешь',     en:'You never listen to me',             alts:['you never listen to me'] },
   ],
 };
+// активный набор на текущую игру (3 фразы) — заполняется в pickSex
+let PHRASES = { halk: [], barbie: [] };
+function pickSessionPhrases(key) {
+  const pool = [...PHRASE_POOL[key]].sort(() => Math.random() - 0.5).slice(0, 3);
+  PHRASES[key] = pool;
+}
 
 // ═════════════════════════════════════════════════════════════════
 //  ПЕРЕХОДЫ ЭКРАНОВ
@@ -545,6 +581,7 @@ function goSexPick() {
 function pickSex(sex) {
   state.sex = sex;
   state.charKey = sex === 'male' ? 'halk' : 'barbie';
+  pickSessionPhrases(state.charKey);   // 3 случайных фразы на эту игру
   document.body.classList.remove('theme-halk','theme-barbie');
   document.body.classList.add(CHARS[state.charKey].theme);
   // render welcome
@@ -651,15 +688,38 @@ function setHP() {
   r.className = 'hp-fill' + (state.hp.bot < 35 ? ' crit' : state.hp.bot < 65 ? ' low' : '');
 }
 
+// подсветка арены и бойцов по очереди (ты слева, бот справа)
+function applyTurnVisuals(who) {
+  const arena = document.getElementById('battle-arena');
+  const fL = document.getElementById('fighter-left');
+  const fR = document.getElementById('fighter-right');
+  arena.classList.remove('turn-player','turn-bot');
+  arena.classList.add(who === 'player' ? 'turn-player' : 'turn-bot');
+  if (who === 'player') {
+    fL.classList.add('active');    fL.classList.remove('idle');
+    fR.classList.add('idle');      fR.classList.remove('active');
+  } else {
+    fR.classList.add('active');    fR.classList.remove('idle');
+    fL.classList.add('idle');      fL.classList.remove('active');
+  }
+}
+
 function beginTurn() {
   if (state.battleEnded) return;
   if (state.hp.player <= 0 || state.hp.bot <= 0) { endBattle(); return; }
   const phrase = PHRASES[state.charKey][state.phraseIdx % 3];
   document.getElementById('battle-phrase-ru').textContent = phrase.ru;
 
+  const arena = document.getElementById('battle-arena');
+  const fL = document.getElementById('fighter-left');
+  const fR = document.getElementById('fighter-right');
+
   if (state.turn === 'player') {
-    document.getElementById('turn-badge').textContent = 'ТВОЙ ХОД';
-    document.getElementById('turn-badge').style.color = '#ffd100';
+    applyTurnVisuals('player');
+    if (navigator.vibrate) navigator.vibrate(40);
+    const badge = document.getElementById('turn-badge');
+    badge.textContent = '🟢 ТВОЙ ХОД — ГОВОРИ!';
+    badge.className = 'turn-badge player';
     document.getElementById('battle-phrase-hint').textContent = '🎤 СКАЖИ ПО-АНГЛИЙСКИ — ЕСТЬ 6 СЕК';
     document.getElementById('battle-heard').textContent = '';
     document.getElementById('battle-heard').className = 'heard';
@@ -675,8 +735,11 @@ function beginTurn() {
       nextTurn();
     });
   } else {
-    document.getElementById('turn-badge').textContent = 'ХОД БОТА';
-    document.getElementById('turn-badge').style.color = '#ff5050';
+    applyTurnVisuals('bot');
+    if (navigator.vibrate) navigator.vibrate([20,40,20]);
+    const badge = document.getElementById('turn-badge');
+    badge.textContent = '🔴 ХОД БОТА — ЖДИ';
+    badge.className = 'turn-badge bot';
     document.getElementById('battle-phrase-hint').textContent = '🤖 бот говорит фразу';
     document.getElementById('battle-heard').textContent = '';
     document.getElementById('battle-heard').className = 'heard';
