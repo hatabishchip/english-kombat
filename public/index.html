@@ -513,6 +513,9 @@
     /* ══ OVERLAYS ══ */
     .ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:200;pointer-events:none;}
     .ov.on{display:flex;}
+    /* мик-гейт принимает тапы (в отличие от ov-tutor, который dismiss-on-tap) */
+    #ov-mic-gate{pointer-events:auto;}
+    #ov-mic-gate .tutor-card{pointer-events:auto;}
     /* result overlay — clickable to dismiss early */
     #ov-result.on{pointer-events:auto;cursor:pointer;}
     #ov-result.on::after{
@@ -6252,6 +6255,9 @@ function browserHelpText() {
 }
 function showMicGate(showHelp = false) {
   document.getElementById('ov-mic-gate').classList.add('on');
+  // на каждое появление возвращаем кнопку в видимое состояние (могла быть скрыта no-SR-ветка)
+  const allowBtn = document.getElementById('mic-gate-allow');
+  if (allowBtn) allowBtn.style.display = '';
   const help = document.getElementById('mic-gate-help');
   if (showHelp) {
     help.style.display = 'block';
@@ -6299,22 +6305,30 @@ function pauseBattleForMic() {
   setStatus('🎤 ожидаем доступ к микрофону...', 'mine');
 }
 // тап «РАЗРЕШИТЬ» — запрашиваем нативный диалог
-async function micGateAllow() {
-  if (!HAS_SR) return;
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    // сразу останавливаем дорожку — она нам не нужна, нужен только permission
-    stream.getTracks().forEach(t => t.stop());
-    onMicGranted();
-  } catch (e) {
-    // юзер deny в диалоге → показываем инструкцию как разблокировать
+// ВАЖНО для iOS Safari: getUserMedia должен вызываться СИНХРОННО в user-gesture,
+// без await перед ним — иначе iOS считает что это не «по тапу» и игнорирует.
+function micGateAllow() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     showMicGate(true);
+    document.getElementById('mic-gate-help-text').textContent =
+      'Браузер не поддерживает доступ к микрофону. Открой игру в Safari или Chrome.';
+    return;
   }
+  // ПЕРВЫЙ вызов — сразу getUserMedia, без await
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+      // нужен только permission — дорожку сразу стопаем
+      stream.getTracks().forEach(t => t.stop());
+      onMicGranted();
+    })
+    .catch(err => {
+      console.warn('[mic-gate] getUserMedia failed:', err && err.name, err && err.message);
+      // юзер deny в диалоге → показываем инструкцию как разблокировать
+      showMicGate(true);
+    });
 }
-async function micGateRetry() {
-  const st = await micPermissionState();
-  if (st === 'granted') { onMicGranted(); return; }
-  // ещё нет — пытаемся снова попросить (в Chrome это re-prompts только если не denied навсегда)
+function micGateRetry() {
+  // просто повторяем основной запрос — браузер сам решит показывать диалог или нет
   micGateAllow();
 }
 function onMicGranted() {
