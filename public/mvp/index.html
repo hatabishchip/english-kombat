@@ -160,6 +160,60 @@
     font-family:'Russo One',sans-serif;font-size:32px;letter-spacing:1px;
     color:#fff;text-shadow:0 0 10px rgba(255,209,0,.5),0 3px 0 #5a4010;
     line-height:1.2;margin-bottom:8px;
+    transition:color .2s ease,text-shadow .2s ease;
+  }
+  /* цвет реплики по говорящему: Халк зелёный, Барби розовый */
+  .phrase-ru.say-halk{color:#7fff8f;text-shadow:0 0 14px rgba(95,255,143,.8),0 3px 0 #063018;}
+  .phrase-ru.say-barbie{color:#ff8fd0;text-shadow:0 0 14px rgba(255,143,208,.85),0 3px 0 #7a0840;}
+  /* ── СОЧНЫЙ УДАР ── */
+  .fighter.shake{animation:hit-shake .42s ease;}
+  @keyframes hit-shake{
+    0%{transform:scale(1.12) translateX(0);}
+    15%{transform:scale(1.05) translateX(-12px) rotate(-4deg);}
+    30%{transform:scale(1.05) translateX(10px) rotate(3deg);}
+    45%{transform:scale(1.05) translateX(-8px) rotate(-2deg);}
+    60%{transform:scale(1.05) translateX(6px) rotate(2deg);}
+    100%{transform:scale(1.12) translateX(0);}
+  }
+  .dmg-num{
+    position:absolute;z-index:6;font-family:'Russo One',sans-serif;
+    font-size:38px;color:#fff;text-shadow:0 0 12px #ff3030,0 3px 0 #5a0808;
+    pointer-events:none;animation:dmg-fly 1s ease-out forwards;
+  }
+  @keyframes dmg-fly{
+    0%{opacity:0;transform:translateY(0) scale(.5);}
+    20%{opacity:1;transform:translateY(-20px) scale(1.3);}
+    100%{opacity:0;transform:translateY(-80px) scale(1);}
+  }
+  .boom{
+    position:absolute;z-index:6;font-size:90px;pointer-events:none;
+    left:50%;top:40%;transform:translate(-50%,-50%);
+    animation:boom-pop .5s ease-out forwards;
+  }
+  @keyframes boom-pop{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.3) rotate(-15deg);}
+    35%{opacity:1;transform:translate(-50%,-50%) scale(1.3) rotate(8deg);}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1.1) rotate(0);}
+  }
+  #hit-flash{
+    position:fixed;inset:0;z-index:5;pointer-events:none;opacity:0;
+    background:radial-gradient(circle at 50% 45%,rgba(255,255,255,.6),transparent 60%);
+  }
+  #hit-flash.on{animation:flash-fade .35s ease-out;}
+  @keyframes flash-fade{0%{opacity:0;}25%{opacity:1;}100%{opacity:0;}}
+  #scored-banner{
+    position:fixed;left:50%;top:42%;transform:translate(-50%,-50%) scale(.5);
+    z-index:7;pointer-events:none;opacity:0;
+    font-family:'Russo One',sans-serif;font-size:42px;letter-spacing:2px;
+    color:#7fff8f;text-shadow:0 0 18px rgba(95,255,143,.9),0 4px 0 #063018;
+    white-space:nowrap;
+  }
+  #scored-banner.on{animation:scored-pop .9s ease-out;}
+  @keyframes scored-pop{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.4);}
+    25%{opacity:1;transform:translate(-50%,-50%) scale(1.15);}
+    70%{opacity:1;transform:translate(-50%,-50%) scale(1);}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1);}
   }
   .phrase-hint{
     font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#c8a868;
@@ -402,6 +456,9 @@
   </div>
 </div>
 
+<div id="hit-flash"></div>
+<div id="scored-banner">✅ ЗАСЧИТАНО!</div>
+
 <div class="disclaimer">фейк промокод для теста · english-kombat.vercel.app</div>
 
 <script>
@@ -413,11 +470,13 @@ const state = {
   charKey: null,     // 'halk' | 'barbie'
   hp: { player:100, bot:100 },
   turn: 'player',    // 'player' | 'bot'
-  phraseIdx: 0,      // индекс текущей фразы в круговом боксе
+  pIdx: 0,           // индекс фразы игрока
+  bIdx: 0,           // индекс фразы бота
   prepIdx: 0,
   timerId: null,
   turnSecondsLeft: 0,
   battleEnded: false,
+  battleListening: false,
 };
 
 // ═════════════════════════════════════════════════════════════════
@@ -426,13 +485,13 @@ const state = {
 const CHARS = {
   halk: {
     name: 'ХАЛК',
-    tag: 'злой и голодный',
+    tag: 'ты злой и сильный · ты не голодный',
     theme: 'theme-halk',
     svg: heroHalkSVG,
   },
   barbie: {
     name: 'БАРБИ',
-    tag: 'мило и грозно',
+    tag: 'ты сексуальная и женственная',
     theme: 'theme-barbie',
     svg: heroBarbieSVG,
   },
@@ -535,35 +594,37 @@ function heroBarbieSVG(w = 180) {
 // ═════════════════════════════════════════════════════════════════
 const PHRASE_POOL = {
   halk: [   // парень
-    { ru:'У тебя красивые глаза',          en:'You have beautiful eyes',            alts:['you have beautiful eyes'] },
-    { ru:'Я не готов к серьёзным отношениям', en:"I'm not ready for a serious relationship", alts:["i'm not ready for a serious relationship",'im not ready for a serious relationship'] },
-    { ru:'Я не смотрел на неё',            en:"I wasn't looking at her",            alts:["i wasn't looking at her",'i was not looking at her'] },
-    { ru:'Мы слишком разные',              en:"We're too different",                alts:["we're too different",'we are too different'] },
-    { ru:'Посмотрим',                      en:"We'll see",                          alts:["we'll see",'we will see'] },
-    { ru:'Мне нужно подумать',             en:'I need to think about it',           alts:['i need to think about it'] },
-    { ru:'Я просто забыл',                 en:'I just forgot',                      alts:['i just forgot'] },
-    { ru:'Это не то, что ты думаешь',      en:"It's not what you think",            alts:["it's not what you think",'its not what you think'] },
-    { ru:'Я был занят',                    en:'I was busy',                         alts:['i was busy'] },
-    { ru:'Дай мне немного времени',        en:'Give me some time',                  alts:['give me some time'] },
+    { ru:'У тебя красивые глаза',          en:'You have beautiful eyes',            alts:['you have beautiful eyes','your eyes are beautiful',"you've got beautiful eyes",'you got beautiful eyes','beautiful eyes'] },
+    { ru:'Я не готов к серьёзным отношениям', en:"I'm not ready for a serious relationship", alts:["i'm not ready for a serious relationship",'im not ready for a serious relationship','i am not ready for a serious relationship','not ready for a serious relationship','im not ready for a relationship'] },
+    { ru:'Я не смотрел на неё',            en:"I wasn't looking at her",            alts:["i wasn't looking at her",'i was not looking at her','i wasnt looking at her','i was not looking at her i swear'] },
+    { ru:'Мы слишком разные',              en:"We're too different",                alts:["we're too different",'we are too different','were too different','we are so different'] },
+    { ru:'Посмотрим',                      en:"We'll see",                          alts:["we'll see",'we will see','well see','let us see','let\'s see'] },
+    { ru:'Мне нужно подумать',             en:'I need to think about it',           alts:['i need to think about it','i need some time to think','let me think about it','i have to think about it'] },
+    { ru:'Я просто забыл',                 en:'I just forgot',                      alts:['i just forgot','i forgot','i simply forgot','sorry i forgot'] },
+    { ru:'Это не то, что ты думаешь',      en:"It's not what you think",            alts:["it's not what you think",'its not what you think','it is not what you think','that is not what you think'] },
+    { ru:'Я был занят',                    en:'I was busy',                         alts:['i was busy','i have been busy','i was really busy','i was so busy'] },
+    { ru:'Дай мне немного времени',        en:'Give me some time',                  alts:['give me some time','give me a little time','give me a bit of time','give me time'] },
   ],
   barbie: [ // девушка
-    { ru:'Купи цветы',                     en:'Buy me flowers',                     alts:['buy me flowers'] },
-    { ru:'Ты смешной',                     en:"You're funny",                       alts:["you're funny",'you are funny','youre funny'] },
-    { ru:'Давай останемся друзьями',       en:"Let's stay friends",                 alts:["let's stay friends",'lets stay friends'] },
-    { ru:'Нам надо поговорить',            en:'We need to talk',                    alts:['we need to talk'] },
-    { ru:'Я не знаю, чего хочу',           en:"I don't know what I want",           alts:["i don't know what i want",'i do not know what i want'] },
-    { ru:'Ты меня любишь?',                en:'Do you love me?',                    alts:['do you love me'] },
-    { ru:'Ты меня вообще не слушаешь',     en:'You never listen to me',             alts:['you never listen to me'] },
-    { ru:'Ты опять опоздал',               en:"You're late again",                  alts:["you're late again",'you are late again','youre late again'] },
-    { ru:'Кто это написал тебе?',          en:'Who texted you?',                    alts:['who texted you','who texted you?'] },
-    { ru:'Я не злюсь',                     en:"I'm not angry",                      alts:["i'm not angry",'im not angry','i am not angry'] },
+    { ru:'Купи цветы',                     en:'Buy me flowers',                     alts:['buy me flowers','buy me some flowers','get me flowers','can you buy me flowers'] },
+    { ru:'Ты смешной',                     en:"You're funny",                       alts:["you're funny",'you are funny','youre funny','you so funny','you are so funny'] },
+    { ru:'Давай останемся друзьями',       en:"Let's stay friends",                 alts:["let's stay friends",'lets stay friends','can we stay friends','let us stay friends','we can stay friends'] },
+    { ru:'Нам надо поговорить',            en:'We need to talk',                    alts:['we need to talk','we have to talk','we should talk','can we talk'] },
+    { ru:'Я не знаю, чего хочу',           en:"I don't know what I want",           alts:["i don't know what i want",'i do not know what i want','i dont know what i want','i dont know what i really want'] },
+    { ru:'Ты меня любишь?',                en:'Do you love me?',                    alts:['do you love me','do you really love me','do you still love me'] },
+    { ru:'Ты меня вообще не слушаешь',     en:'You never listen to me',             alts:['you never listen to me','you dont listen to me',"you don't listen to me",'you are not listening to me','you never listen'] },
+    { ru:'Ты опять опоздал',               en:"You're late again",                  alts:["you're late again",'you are late again','youre late again','you are late','you came late again'] },
+    { ru:'Кто это написал тебе?',          en:'Who texted you?',                    alts:['who texted you','who text you','who just texted you','who messaged you','who was texting you'] },
+    { ru:'Я не злюсь',                     en:"I'm not angry",                      alts:["i'm not angry",'im not angry','i am not angry','im not mad','i am not mad','i\'m not mad'] },
   ],
 };
 // активный набор на текущую игру (3 фразы) — заполняется в pickSex
 let PHRASES = { halk: [], barbie: [] };
+// набираем по 3 фразы И игроку, И боту (бот — противоположный пол) на эту игру
 function pickSessionPhrases(key) {
-  const pool = [...PHRASE_POOL[key]].sort(() => Math.random() - 0.5).slice(0, 3);
-  PHRASES[key] = pool;
+  const other = key === 'halk' ? 'barbie' : 'halk';
+  PHRASES[key]   = [...PHRASE_POOL[key]].sort(() => Math.random() - 0.5).slice(0, 3);
+  PHRASES[other] = [...PHRASE_POOL[other]].sort(() => Math.random() - 0.5).slice(0, 3);
 }
 
 // ═════════════════════════════════════════════════════════════════
@@ -671,7 +732,8 @@ function goBattle(fromPrep) {
   requireMicThen(() => {
     state.hp = { player:100, bot:100 };
     state.turn = 'player';
-    state.phraseIdx = 0;
+    state.pIdx = 0;
+    state.bIdx = 0;
     state.battleEnded = false;
     // render fighters: ты слева, бот справа (бот = противоположный персонаж)
     document.getElementById('fighter-left').innerHTML  = CHARS[state.charKey].svg(140);
@@ -714,14 +776,15 @@ function applyTurnVisuals(who) {
 function beginTurn() {
   if (state.battleEnded) return;
   if (state.hp.player <= 0 || state.hp.bot <= 0) { endBattle(); return; }
-  const phrase = PHRASES[state.charKey][state.phraseIdx % 3];
-  document.getElementById('battle-phrase-ru').textContent = phrase.ru;
 
-  const arena = document.getElementById('battle-arena');
-  const fL = document.getElementById('fighter-left');
-  const fR = document.getElementById('fighter-right');
+  const playerKey = state.charKey;
+  const botKey    = playerKey === 'halk' ? 'barbie' : 'halk';
+  const phraseEl  = document.getElementById('battle-phrase-ru');
 
   if (state.turn === 'player') {
+    const phrase = PHRASES[playerKey][state.pIdx % 3];
+    phraseEl.textContent = phrase.ru;
+    phraseEl.className = 'phrase-ru say-' + playerKey;   // твоя реплика — цвет твоего пола
     applyTurnVisuals('player');
     if (navigator.vibrate) navigator.vibrate(40);
     const badge = document.getElementById('turn-badge');
@@ -742,15 +805,18 @@ function beginTurn() {
       nextTurn();
     });
   } else {
+    const phrase = PHRASES[botKey][state.bIdx % 3];
+    phraseEl.textContent = phrase.ru;
+    phraseEl.className = 'phrase-ru say-' + botKey;      // реплика бота — цвет его пола
     applyTurnVisuals('bot');
     if (navigator.vibrate) navigator.vibrate([20,40,20]);
     const badge = document.getElementById('turn-badge');
-    badge.textContent = '🔴 ХОД БОТА — ЖДИ';
+    badge.textContent = '🔴 ХОД БОТА — ОТВЕЧАЕТ';
     badge.className = 'turn-badge bot';
-    document.getElementById('battle-phrase-hint').textContent = '🤖 бот говорит фразу';
+    document.getElementById('battle-phrase-hint').textContent = '🤖 ' + CHARS[botKey].name + ' отвечает';
     document.getElementById('battle-heard').textContent = '';
     document.getElementById('battle-heard').className = 'heard';
-    document.getElementById('battle-mic-label').textContent = '⏸ ЖДЁМ БОТА';
+    document.getElementById('battle-mic-label').textContent = '⏸ ЖДЁМ ОТВЕТ';
     state.battleListening = false;
     stopListen();
     // бот «думает» 1-2 сек, потом результат
@@ -759,14 +825,14 @@ function beginTurn() {
       if (success) {
         state.hp.player = Math.max(0, state.hp.player - 34);
         setHP();
-        document.getElementById('battle-heard').textContent = '💥 бот попал!';
+        bigHit('left', 34);
+        document.getElementById('battle-heard').textContent = '💥 ' + CHARS[botKey].name + ' попал!';
         document.getElementById('battle-heard').className = 'heard fail';
-        flashHit('left');
       } else {
-        document.getElementById('battle-heard').textContent = '🤖 бот промахнулся';
+        document.getElementById('battle-heard').textContent = '🤖 мимо!';
         document.getElementById('battle-heard').className = 'heard';
       }
-      setTimeout(() => nextTurn(), 900);
+      setTimeout(() => nextTurn(), 1000);
     });
   }
 }
@@ -794,7 +860,8 @@ function nextTurn() {
   stopTimer();
   stopListen();
   if (state.hp.player <= 0 || state.hp.bot <= 0) { endBattle(); return; }
-  state.phraseIdx++;
+  // двигаем индекс той стороны, что только что ходила
+  if (state.turn === 'player') state.pIdx++; else state.bIdx++;
   state.turn = state.turn === 'player' ? 'bot' : 'player';
   setTimeout(() => beginTurn(), 700);
 }
@@ -807,17 +874,17 @@ function battleStartListening() {
     (transcript, isFinal) => {
       if (!state.battleListening) return;
       document.getElementById('battle-heard').textContent = `«${transcript}»`;
-      const phrase = PHRASES[state.charKey][state.phraseIdx % 3];
+      const phrase = PHRASES[state.charKey][state.pIdx % 3];
       if (checkAnswer(transcript, phrase.alts)) {
         state.battleListening = false;
         state.hp.bot = Math.max(0, state.hp.bot - 34);
         setHP();
-        flashHit('right');
-        document.getElementById('battle-heard').textContent = '💥 удар попал!';
+        bigHit('right', 34);
+        document.getElementById('battle-heard').textContent = '✅ ЗАСЧИТАНО!';
         document.getElementById('battle-heard').className = 'heard';
         stopListen();
         stopTimer();
-        setTimeout(() => nextTurn(), 700);
+        setTimeout(() => nextTurn(), 1000);
       } else if (isFinal) {
         document.getElementById('battle-heard').textContent = `❌ услышал «${transcript}» — ещё раз`;
         document.getElementById('battle-heard').className = 'heard fail';
@@ -832,12 +899,38 @@ function battleStartListening() {
   );
 }
 
-function flashHit(side) {
-  const arena = document.getElementById('battle-arena');
-  arena.style.background = side === 'left'
-    ? 'radial-gradient(circle at 25% 50%,rgba(255,80,80,.5),rgba(20,15,30,0) 60%),linear-gradient(180deg,#0a0814 0%,#16102a 55%,#0c0908 100%)'
-    : 'radial-gradient(circle at 75% 50%,rgba(255,220,80,.5),rgba(20,15,30,0) 60%),linear-gradient(180deg,#0a0814 0%,#16102a 55%,#0c0908 100%)';
-  setTimeout(() => arena.style.background = '', 350);
+// СОЧНЫЙ удар: тряска бойца + 💥 + вспышка экрана + цифра урона (+ ЗАСЧИТАНО для удара игрока)
+function bigHit(side, dmg) {
+  // side = кого бьём: 'left' (игрок получил) | 'right' (бот получил = твой удар засчитан)
+  const fighter = document.getElementById(side === 'left' ? 'fighter-left' : 'fighter-right');
+  const arena   = document.getElementById('battle-arena');
+  // тряска
+  fighter.classList.remove('shake'); void fighter.offsetWidth; fighter.classList.add('shake');
+  setTimeout(() => fighter.classList.remove('shake'), 450);
+  // 💥 над бойцом
+  const boom = document.createElement('div');
+  boom.className = 'boom'; boom.textContent = '💥';
+  boom.style.left = side === 'left' ? '25%' : '75%';
+  boom.style.top  = '38%';
+  arena.appendChild(boom);
+  setTimeout(() => boom.remove(), 520);
+  // цифра урона
+  const num = document.createElement('div');
+  num.className = 'dmg-num'; num.textContent = '−' + dmg;
+  num.style.left = side === 'left' ? '22%' : '72%';
+  num.style.top  = '30%';
+  arena.appendChild(num);
+  setTimeout(() => num.remove(), 1000);
+  // вспышка экрана
+  const flash = document.getElementById('hit-flash');
+  flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on');
+  // вибро покрепче
+  if (navigator.vibrate) navigator.vibrate([30, 30, 60]);
+  // «ЗАСЧИТАНО» только когда попал ИГРОК (бот справа)
+  if (side === 'right') {
+    const banner = document.getElementById('scored-banner');
+    banner.classList.remove('on'); void banner.offsetWidth; banner.classList.add('on');
+  }
 }
 
 function endBattle() {
