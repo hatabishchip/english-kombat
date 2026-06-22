@@ -363,7 +363,7 @@
       <div class="abar"></div><div class="abar"></div><div class="abar"></div><div class="abar"></div>
       <div class="abar"></div><div class="abar"></div><div class="abar"></div><div class="abar"></div>
     </div>
-    <button id="battle-mic" class="mic-btn" onclick="battleListen()">🎤 ГОВОРИ</button>
+    <div id="battle-mic-label" style="font-family:'Russo One',sans-serif;font-size:18px;letter-spacing:2px;color:#ffd100;margin-top:10px;text-shadow:0 0 10px rgba(255,209,0,.5);min-height:24px">🎤 ГОВОРИ ВСЛУХ</div>
   </div>
 </div>
 
@@ -542,6 +542,9 @@ const PHRASE_POOL = {
     { ru:'Посмотрим',                      en:"We'll see",                          alts:["we'll see",'we will see'] },
     { ru:'Мне нужно подумать',             en:'I need to think about it',           alts:['i need to think about it'] },
     { ru:'Я просто забыл',                 en:'I just forgot',                      alts:['i just forgot'] },
+    { ru:'Это не то, что ты думаешь',      en:"It's not what you think",            alts:["it's not what you think",'its not what you think'] },
+    { ru:'Я был занят',                    en:'I was busy',                         alts:['i was busy'] },
+    { ru:'Дай мне немного времени',        en:'Give me some time',                  alts:['give me some time'] },
   ],
   barbie: [ // девушка
     { ru:'Купи цветы',                     en:'Buy me flowers',                     alts:['buy me flowers'] },
@@ -551,6 +554,9 @@ const PHRASE_POOL = {
     { ru:'Я не знаю, чего хочу',           en:"I don't know what I want",           alts:["i don't know what i want",'i do not know what i want'] },
     { ru:'Ты меня любишь?',                en:'Do you love me?',                    alts:['do you love me'] },
     { ru:'Ты меня вообще не слушаешь',     en:'You never listen to me',             alts:['you never listen to me'] },
+    { ru:'Ты опять опоздал',               en:"You're late again",                  alts:["you're late again",'you are late again','youre late again'] },
+    { ru:'Кто это написал тебе?',          en:'Who texted you?',                    alts:['who texted you','who texted you?'] },
+    { ru:'Я не злюсь',                     en:"I'm not angry",                      alts:["i'm not angry",'im not angry','i am not angry'] },
   ],
 };
 // активный набор на текущую игру (3 фразы) — заполняется в pickSex
@@ -570,6 +576,7 @@ function show(id) {
 
 function goSexPick() {
   state.prepActive = false;
+  state.battleListening = false;
   stopTimer(); stopListen();
   state.sex = null; state.charKey = null;
   state.hp = { player:100, bot:100 };
@@ -723,12 +730,12 @@ function beginTurn() {
     document.getElementById('battle-phrase-hint').textContent = '🎤 СКАЖИ ПО-АНГЛИЙСКИ — ЕСТЬ 6 СЕК';
     document.getElementById('battle-heard').textContent = '';
     document.getElementById('battle-heard').className = 'heard';
-    const mic = document.getElementById('battle-mic');
-    mic.textContent = '🎤 ГОВОРИ!';
-    mic.classList.remove('listening');
-    mic.disabled = false;
+    document.getElementById('battle-mic-label').textContent = '🎤 ГОВОРИ ВСЛУХ';
+    state.battleListening = true;
+    battleStartListening();      // микрофон сам, без кнопки
     startCountdown(6, () => {
       // время вышло — пропуск, удар не засчитан
+      state.battleListening = false;
       stopListen();
       document.getElementById('battle-heard').textContent = '⏱ время вышло';
       document.getElementById('battle-heard').className = 'heard fail';
@@ -743,10 +750,9 @@ function beginTurn() {
     document.getElementById('battle-phrase-hint').textContent = '🤖 бот говорит фразу';
     document.getElementById('battle-heard').textContent = '';
     document.getElementById('battle-heard').className = 'heard';
-    const mic = document.getElementById('battle-mic');
-    mic.disabled = true;
-    mic.textContent = '⏸ ЖДЁМ БОТА';
-    mic.classList.remove('listening');
+    document.getElementById('battle-mic-label').textContent = '⏸ ЖДЁМ БОТА';
+    state.battleListening = false;
+    stopListen();
     // бот «думает» 1-2 сек, потом результат
     startCountdown(3, () => {
       const success = Math.random() < 0.65;   // 65% бот попадает
@@ -784,6 +790,7 @@ function stopTimer() {
 }
 
 function nextTurn() {
+  state.battleListening = false;
   stopTimer();
   stopListen();
   if (state.hp.player <= 0 || state.hp.bot <= 0) { endBattle(); return; }
@@ -792,34 +799,37 @@ function nextTurn() {
   setTimeout(() => beginTurn(), 700);
 }
 
-function battleListen() {
-  if (state.turn !== 'player' || state.battleEnded) return;
+// авто-прослушивание в твой ход: микрофон сам, рестарт пока окно хода открыто
+function battleStartListening() {
   if (!HAS_SR) return;
-  startListen('en-US', (transcript, isFinal) => {
-    document.getElementById('battle-heard').textContent = `«${transcript}»`;
-    const phrase = PHRASES[state.charKey][state.phraseIdx % 3];
-    if (checkAnswer(transcript, phrase.alts)) {
-      state.hp.bot = Math.max(0, state.hp.bot - 34);
-      setHP();
-      flashHit('right');
-      document.getElementById('battle-heard').textContent = '💥 удар попал!';
-      document.getElementById('battle-heard').className = 'heard';
-      stopListen();
-      stopTimer();
-      setTimeout(() => nextTurn(), 700);
-    } else if (isFinal) {
-      document.getElementById('battle-heard').textContent = `❌ услышал «${transcript}»`;
-      document.getElementById('battle-heard').className = 'heard fail';
+  if (!state.battleListening || state.turn !== 'player' || state.battleEnded) return;
+  startListen('en-US',
+    (transcript, isFinal) => {
+      if (!state.battleListening) return;
+      document.getElementById('battle-heard').textContent = `«${transcript}»`;
+      const phrase = PHRASES[state.charKey][state.phraseIdx % 3];
+      if (checkAnswer(transcript, phrase.alts)) {
+        state.battleListening = false;
+        state.hp.bot = Math.max(0, state.hp.bot - 34);
+        setHP();
+        flashHit('right');
+        document.getElementById('battle-heard').textContent = '💥 удар попал!';
+        document.getElementById('battle-heard').className = 'heard';
+        stopListen();
+        stopTimer();
+        setTimeout(() => nextTurn(), 700);
+      } else if (isFinal) {
+        document.getElementById('battle-heard').textContent = `❌ услышал «${transcript}» — ещё раз`;
+        document.getElementById('battle-heard').className = 'heard fail';
+      }
+    },
+    () => {},   // onStart — эквалайзер сам
+    () => {     // onEnd — рестарт пока идёт твой ход
+      if (state.battleListening && state.turn === 'player' && !state.battleEnded) {
+        setTimeout(() => battleStartListening(), 150);
+      }
     }
-  }, () => {
-    const mic = document.getElementById('battle-mic');
-    mic.textContent = '🎤 СЛУШАЮ...';
-    mic.classList.add('listening');
-  }, () => {
-    const mic = document.getElementById('battle-mic');
-    mic.textContent = '🎤 ГОВОРИ!';
-    mic.classList.remove('listening');
-  });
+  );
 }
 
 function flashHit(side) {
@@ -832,6 +842,7 @@ function flashHit(side) {
 
 function endBattle() {
   state.battleEnded = true;
+  state.battleListening = false;
   stopTimer(); stopListen();
   const won = state.hp.bot <= 0 && state.hp.player > 0;
   document.getElementById('finale-emoji').textContent = won ? '🏆' : '💀';
@@ -874,45 +885,37 @@ function sendWhatsapp() {
 const HAS_SR = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 let recognition = null;
 
-// ── ЭКВАЛАЙЗЕР: визуализация громкости голоса с микрофона ──
-let _meterStream = null, _meterCtx = null, _meterAnalyser = null, _meterAnim = null, _meterEl = null;
-async function startMeter() {
-  // показываем эквалайзер активного экрана
+// ── ЭКВАЛАЙЗЕР: ЧИСТО АНИМИРОВАННЫЙ (без getUserMedia!).
+//   Раньше держал свой mic-поток и конфликтовал с распознаванием на iOS.
+//   Теперь столбики «танцуют» сами — микрофон полностью свободен для Speech API.
+let _meterAnim = null, _meterEl = null, _meterT = 0;
+function startMeter() {
   _meterEl = document.querySelector('.screen.on .meter');
-  if (_meterEl) _meterEl.classList.add('on');
-  try {
-    _meterStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    _meterCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (_meterCtx.state === 'suspended') { try { await _meterCtx.resume(); } catch(e){} }
-    _meterAnalyser = _meterCtx.createAnalyser();
-    _meterAnalyser.fftSize = 128;
-    _meterAnalyser.smoothingTimeConstant = 0.72;
-    _meterCtx.createMediaStreamSource(_meterStream).connect(_meterAnalyser);
-    const data = new Uint8Array(_meterAnalyser.frequencyBinCount);
-    const bars = _meterEl ? _meterEl.querySelectorAll('.abar') : [];
-    const step = Math.max(1, Math.floor(_meterAnalyser.frequencyBinCount / bars.length));
-    function frame() {
-      _meterAnalyser.getByteFrequencyData(data);
-      bars.forEach((b, i) => {
-        const v = data[i * step + 1] || 0;
-        const h = Math.max(5, Math.min(30, (v / 255) * 30));
-        b.style.height = h + 'px';
-        b.style.background = v > 180
-          ? 'linear-gradient(180deg,#ff5050,#c01010)'
-          : v > 90
-          ? 'linear-gradient(180deg,#ffd100,#c89538)'
-          : 'linear-gradient(180deg,#6a8a2a,#2a4810)';
-      });
-      _meterAnim = requestAnimationFrame(frame);
-    }
+  if (!_meterEl) return;
+  _meterEl.classList.add('on');
+  const bars = _meterEl.querySelectorAll('.abar');
+  _meterT = 0;
+  function frame() {
+    _meterT += 0.18;
+    bars.forEach((b, i) => {
+      // плавная псевдослучайная волна на каждый столбик + лёгкий джиттер
+      const wave = Math.sin(_meterT + i * 0.7) * 0.5 + 0.5;        // 0..1
+      const jit  = (Math.sin(_meterT * 3.1 + i * 2.3) * 0.5 + 0.5) * 0.5;
+      const lvl  = Math.min(1, wave * 0.7 + jit * 0.5);
+      const h = Math.max(5, Math.min(30, 6 + lvl * 24));
+      b.style.height = h + 'px';
+      b.style.background = lvl > 0.7
+        ? 'linear-gradient(180deg,#ff5050,#c01010)'
+        : lvl > 0.4
+        ? 'linear-gradient(180deg,#ffd100,#c89538)'
+        : 'linear-gradient(180deg,#6a8a2a,#2a4810)';
+    });
     _meterAnim = requestAnimationFrame(frame);
-  } catch(e) { console.warn('meter:', e); }
+  }
+  _meterAnim = requestAnimationFrame(frame);
 }
 function stopMeter() {
   if (_meterAnim) { cancelAnimationFrame(_meterAnim); _meterAnim = null; }
-  if (_meterStream) { _meterStream.getTracks().forEach(t => t.stop()); _meterStream = null; }
-  if (_meterCtx) { try { _meterCtx.close(); } catch(e){} _meterCtx = null; }
-  _meterAnalyser = null;
   document.querySelectorAll('.meter').forEach(m => {
     m.classList.remove('on');
     m.querySelectorAll('.abar').forEach(b => {
