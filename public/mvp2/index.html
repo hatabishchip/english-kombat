@@ -106,12 +106,26 @@
   .fighter svg{max-height:32vh;width:auto;height:auto;}
   .fighter > div{display:flex;}
   .fighter > div svg{max-height:32vh;width:auto;height:auto;}
-  /* активный боец вырастает и светится, пассивный тускнеет */
-  .fighter.active{transform:scale(1.12);filter:drop-shadow(0 0 18px rgba(255,233,120,.9));}
-  .fighter.idle{transform:scale(.9);filter:grayscale(.5) brightness(.6);opacity:.7;}
+  /* СИЛЬНЫЙ контраст: активный крупный и яркий, противник в половину + серый */
+  .fighter.active{transform:scale(1.2);filter:drop-shadow(0 0 22px rgba(255,233,120,1));z-index:2;}
+  .fighter.idle{transform:scale(.55);filter:grayscale(1) brightness(.4);opacity:.45;z-index:1;}
   /* подсветка арены по очереди */
   #battle-arena.turn-player{box-shadow:inset 0 0 60px rgba(60,255,120,.35);}
   #battle-arena.turn-bot{box-shadow:inset 0 0 60px rgba(255,60,60,.4);}
+  /* метка «ТЫ / СОПЕРНИК» у ног бойца */
+  .fighter-tag{
+    position:absolute;bottom:6px;z-index:4;
+    font-family:'Russo One',sans-serif;font-size:14px;letter-spacing:2px;
+    padding:3px 12px;border-radius:14px;border:2px solid;white-space:nowrap;
+    opacity:.35;transition:all .3s ease;
+  }
+  #tag-left{left:9%;color:#ffd100;border-color:#ffd100;background:rgba(40,30,8,.9);}
+  #tag-right{right:9%;color:#aaa;border-color:#888;background:rgba(20,20,24,.9);}
+  .fighter-tag.active{
+    opacity:1;box-shadow:0 0 16px currentColor;
+    animation:tag-bounce 1s ease-in-out infinite;
+  }
+  @keyframes tag-bounce{0%,100%{transform:scale(1.22) translateY(0);}50%{transform:scale(1.3) translateY(-3px);}}
   .hp-row{
     display:flex;align-items:center;gap:6px;width:42%;
     position:absolute;top:14px;
@@ -126,7 +140,7 @@
   .turn-badge{
     position:absolute;top:34px;left:50%;transform:translateX(-50%);
     font-family:'Russo One',sans-serif;letter-spacing:1.5px;font-size:clamp(15px,2.4vh,19px);
-    z-index:3;white-space:nowrap;padding:6px 16px;border-radius:20px;
+    z-index:6;white-space:nowrap;padding:6px 16px;border-radius:20px;
     border:2px solid;
   }
   .turn-badge.player{
@@ -215,6 +229,13 @@
     70%{opacity:1;transform:translate(-50%,-50%) scale(1);}
     100%{opacity:0;transform:translate(-50%,-50%) scale(1);}
   }
+  /* английский текст крупно — читаешь вслух и попадаешь */
+  .phrase-en-big{
+    font-family:'Russo One',sans-serif;font-size:26px;letter-spacing:.5px;
+    color:#fff;text-shadow:0 0 16px rgba(255,255,255,.5),0 2px 0 #000;
+    line-height:1.15;margin-bottom:6px;min-height:30px;
+  }
+  .phrase-en-big.hidden{visibility:hidden;}
   .phrase-hint{
     font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#c8a868;
     margin-bottom:12px;
@@ -408,10 +429,13 @@
     <div id="timer-big" class="timer-big">6</div>
     <div id="fighter-left"  class="fighter"></div>
     <div id="fighter-right" class="fighter"></div>
+    <div id="tag-left"  class="fighter-tag">ТЫ</div>
+    <div id="tag-right" class="fighter-tag">СОПЕРНИК</div>
   </div>
   <div class="phrase-zone">
     <div id="battle-phrase-ru" class="phrase-ru">—</div>
-    <div id="battle-phrase-hint" class="phrase-hint">🎤 СКАЖИ ФРАЗУ ПО-АНГЛИЙСКИ</div>
+    <div id="battle-phrase-en" class="phrase-en-big">—</div>
+    <div id="battle-phrase-hint" class="phrase-hint">👇 ПРОЧИТАЙ ВСЛУХ ПО-АНГЛИЙСКИ</div>
     <div id="battle-heard" class="heard">&nbsp;</div>
     <div id="battle-meter" class="meter">
       <div class="abar"></div><div class="abar"></div><div class="abar"></div><div class="abar"></div>
@@ -593,29 +617,29 @@ function heroBarbieSVG(w = 180) {
 //  На игру берём 3 случайных из 7 (разнообразие при перезаходе).
 // ═════════════════════════════════════════════════════════════════
 const PHRASE_POOL = {
-  halk: [   // парень
-    { ru:'У тебя красивые глаза',          en:'You have beautiful eyes',            alts:['you have beautiful eyes','your eyes are beautiful',"you've got beautiful eyes",'you got beautiful eyes','beautiful eyes'] },
-    { ru:'Я не готов к серьёзным отношениям', en:"I'm not ready for a serious relationship", alts:["i'm not ready for a serious relationship",'im not ready for a serious relationship','i am not ready for a serious relationship','not ready for a serious relationship','im not ready for a relationship'] },
-    { ru:'Я не смотрел на неё',            en:"I wasn't looking at her",            alts:["i wasn't looking at her",'i was not looking at her','i wasnt looking at her','i was not looking at her i swear'] },
-    { ru:'Мы слишком разные',              en:"We're too different",                alts:["we're too different",'we are too different','were too different','we are so different'] },
-    { ru:'Посмотрим',                      en:"We'll see",                          alts:["we'll see",'we will see','well see','let us see','let\'s see'] },
-    { ru:'Мне нужно подумать',             en:'I need to think about it',           alts:['i need to think about it','i need some time to think','let me think about it','i have to think about it'] },
-    { ru:'Я просто забыл',                 en:'I just forgot',                      alts:['i just forgot','i forgot','i simply forgot','sorry i forgot'] },
-    { ru:'Это не то, что ты думаешь',      en:"It's not what you think",            alts:["it's not what you think",'its not what you think','it is not what you think','that is not what you think'] },
-    { ru:'Я был занят',                    en:'I was busy',                         alts:['i was busy','i have been busy','i was really busy','i was so busy'] },
-    { ru:'Дай мне немного времени',        en:'Give me some time',                  alts:['give me some time','give me a little time','give me a bit of time','give me time'] },
+  halk: [   // парень — деньги/статус, коротко
+    { ru:'Дай денег',            en:'Give me money',       alts:['give me money','give me the money','gimme money'] },
+    { ru:'Хочу пиво',            en:'I want beer',         alts:['i want beer','i want a beer','i want some beer'] },
+    { ru:'Я богатый',            en:"I'm rich",            alts:["i'm rich",'im rich','i am rich'] },
+    { ru:'Где мои деньги?',      en:'Where is my money?',  alts:['where is my money','wheres my money','where is my money?'] },
+    { ru:'Я много работаю',      en:'I work a lot',        alts:['i work a lot','i work hard','i work so much'] },
+    { ru:'У меня нет денег',     en:'I have no money',     alts:['i have no money',"i don't have money",'i dont have money','i have no money now'] },
+    { ru:'Купи сам',             en:'Buy it yourself',     alts:['buy it yourself','buy yourself','get it yourself'] },
+    { ru:'Я занят',              en:"I'm busy",            alts:["i'm busy",'im busy','i am busy'] },
+    { ru:'Хочу новую машину',    en:'I want a new car',    alts:['i want a new car','i want new car'] },
+    { ru:'Плачу завтра',         en:"I'll pay tomorrow",   alts:["i'll pay tomorrow",'ill pay tomorrow','i will pay tomorrow','i pay tomorrow'] },
   ],
-  barbie: [ // девушка
-    { ru:'Купи цветы',                     en:'Buy me flowers',                     alts:['buy me flowers','buy me some flowers','get me flowers','can you buy me flowers'] },
-    { ru:'Ты смешной',                     en:"You're funny",                       alts:["you're funny",'you are funny','youre funny','you so funny','you are so funny'] },
-    { ru:'Давай останемся друзьями',       en:"Let's stay friends",                 alts:["let's stay friends",'lets stay friends','can we stay friends','let us stay friends','we can stay friends'] },
-    { ru:'Нам надо поговорить',            en:'We need to talk',                    alts:['we need to talk','we have to talk','we should talk','can we talk'] },
-    { ru:'Я не знаю, чего хочу',           en:"I don't know what I want",           alts:["i don't know what i want",'i do not know what i want','i dont know what i want','i dont know what i really want'] },
-    { ru:'Ты меня любишь?',                en:'Do you love me?',                    alts:['do you love me','do you really love me','do you still love me'] },
-    { ru:'Ты меня вообще не слушаешь',     en:'You never listen to me',             alts:['you never listen to me','you dont listen to me',"you don't listen to me",'you are not listening to me','you never listen'] },
-    { ru:'Ты опять опоздал',               en:"You're late again",                  alts:["you're late again",'you are late again','youre late again','you are late','you came late again'] },
-    { ru:'Кто это написал тебе?',          en:'Who texted you?',                    alts:['who texted you','who text you','who just texted you','who messaged you','who was texting you'] },
-    { ru:'Я не злюсь',                     en:"I'm not angry",                      alts:["i'm not angry",'im not angry','i am not angry','im not mad','i am not mad','i\'m not mad'] },
+  barbie: [ // девушка — деньги/требования, коротко
+    { ru:'Купи мне сумку',       en:'Buy me a bag',        alts:['buy me a bag','buy me a purse','buy me the bag'] },
+    { ru:'Дай денег',            en:'Give me money',       alts:['give me money','give me the money','gimme money'] },
+    { ru:'Это дорого',           en:"It's expensive",      alts:["it's expensive",'its expensive','it is expensive'] },
+    { ru:'Где ты работаешь?',    en:'Where do you work?',  alts:['where do you work','where do you work?','where you work'] },
+    { ru:'Сколько зарабатываешь?', en:'How much do you make?', alts:['how much do you make','how much do you earn','how much you make'] },
+    { ru:'Заплати за меня',      en:'Pay for me',          alts:['pay for me','you pay for me','pay for me please'] },
+    { ru:'Хочу новую машину',    en:'I want a new car',    alts:['i want a new car','i want new car'] },
+    { ru:'Купи мне кофе',        en:'Buy me a coffee',     alts:['buy me a coffee','buy me coffee','get me a coffee'] },
+    { ru:'Ты богатый?',          en:'Are you rich?',       alts:['are you rich','are you rich?','you rich'] },
+    { ru:'Хочу отдыхать',        en:'I want to relax',     alts:['i want to relax','i want to rest','i wanna relax'] },
   ],
 };
 // активный набор на текущую игру (3 фразы) — заполняется в pickSex
@@ -762,14 +786,18 @@ function applyTurnVisuals(who) {
   const arena = document.getElementById('battle-arena');
   const fL = document.getElementById('fighter-left');
   const fR = document.getElementById('fighter-right');
+  const tL = document.getElementById('tag-left');
+  const tR = document.getElementById('tag-right');
   arena.classList.remove('turn-player','turn-bot');
   arena.classList.add(who === 'player' ? 'turn-player' : 'turn-bot');
   if (who === 'player') {
     fL.classList.add('active');    fL.classList.remove('idle');
     fR.classList.add('idle');      fR.classList.remove('active');
+    tL.classList.add('active');    tR.classList.remove('active');
   } else {
     fR.classList.add('active');    fR.classList.remove('idle');
     fL.classList.add('idle');      fL.classList.remove('active');
+    tR.classList.add('active');    tL.classList.remove('active');
   }
 }
 
@@ -781,16 +809,20 @@ function beginTurn() {
   const botKey    = playerKey === 'halk' ? 'barbie' : 'halk';
   const phraseEl  = document.getElementById('battle-phrase-ru');
 
+  const enEl = document.getElementById('battle-phrase-en');
+
   if (state.turn === 'player') {
     const phrase = PHRASES[playerKey][state.pIdx % 3];
     phraseEl.textContent = phrase.ru;
     phraseEl.className = 'phrase-ru say-' + playerKey;   // твоя реплика — цвет твоего пола
+    enEl.textContent = phrase.en;                        // английский крупно — читаешь и попадаешь
+    enEl.classList.remove('hidden');
     applyTurnVisuals('player');
     if (navigator.vibrate) navigator.vibrate(40);
     const badge = document.getElementById('turn-badge');
     badge.textContent = '🟢 ТВОЙ ХОД — ГОВОРИ!';
     badge.className = 'turn-badge player';
-    document.getElementById('battle-phrase-hint').textContent = '🎤 СКАЖИ ПО-АНГЛИЙСКИ — ЕСТЬ 6 СЕК';
+    document.getElementById('battle-phrase-hint').textContent = '👇 ПРОЧИТАЙ ВСЛУХ ПО-АНГЛИЙСКИ';
     document.getElementById('battle-heard').textContent = '';
     document.getElementById('battle-heard').className = 'heard';
     document.getElementById('battle-mic-label').textContent = '🎤 ГОВОРИ ВСЛУХ';
@@ -808,6 +840,8 @@ function beginTurn() {
     const phrase = PHRASES[botKey][state.bIdx % 3];
     phraseEl.textContent = phrase.ru;
     phraseEl.className = 'phrase-ru say-' + botKey;      // реплика бота — цвет его пола
+    enEl.textContent = '';                               // на ход бота английский прячем — ты просто ждёшь
+    enEl.classList.add('hidden');
     applyTurnVisuals('bot');
     if (navigator.vibrate) navigator.vibrate([20,40,20]);
     const badge = document.getElementById('turn-badge');
@@ -967,7 +1001,7 @@ function goPromo() {
 
 function sendWhatsapp() {
   const code = window._promo || makePromoCode();
-  const txt = `⚔ ENGLISH KOMBAT — мой промокод ${code} на годовую подписку. english-kombat.vercel.app/mvp\n\n📸 Инстаграм преподавателя Романа: https://www.instagram.com/roman.liberty.eng`;
+  const txt = `⚔ ENGLISH KOMBAT — мой промокод ${code} на годовую подписку. english-kombat.vercel.app/mvp2\n\n📸 Инстаграм преподавателя Романа: https://www.instagram.com/roman.liberty.eng`;
   const url = `https://wa.me/?text=${encodeURIComponent(txt)}`;
   window.location.href = url;
 }
