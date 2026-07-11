@@ -9,7 +9,11 @@ const { PHRASES, checkAnswer } = require('./phrases');
 
 // ─── POSTGRES ───
 const pgPool = process.env.DATABASE_URL
-  ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      // PGSSL=disable для локального/докерного Postgres без TLS (VPS); по умолчанию ssl как на Render
+      ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
+    })
   : null;
 
 async function initDb() {
