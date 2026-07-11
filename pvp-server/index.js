@@ -89,6 +89,13 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS global_messages_idx ON global_messages (id DESC);
+
+    -- key-value storage (roadmap checklist etc.)
+    CREATE TABLE IF NOT EXISTS kv_store (
+      key TEXT PRIMARY KEY,
+      data JSONB NOT NULL DEFAULT '{}',
+      updated_at TIMESTAMPTZ DEFAULT now()
+    );
   `);
   // seed if empty
   const { rows } = await pgPool.query('SELECT COUNT(*)::int AS c FROM phrases');
@@ -518,6 +525,9 @@ class FightRoom extends Room {
 const app = express();
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Token');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
 app.get('/', (_, res) => res.send('English Kombat PvP server — ok'));
@@ -803,6 +813,38 @@ app.post('/api/heartbeat', async (req, res) => {
 // Public: count of online users
 app.get('/api/online/count', (_, res) => {
   res.json({ count: onlineSet().size });
+});
+
+// ─── ROADMAP CHECKLIST (shared kv storage; страница /plan) ───
+const KV_KEY_RE = /^[a-z0-9_-]{1,64}$/;
+app.get('/api/roadmap/:key', async (req, res) => {
+  if (!pgPool) return res.status(503).json({ error: 'no db' });
+  if (!KV_KEY_RE.test(req.params.key)) return res.status(400).json({ error: 'bad key' });
+  try {
+    const { rows } = await pgPool.query('SELECT data, updated_at FROM kv_store WHERE key = $1', [req.params.key]);
+    if (!rows.length) return res.json({ data: null });
+    res.json({ data: rows[0].data, updatedAt: rows[0].updated_at });
+  } catch (e) {
+    console.error('[roadmap:get]', e.message);
+    res.status(500).json({ error: 'db' });
+  }
+});
+app.post('/api/roadmap/:key', async (req, res) => {
+  if (!pgPool) return res.status(503).json({ error: 'no db' });
+  if (!KV_KEY_RE.test(req.params.key)) return res.status(400).json({ error: 'bad key' });
+  const data = req.body && req.body.data;
+  if (data === undefined) return res.status(400).json({ error: 'data required' });
+  try {
+    await pgPool.query(
+      `INSERT INTO kv_store (key, data, updated_at) VALUES ($1, $2, now())
+       ON CONFLICT (key) DO UPDATE SET data = $2, updated_at = now()`,
+      [req.params.key, JSON.stringify(data)]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[roadmap:post]', e.message);
+    res.status(500).json({ error: 'db' });
+  }
 });
 
 // ─── FRIENDS ───

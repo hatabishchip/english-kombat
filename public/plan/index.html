@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>🏝 ОСТРОВ — план, выбери галочками</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{
+    margin:0;padding:0 0 120px;
+    background:linear-gradient(180deg,#0a0814 0%,#101020 60%,#0a0814 100%);
+    color:#f0e8d0;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:24px 16px;}
+  h1{
+    font-family:'Russo One',sans-serif;font-size:clamp(24px,6vw,34px);letter-spacing:2px;
+    color:#ffd100;text-shadow:0 0 14px rgba(255,209,0,.5),0 3px 0 #5a4010;
+    margin:8px 0 4px;text-align:center;
+  }
+  .sub{font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;color:#888;text-align:center;margin-bottom:8px;}
+  .note{
+    background:rgba(255,209,0,.07);border:1px solid #6a4818;border-radius:10px;
+    padding:12px 14px;font-size:13.5px;line-height:1.55;color:#d8cba8;margin:14px 0 22px;
+  }
+  .note b{color:#ffd100;}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:8px;}
+  .legend span{font-size:11.5px;color:#b0a890;background:rgba(0,0,0,.4);border:1px solid #3a2812;border-radius:20px;padding:4px 10px;}
+
+  /* sync status */
+  #sync{
+    position:fixed;top:10px;right:10px;z-index:50;
+    font-size:11px;letter-spacing:1px;padding:5px 11px;border-radius:14px;
+    background:rgba(0,0,0,.7);border:1.5px solid #3a2812;color:#888;transition:all .3s;
+  }
+  #sync.ok{border-color:#2aa84a;color:#7fff8f;}
+  #sync.err{border-color:#c83030;color:#ff8a8a;}
+
+  /* progress bar */
+  .progress-fix{
+    position:fixed;top:0;left:0;right:0;z-index:40;height:5px;background:rgba(0,0,0,.6);
+  }
+  .progress-fix i{display:block;height:100%;width:0;background:linear-gradient(90deg,#ffd100,#ff9a3c);transition:width .3s;}
+  #counter{
+    position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:50;
+    font-family:'Russo One',sans-serif;font-size:14px;letter-spacing:1.5px;color:#0a0814;
+    background:linear-gradient(180deg,#ffd100,#c89538);border-radius:24px;padding:11px 22px;
+    box-shadow:0 6px 20px rgba(0,0,0,.6);white-space:nowrap;
+  }
+
+  /* sections */
+  details{
+    margin:12px 0;background:rgba(20,14,6,.55);
+    border:1.5px solid #3a2812;border-radius:12px;overflow:hidden;
+  }
+  details[open]{border-color:#6a4818;}
+  summary{
+    cursor:pointer;list-style:none;padding:15px 16px;
+    font-family:'Russo One',sans-serif;font-size:16px;letter-spacing:1px;color:#ffd100;
+    display:flex;align-items:center;gap:10px;user-select:none;
+  }
+  summary::-webkit-details-marker{display:none;}
+  summary .cnt{margin-left:auto;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1.5px;color:#8a8060;}
+  summary .arrow{transition:transform .2s;color:#8a8060;font-size:12px;}
+  details[open] summary .arrow{transform:rotate(90deg);}
+
+  /* items */
+  .item{
+    display:flex;gap:12px;align-items:flex-start;
+    padding:13px 16px;border-top:1px solid rgba(58,40,18,.5);
+    cursor:pointer;transition:background .15s;
+  }
+  .item:active{background:rgba(255,209,0,.05);}
+  .item.checked{background:rgba(42,168,74,.08);}
+  .item input{
+    appearance:none;-webkit-appearance:none;flex:0 0 auto;
+    width:26px;height:26px;margin-top:2px;border-radius:7px;
+    border:2px solid #6a4818;background:rgba(0,0,0,.5);cursor:pointer;position:relative;
+  }
+  .item input:checked{background:linear-gradient(180deg,#2fd05a,#1a8a38);border-color:#7fff8f;}
+  .item input:checked::after{
+    content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:700;font-size:17px;
+  }
+  .it-body{flex:1;min-width:0;}
+  .it-title{font-size:15px;font-weight:600;color:#f5edda;line-height:1.35;}
+  .item.checked .it-title{color:#a8e8b8;}
+  .it-desc{font-size:13px;color:#a99f85;line-height:1.5;margin-top:3px;}
+  .badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;}
+  .bdg{font-size:10.5px;letter-spacing:.5px;border-radius:10px;padding:2.5px 8px;border:1px solid;}
+  .b-talk{color:#9ad8ff;border-color:#2a5a7a;background:rgba(60,140,200,.1);}
+  .b-r1{color:#c8b8ff;border-color:#4a3a7a;background:rgba(130,110,220,.1);}
+  .b-r2{color:#ffb8d8;border-color:#7a3a5a;background:rgba(220,110,170,.1);}
+  .b-fast{color:#8fff9f;border-color:#2a6a3a;background:rgba(60,200,100,.08);}
+  .b-mid{color:#ffd88f;border-color:#7a5a2a;background:rgba(220,170,60,.08);}
+  .b-long{color:#ff9f8f;border-color:#7a3a2a;background:rgba(220,100,60,.08);}
+  .b-gem{color:#0a0814;border-color:#ffe060;background:linear-gradient(180deg,#ffd100,#c89538);font-weight:700;}
+
+  /* comment + actions */
+  .comment-box{margin:26px 0 10px;}
+  .comment-box label{font-family:'Russo One',sans-serif;font-size:14px;letter-spacing:1px;color:#ffd100;display:block;margin-bottom:8px;}
+  textarea{
+    width:100%;min-height:110px;padding:12px;border-radius:10px;resize:vertical;
+    background:rgba(0,0,0,.5);border:1.5px solid #6a4818;color:#f0e8d0;
+    font-family:inherit;font-size:14px;line-height:1.5;
+  }
+  .btn{
+    display:block;width:100%;padding:16px;margin:10px 0;border:none;border-radius:12px;
+    font-family:'Russo One',sans-serif;font-size:16px;letter-spacing:1.5px;cursor:pointer;
+    transition:transform .12s;
+  }
+  .btn:active{transform:scale(.97);}
+  .btn-wa{background:linear-gradient(180deg,#2fd05a,#178a38);color:#fff;box-shadow:0 6px 18px rgba(40,180,80,.3);}
+  .btn-clear{background:none;border:1.5px solid #3a2812;color:#8a8060;font-size:12px;padding:10px;}
+</style>
+</head>
+<body>
+<div class="progress-fix"><i id="pbar"></i></div>
+<div id="sync">…</div>
+
+<div class="wrap">
+  <h1>🏝 ОСТРОВ</h1>
+  <div class="sub">ПЛАН ИЗ НАШЕГО РАЗГОВОРА + 2 ГЛУБОКИХ РИСЁРЧЕЙ</div>
+  <div class="legend">
+    <span>💬 из разговора</span><span>📗 рисёрч-1</span><span>📘 рисёрч-2 SpeakQuest</span>
+    <span>⚡ 1-2 дня</span><span>🔨 до недели</span><span>🏗 недели+</span><span>💎 Саня рекомендует в 1-й слайс</span>
+  </div>
+  <div class="note">
+    <b>Рома, привет!</b> Тут всё, что мы наговорили + что вытащили из двух больших исследований.
+    Отметь галочками, что берём. Галочки <b>сохраняются сами</b> — можно возвращаться и менять.
+    Внизу поле для комментариев и кнопка «отправить Сане в WhatsApp».
+    💎 — это то, что я предлагаю сделать первым слайсом (быстро и даёт вау транскрипта).
+  </div>
+
+  <div id="sections"></div>
+
+  <div class="comment-box">
+    <label>💬 Комментарий / что добавить</label>
+    <textarea id="comment" placeholder="Пиши сюда мысли — сохранится само..."></textarea>
+  </div>
+
+  <button class="btn btn-wa" onclick="sendWA()">💬 ОТПРАВИТЬ ВЫБОР САНЕ В WHATSAPP</button>
+  <button class="btn btn-clear" onclick="clearAll()">сбросить все галочки</button>
+</div>
+
+<div id="counter">выбрано: 0</div>
+
+<script>
+// ═════════════════════════════════════════════════════════════════
+//  ДАННЫЕ ЧЕКЛИСТА
+//  src: talk=💬 разговор, r1=📗 рисёрч-1, r2=📘 рисёрч-2
+//  eff: fast=⚡ 1-2 дня, mid=🔨 до недели, long=🏗 недели+
+//  gem: true = рекомендую в 1-й слайс
+// ═════════════════════════════════════════════════════════════════
+const SECTIONS = [
+{ id:'onb', icon:'💬', title:'Вход и онбординг-чат', items:[
+ { id:'onb1', t:'Вход = сразу чат как в Telegram', d:'Никаких анкет и логина. Открыл приложение — попал в чат с одним непрочитанным сообщением.', src:'talk', eff:'fast', gem:true },
+ { id:'onb2', t:'Видеокружок от Романа (записанный заранее)', d:'«Привет! Как тебя зовут, какой у тебя уровень? Запиши мне кружок или аудио». Сначала — заглушка с местом под твоё реальное видео.', src:'talk', eff:'fast', gem:true },
+ { id:'onb3', t:'Ответ юзера кружком / аудио / текстом', d:'Запись с камеры или микрофона прямо в чате (MediaRecorder). «Мне комфортно и так, и так».', src:'talk', eff:'mid', gem:true },
+ { id:'onb4', t:'Заблюренный список чатов позади', d:'Виден размытый список «других чатов» и участников — ощущение что тут уже жизнь. Один активный чат, остальные на замке.', src:'talk', eff:'fast' },
+ { id:'onb5', t:'Счётчик «онлайн сейчас: N»', d:'Показывает что в системе есть люди (наполняем ботами + реальные).', src:'talk', eff:'fast' },
+ { id:'onb6', t:'Роман и Саня «на смене»', d:'«Роман работает с 6 до 6 первую половину суток, Александр — вторую». Ощущение живых операторов, третьего не привлекаем.', src:'talk', eff:'fast' },
+ { id:'onb7', t:'Voice-first старт за 30 секунд', d:'Первое действие юзера — сказать что-то голосом, а не читать туториал (паттерн Speak: 100% начинают со speaking).', src:'r2', eff:'fast' },
+ { id:'onb8', t:'Гостевой режим', d:'Прогресс сохраняется локально без аккаунта, регистрацию предлагаем позже (MasterClass-паттерн).', src:'r1', eff:'fast' },
+ { id:'onb9', t:'AI-аватар Романа на том же фоне', d:'Часть кружков реальные, часть — AI-аватар на том же фоне 1-в-1. «Мозгомешательство»: не отличить где ты, где AI.', src:'talk', eff:'long' },
+ { id:'onb10', t:'AI отвечает голосом Романа (voice-clone)', d:'Клонируем голос (ElevenLabs), AI отвечает «твоим» голосом на кружки юзера. «В этом чате моя душа».', src:'talk', eff:'mid' },
+]},
+{ id:'lvl', icon:'🎯', title:'Определение уровня', items:[
+ { id:'lvl1', t:'Вопросы от тупейших к сложным', d:'«What is your name?» → сложнее → ещё сложнее, пока не сломается. Уровень определяется по факту, юзер не выбирает.', src:'talk', eff:'mid' },
+ { id:'lvl2', t:'«Магия»: просто болтаем, уровень не спрашиваем', d:'Задаём тупые вопросы — у юзера иллюзия «нифига себе, я уже говорю». Это ключ вау-эффекта.', src:'talk', eff:'fast', gem:true },
+ { id:'lvl3', t:'Два трека: базовый / продвинутый', d:'Не 3 уровня, а 2 — малой кровью. Упор на базовый (большинство).', src:'talk', eff:'fast', gem:true },
+ { id:'lvl4', t:'Вопрос «на расслабоне или в цель?»', d:'Калибровка тона общения: расслабленный прикол vs целевая прокачка.', src:'talk', eff:'fast' },
+ { id:'lvl5', t:'Кнопки «знаю / не знаю» по фразам', d:'Показываем фразы, юзер тыкает да/нет — быстрый замер уровня без разговора.', src:'talk', eff:'fast' },
+ { id:'lvl6', t:'i+1 адаптация в реальном времени', d:'AI держит сложность реплик чуть выше уровня юзера (Krashen). Слишком легко — скучно, слишком сложно — тревога.', src:'r2', eff:'long' },
+]},
+{ id:'ava', icon:'🤳', title:'Персонаж и аватар', items:[
+ { id:'ava1', t:'«Скинь фотку — поставлю на аватарку»', d:'Селфи юзера лепится на голову человечка. Топорно = смешно. Юзер видит СЕБЯ в игре — эмоциональная привязка.', src:'talk', eff:'mid', gem:true },
+ { id:'ava2', t:'Комплимент от AI за фото', d:'Загрузил фото → AI: «отличные глаза!» и т.п. Микро-радость на входе.', src:'talk', eff:'fast' },
+ { id:'ava3', t:'Тело-«червячок» + аватарка чей ход', d:'Один стандартный персонаж-червячок, внизу фотка того, кто сейчас ходит. Не паримся над разными телами.', src:'talk', eff:'fast', gem:true },
+ { id:'ava4', t:'12 AI-персонажей с биографией и акцентом', d:'Марико-японка, Пьер-француз, Лиам-американец... У каждого характер, история, манера. Persistent parasocial bond.', src:'r2', eff:'long' },
+ { id:'ava5', t:'Персонаж «путешествует» вместе с юзером', d:'Начали в Токио — через месяц Марико уже в Сиднее с тобой. Отношения продолжаются (Animal Crossing).', src:'r2', eff:'long' },
+]},
+{ id:'map', icon:'🗺', title:'Остров и карта мира', items:[
+ { id:'map1', t:'Первая локация — Бали, 4 точки', d:'Поесть, одеться и т.д. Бесплатный уровень. Мы сами на Бали — вайб настоящий.', src:'talk', eff:'mid', gem:true },
+ { id:'map2', t:'Карта курортов мира', d:'Не весь мир, а курорты: Бали → Таиланд → Бразилия → Америка. Поэтапное открытие.', src:'talk', eff:'mid' },
+ { id:'map3', t:'Замочек «скоро» на следующей стране', d:'Выпустили 1-й уровень — на следующем замок и «coming soon». Подогревает и нас, и юзеров.', src:'talk', eff:'fast', gem:true },
+ { id:'map4', t:'Автоопределение гео → ближайший курорт', d:'По IP определяем где юзер и стартуем с ближайшего курорта (или Бали по умолчанию).', src:'talk', eff:'fast' },
+ { id:'map5', t:'Открыть страну = скооперироваться с игроком', d:'Чтобы зайти в новую страну — коллаборация с другим участником. Социальная механика вместо чистой оплаты.', src:'talk', eff:'mid' },
+ { id:'map6', t:'Локация = мини-сюжет на 7 минут', d:'Не «случайное место», а история: Токио = потерянный багаж, Париж = загадка в пекарне. Comprehensible input через сюжет.', src:'r2', eff:'long' },
+ { id:'map7', t:'Карта «уже начата» на 25%', d:'Endowed progress: новичок видит 3 «посещённые» точки из туториала — путь начат, бросить жалко (+40% к завершению).', src:'r2', eff:'fast' },
+ { id:'map8', t:'Острова под реальные события', d:'Олимпиада → открывается остров Япония с темой игр. Актуальность + повод вернуться.', src:'r1', eff:'mid' },
+]},
+{ id:'learn', icon:'📚', title:'Обучение: 3 касания фразы', items:[
+ { id:'learn1', t:'Касание 1: сцена локации — проговорил → банан', d:'Сидим за столом в столовке, фразы появляются, юзер проговаривает вслух, за каждую — банан.', src:'talk', eff:'mid', gem:true },
+ { id:'learn2', t:'Касание 2: та же фраза в бою', d:'Сказал фразу правильно → удар. Фразы из обучения = боеприпасы боя.', src:'talk', eff:'fast', gem:true },
+ { id:'learn3', t:'Касание 3: закрепление в чате с Романом', d:'После локации Роман в чате спрашивает «What are you wearing today?» — юзер доиспользует фразы в «живом» диалоге.', src:'talk', eff:'mid', gem:true },
+ { id:'learn4', t:'Shadowing: «повтори за мной»', d:'AI произносит фразу — юзер сразу повторяет в мик. Проверенная методика произношения.', src:'r2', eff:'fast' },
+ { id:'learn5', t:'Recasting вместо красных ошибок', d:'AI не «НЕПРАВИЛЬНО», а переспрашивает верно: «Oh, you went to Tokyo yesterday?» Снижает страх говорить.', src:'r2', eff:'mid' },
+ { id:'learn6', t:'Возврат фраз через 24ч / 3д / 7д (SRS)', d:'«Where did you go yesterday?» — проверка запоминания. Ошибся — возвращаешься в тот город квестом.', src:'r1', eff:'mid' },
+ { id:'learn7', t:'Конфетти-микропобеды за каждую фразу', d:'Галочка, звук, вспышка за каждый правильный ответ. Достижение в первые 5 минут = +65% к возврату на 14-й день.', src:'r2', eff:'fast' },
+ { id:'learn8', t:'Никаких грамматических экранов и тестов', d:'Грамматика вшита в recasting. Каждая сессия = приключение, не экзамен.', src:'r2', eff:'fast' },
+]},
+{ id:'fight', icon:'🍌', title:'Бой', items:[
+ { id:'fight1', t:'Банан/кокос-бой (Червячки-lite)', d:'Сказал фразу → летит банан → взрыв. Кидаемся бананами, кокосами, ананасами. Ржачно и узнаваемо.', src:'talk', eff:'mid', gem:true },
+ { id:'fight2', t:'Сцена локации на фоне боя', d:'Лавка/столовка на фоне, дерёмся прямо в локации острова.', src:'talk', eff:'fast' },
+ { id:'fight3', t:'Оружие за прогресс', d:'Банан → кокос → ананас → «святая граната». Выучил предложение — открыл оружие.', src:'talk', eff:'mid' },
+ { id:'fight4', t:'Физика дуги броска (как в Червячках)', d:'Банан летит по параболе, угол и сила. Дольше делать, но прям затягивает.', src:'talk', eff:'long' },
+ { id:'fight5', t:'Сетевой бой на карте острова', d:'Игроки стоят на пальмах/острове, кидаются по сетке, видно как валят друг друга. Команды типа 10 на 10.', src:'talk', eff:'long' },
+ { id:'fight6', t:'Duel Mode 90 сек с LLM-судьёй', d:'Два голосовых ответа, судья оценивает словарь+произношение+беглость. Оба получают рейтинг — нет позора проигрыша.', src:'r2', eff:'long' },
+ { id:'fight7', t:'Кооп-миссии вместо чистого PvP', d:'Двое вместе проходят диалог-квест, помогая общему герою. Соревновательность без токсичности.', src:'r1', eff:'long' },
+]},
+{ id:'talk', icon:'🗣', title:'Живое общение', items:[
+ { id:'talk1', t:'«Участник игры» пишет юзеру первым', d:'«Привет, давай поспикаем!» — бот под видом человека. Основной запрос людей = реальное общение.', src:'talk', eff:'mid', gem:true },
+ { id:'talk2', t:'Направляющие темы для бесед', d:'Прошёл магазин одежды → тема беседы «What are you wearing today?». Есть о чём говорить на своём уровне.', src:'talk', eff:'fast' },
+ { id:'talk3', t:'Спикинг с людьми твоего уровня', d:'«Открою тебе людей плюс-минус твоего уровня, кто онлайн». Матчинг по уровню.', src:'talk', eff:'long' },
+ { id:'talk4', t:'AI подслушивает и разбирает диалог', d:'«Общайтесь, а я подслушаю и дам разбор» — анализ беседы, что выучил, что подтянуть. «Я с тобой работаю лично».', src:'talk', eff:'long' },
+ { id:'talk5', t:'Voice-room: 1 AI-ведущий + 4 юзера', d:'По очереди отвечают на сценарий, AI модерирует и прерывает грубость. Мультиплеер без рисков.', src:'r2', eff:'long' },
+ { id:'talk6', t:'Живость AI: вдохи, «aha», «I see»', d:'Back-channel сигналы каждые 7-15 сек, паузы «let me think», иногда AI сам ошибается — доверие как к живому.', src:'r2', eff:'mid' },
+ { id:'talk7', t:'AI помнит юзера', d:'Работа, семья, любимый город из прошлых диалогов — «он меня знает». Vector-память.', src:'r2', eff:'long' },
+]},
+{ id:'rew', icon:'🏆', title:'Валюта и награды', items:[
+ { id:'rew1', t:'Бананы за фразы = боеприпасы', d:'Сказал фразу — получил банан. Бананами дерёшься. Валюта = прямая связь учёбы и боя.', src:'talk', eff:'fast', gem:true },
+ { id:'rew2', t:'Двойная экономика: XP + монеты', d:'XP = статус/уровень (накопительный), монеты = тратить на анлоки. Бананы остаются как fun-боеприпас.', src:'r2', eff:'mid' },
+ { id:'rew3', t:'Сундук-рандом после диалога', d:'Шанс: стикеры 30% / XP 50% / бонус-анлок 15% / voice-pack 5%. Непредсказуемость = дофамин (variable rewards).', src:'r2', eff:'mid' },
+ { id:'rew4', t:'Растущая шкала прогресса', d:'Говоришь фразы — шкала растёт на глазах. Видимый рост = мотивация.', src:'talk', eff:'fast', gem:true },
+ { id:'rew5', t:'Паспорт со штампами вместо skill-tree', d:'Каждая страна = штамп в паспорте. Коллекция, которую приятно показывать.', src:'r2', eff:'mid' },
+]},
+{ id:'habit', icon:'🔁', title:'Привычка и возврат', items:[
+ { id:'habit1', t:'Стрик дней + прощение 1 пропуска', d:'Классический стрик, но streak-saver: один пропущенный день не сжигает серию (иначе фрустрация).', src:'r1', eff:'fast' },
+ { id:'habit2', t:'Пуш от персонажа, не системный', d:'Не «вернись в приложение», а «Марико приготовила тебе бенто. Ты едешь?» — от живого героя.', src:'r2', eff:'mid' },
+ { id:'habit3', t:'Identity-стрик', d:'Не «30 дней подряд», а «День 30 — ты English-speaking traveler». Стрик как личность, не цифра.', src:'r2', eff:'fast' },
+ { id:'habit4', t:'«Паспорт отозван» при потере стрика', d:'Loss aversion: потерять больнее, чем получить. Duolingo получил 5x эффект на этом.', src:'r1', eff:'fast' },
+ { id:'habit5', t:'Всплывающий чат поверх игры', d:'В ключевых точках чат с Романом всплывает поверх игры (часть игры), не закрыть пока не ответил.', src:'talk', eff:'fast' },
+]},
+{ id:'viral', icon:'🚀', title:'Вирусность', items:[
+ { id:'viral1', t:'Рефералка: привёл — получаешь 30%', d:'Юзер приводит людей и зарабатывает процент. Открывать ПОСЛЕ первой ценности, не сразу на входе.', src:'talk', eff:'mid' },
+ { id:'viral2', t:'Двусторонняя награда за приглашение', d:'И другу premium-дни, и тебе. Конверсия выше чем односторонняя (Dropbox +400%).', src:'r2', eff:'fast' },
+ { id:'viral3', t:'Приглашение только в peak-moment', d:'Сразу после первой победы/штампа, максимум 1 раз в неделю. Не баннер каждые 15 минут.', src:'r2', eff:'fast' },
+ { id:'viral4', t:'Voice-карточки для сторис', d:'15-сек фраза юзера → готовое shareable видео с субтитрами. Одна кнопка → TikTok/Reels/Telegram.', src:'r2', eff:'mid' },
+ { id:'viral5', t:'Анонсы уровней в сторис Романа + отсылки в игре', d:'Что видят в сторис — то встречают в приложении и наоборот. Контент и продукт подогревают друг друга.', src:'talk', eff:'fast' },
+ { id:'viral6', t:'Friend-streak: вдвоём открываете страну', d:'Двое друзей должны оба зайти, иначе страна закрывается на день. Взаимная ответственность (Duolingo +22% daily).', src:'r1', eff:'mid' },
+]},
+{ id:'money', icon:'💰', title:'Монетизация', items:[
+ { id:'money1', t:'Бали бесплатно, страны — по подписке', d:'Первая локация полностью free (пощупать), новые страны = новые слова = подписка.', src:'talk', eff:'fast', gem:true },
+ { id:'money2', t:'Триал с картой → авто-списание', d:'Как «то приложение»: вводишь карту, 3-7 дней бесплатно, потом списание. Агрессивно, но работает. Обсудить.', src:'talk', eff:'mid' },
+ { id:'money3', t:'Freemium: 2-3 диалога в день бесплатно', d:'Подписка ~$9.99/мес = безлимит. Щедрый free = массовость, конверсия 3-4% реалистична.', src:'r2', eff:'mid' },
+ { id:'money4', t:'Battle pass на 90 дней', d:'Сезонные награды за ежедневность, free+premium треки. +15-25% к D30 retention.', src:'r2', eff:'long' },
+ { id:'money5', t:'Voice-shop: акцент-паки', d:'Ирландский, шотландский, техасский акценты как «косметика» ($1.99-4.99). Образовательная косметика.', src:'r2', eff:'long' },
+ { id:'money6', t:'НИКАКОЙ энергии/сердец', d:'Ограничения «жди или плати» мешают говорить и злят. Оба рисёрча против.', src:'r1', eff:'fast' },
+]},
+{ id:'tech', icon:'⚙️', title:'Технология и риски', items:[
+ { id:'tech1', t:'Транскрибация кружков юзера (ASR)', d:'Whisper/Azure Speech: юзер наговорил — мы поняли и ответили. База всего чат-онбординга.', src:'talk', eff:'mid', gem:true },
+ { id:'tech2', t:'TTS-клон голоса Романа', d:'ElevenLabs: записываешь 10-30 мин голоса → AI говорит твоим голосом любой текст.', src:'talk', eff:'mid' },
+ { id:'tech3', t:'Латентность голоса <800мс', d:'ASR 200мс + LLM 400мс + TTS-первый-чанк 200мс. Больше секунды = ощущается как лаг. Для живого голосового диалога.', src:'r2', eff:'long' },
+ { id:'tech4', t:'Стоимость: $0.05-0.10 за голосовой диалог', d:'Поэтому лимиты в free-тарифе обязательны. На 1M юзеров = сотни тысяч $/мес без лимитов.', src:'r2', eff:'fast' },
+ { id:'tech5', t:'Kill-метрика: D30 < 8% → переделка ядра', d:'Supercell-подход: если ядро не держит людей — не наращивать фичи, а переделывать ядро.', src:'r2', eff:'fast' },
+ { id:'tech6', t:'13+ и модерация детей', d:'EU AI Act / COPPA: AI-компаньоны под лупой регуляторов. Пока просто 13+ дисклеймер, полноценно — при росте.', src:'r2', eff:'mid' },
+]},
+];
+
+// ═════════════════════════════════════════════════════════════════
+const SRC_BADGE = { talk:['💬 разговор','b-talk'], r1:['📗 рисёрч-1','b-r1'], r2:['📘 рисёрч-2','b-r2'] };
+const EFF_BADGE = { fast:['⚡ 1-2 дня','b-fast'], mid:['🔨 до недели','b-mid'], long:['🏗 недели+','b-long'] };
+const API = 'https://english-kombat-pvp.onrender.com/api/roadmap/ostrov-plan-v1';
+const LS_KEY = 'ostrov-plan-v1';
+
+let state = { checks:{}, comment:'' };
+
+function render() {
+  const root = document.getElementById('sections');
+  root.innerHTML = SECTIONS.map(sec => `
+    <details open id="sec-${sec.id}">
+      <summary><span class="arrow">▶</span> ${sec.icon} ${sec.title} <span class="cnt" id="cnt-${sec.id}"></span></summary>
+      ${sec.items.map(it => `
+        <label class="item" id="row-${it.id}">
+          <input type="checkbox" data-id="${it.id}">
+          <div class="it-body">
+            <div class="it-title">${it.gem ? '💎 ' : ''}${it.t}</div>
+            <div class="it-desc">${it.d}</div>
+            <div class="badges">
+              <span class="bdg ${SRC_BADGE[it.src][1]}">${SRC_BADGE[it.src][0]}</span>
+              <span class="bdg ${EFF_BADGE[it.eff][1]}">${EFF_BADGE[it.eff][0]}</span>
+              ${it.gem ? '<span class="bdg b-gem">💎 первый слайс</span>' : ''}
+            </div>
+          </div>
+        </label>`).join('')}
+    </details>`).join('');
+  document.querySelectorAll('.item input').forEach(cb => {
+    cb.addEventListener('change', () => {
+      state.checks[cb.dataset.id] = cb.checked;
+      if (!cb.checked) delete state.checks[cb.dataset.id];
+      cb.closest('.item').classList.toggle('checked', cb.checked);
+      updateCounts();
+      save();
+    });
+  });
+  document.getElementById('comment').addEventListener('input', debounce(() => {
+    state.comment = document.getElementById('comment').value;
+    save();
+  }, 800));
+}
+
+function applyState() {
+  document.querySelectorAll('.item input').forEach(cb => {
+    const on = !!state.checks[cb.dataset.id];
+    cb.checked = on;
+    cb.closest('.item').classList.toggle('checked', on);
+  });
+  document.getElementById('comment').value = state.comment || '';
+  updateCounts();
+}
+
+function updateCounts() {
+  let total = 0, done = 0;
+  SECTIONS.forEach(sec => {
+    const secDone = sec.items.filter(it => state.checks[it.id]).length;
+    document.getElementById('cnt-' + sec.id).textContent = secDone + '/' + sec.items.length;
+    total += sec.items.length; done += secDone;
+  });
+  document.getElementById('counter').textContent = 'выбрано: ' + done + ' из ' + total;
+  document.getElementById('pbar').style.width = (total ? (done / total * 100) : 0) + '%';
+}
+
+// ── сохранение: сервер + localStorage ──
+let saveTimer = null;
+function save() {
+  localStorage.setItem(LS_KEY, JSON.stringify(state));
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(pushServer, 600);
+}
+async function pushServer() {
+  setSync('…');
+  try {
+    const r = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { ...state, savedAt: new Date().toISOString() } }),
+    });
+    if (!r.ok) throw new Error(r.status);
+    setSync('✓ сохранено', 'ok');
+  } catch (e) {
+    setSync('⚠ офлайн (сохранено локально)', 'err');
+  }
+}
+async function load() {
+  // локальное сразу
+  try { const ls = localStorage.getItem(LS_KEY); if (ls) state = { ...state, ...JSON.parse(ls) }; } catch (e) {}
+  applyState();
+  // сервер поверх (Render может просыпаться до 60 сек — покажем статус)
+  setSync('загружаю…');
+  try {
+    const r = await fetch(API);
+    const j = await r.json();
+    if (j && j.data) {
+      state = { checks: j.data.checks || {}, comment: j.data.comment || '' };
+      applyState();
+    }
+    setSync('✓ синхронизировано', 'ok');
+  } catch (e) {
+    setSync('⚠ сервер спит — работаю локально', 'err');
+  }
+}
+function setSync(txt, cls) {
+  const el = document.getElementById('sync');
+  el.textContent = txt;
+  el.className = cls || '';
+}
+
+function sendWA() {
+  const lines = ['🏝 ОСТРОВ — мой выбор:'];
+  SECTIONS.forEach(sec => {
+    const picked = sec.items.filter(it => state.checks[it.id]);
+    if (picked.length) {
+      lines.push('');
+      lines.push(sec.icon + ' ' + sec.title + ':');
+      picked.forEach(it => lines.push('✅ ' + it.t));
+    }
+  });
+  if (state.comment && state.comment.trim()) {
+    lines.push('');
+    lines.push('💬 Комментарий: ' + state.comment.trim());
+  }
+  lines.push('');
+  lines.push('english-kombat.vercel.app/plan');
+  location.href = 'https://wa.me/?text=' + encodeURIComponent(lines.join('\n'));
+}
+
+function clearAll() {
+  if (!confirm('Сбросить все галочки?')) return;
+  state.checks = {};
+  applyState();
+  save();
+}
+
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+render();
+load();
+</script>
+</body>
+</html>
