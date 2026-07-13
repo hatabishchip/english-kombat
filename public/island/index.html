@@ -617,37 +617,49 @@ async function recordClip({maxMs=30000, video=false}={}){
   const constraints = video ? {audio:true, video:{facingMode:'user', width:{ideal:480}, height:{ideal:480}}} : {audio:true};
   const stream = await navigator.mediaDevices.getUserMedia(constraints);
   const mime = video ? pickMime(['video/mp4','video/webm;codecs=vp8,opus','video/webm'])
-                     : pickMime(['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg','audio/aac']);
+                     : pickMime(['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg','audio/aac']);
   const mr = new MediaRecorder(stream, mime?{mimeType:mime}:undefined);
-  const chunks=[]; mr.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
-  let stopped=false; const _stop=()=>{ if(!stopped){ stopped=true; try{mr.requestData&&mr.state==='recording'&&mr.requestData();}catch(e){} try{mr.stop();}catch(e){} } };
-  const blob = new Promise(res=>{ mr.onstop=()=>{ try{stream.getTracks().forEach(t=>t.stop());}catch(e){} res(new Blob(chunks,{type:(chunks[0]&&chunks[0].type)||mime||(video?'video/webm':'audio/webm')})); }; });
-  mr.start(); // без timeslice - надёжнее в Safari (данные придут одним куском на stop)
+  const chunks=[]; let gotChunk=false;
+  mr.ondataavailable=e=>{ if(e.data&&e.data.size){ chunks.push(e.data); gotChunk=true; } };
+  let stopped=false; const startTs=Date.now();
+  const realStop=()=>{ try{ if(mr.state!=='inactive') mr.stop(); }catch(e){} };
+  // стоп с гарантией данных: даём кодеку минимум ~600мс отдать первый чанк (iOS-фикс)
+  const _stop=()=>{ if(stopped) return; stopped=true;
+    const wait=Math.max(0, 650-(Date.now()-startTs));
+    if(!gotChunk && wait>0){ setTimeout(realStop, wait); } else { realStop(); }
+  };
+  const blob = new Promise(res=>{ mr.onstop=()=>{ try{stream.getTracks().forEach(t=>t.stop());}catch(e){} res(new Blob(chunks,{type:(chunks[0]&&chunks[0].type)||mime||(video?'video/mp4':'audio/mp4')})); }; });
+  mr.start(250); // timeslice: чанки каждые 250мс - надёжно на iOS Safari (без него бывают пустые записи)
   setTimeout(_stop, maxMs); // предохранитель
-  return { blob, stop:_stop, stream, mime };
+  return { blob, stop:_stop, stream, mime, startTs };
 }
 // ── HOLD-TO-RECORD: зажал = пишет, отпустил = стоп (как в Telegram) ──
 function holdRecord(btn, {video=false}={}, onBlob){
   let session=null;
+  const closeOv=()=>{ if(video){const ov=$('#recOverlay');ov&&ov.classList.remove('on');} };
   async function start(ev){
     if(ev.cancelable) ev.preventDefault(); if(session) return;
     if(!mediaOK){ toast('Запись не поддерживается в этом браузере'); return; }
     try{ btn.setPointerCapture&&btn.setPointerCapture(ev.pointerId); }catch(e){} // событие держится на кнопке даже под оверлеем
-    const s={rc:null, released:false, done:false, t0:Date.now()}; session=s;
+    const s={rc:null, released:false, done:false}; session=s;
     btn.classList.add('rec'); if(video){ const ov=$('#recOverlay'); ov&&ov.classList.add('on'); }
     try{
       const rc=await recordClip({video, maxMs:30000}); s.rc=rc;
+      if(s.released){ // отпустил, пока iOS спрашивал доступ / камера прогревалась - НЕ пишем огрызок
+        discard(s); toast('Доступ есть ✅ Теперь зажми и говори'); return;
+      }
       if(video){ const vv=$('#recVideo'); if(vv) vv.srcObject=rc.stream; }
-      if(s.released) finish(s);
-    }catch(e){ session=null; btn.classList.remove('rec'); if(video){const ov=$('#recOverlay');ov&&ov.classList.remove('on');} toast(video?'Нет доступа к камере 🎥':'Нет доступа к микрофону 🎙️'); }
+    }catch(e){ s.done=true; session=null; btn.classList.remove('rec'); closeOv(); toast(video?'Нет доступа к камере 🎥':'Нет доступа к микрофону 🎙️'); }
   }
-  function end(ev){ if(!session) return; const s=session; s.released=true; if(s.rc) finish(s); }
+  function discard(s){ s.done=true; session=null; btn.classList.remove('rec'); closeOv(); if(s.rc){ s.rc.stop(); } }
+  function end(ev){ if(!session) return; const s=session; s.released=true; if(s.rc&&!s.done) finish(s); }
   async function finish(s){
     if(s.done) return; s.done=true; session=null; btn.classList.remove('rec');
-    const held=Date.now()-s.t0; const rc=s.rc; const closeOv=()=>{ if(video){const ov=$('#recOverlay');ov&&ov.classList.remove('on');} };
-    if(!rc){ closeOv(); return; }
-    if(held<350){ rc.stop(); closeOv(); toast('Зажми и держи, пока говоришь 🎙️'); return; }
-    rc.stop(); const blob=await rc.blob; closeOv(); onBlob(blob);
+    const rc=s.rc; const heldAfterStart=Date.now()-rc.startTs;
+    if(heldAfterStart<350){ rc.stop(); rc.blob.then(()=>{}); closeOv(); toast('Зажми и держи, пока говоришь 🎙️'); return; }
+    rc.stop(); const blob=await rc.blob; closeOv();
+    if(!blob || blob.size<1500){ toast('Запись не получилась, зажми ещё раз 🎙️'); return; } // пустышку не шлём
+    onBlob(blob);
   }
   btn.style.touchAction='none';
   btn.addEventListener('pointerdown',start);

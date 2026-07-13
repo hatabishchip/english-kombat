@@ -1067,7 +1067,7 @@ app.post('/api/island/transcribe', express.raw({ type: '*/*', limit: '30mb' }), 
   const key = process.env.DEEPGRAM_API_KEY;
   if (!key) return res.status(503).json({ error: 'no deepgram key' });
   const audio = req.body;
-  if (!audio || !audio.length) return res.status(400).json({ error: 'no audio' });
+  if (!audio || !audio.length) { console.log('[transcribe] EMPTY body ct=%s', req.headers['content-type'] || '-'); return res.status(400).json({ error: 'no audio' }); }
   const lang = String(req.query.lang || 'en');       // 'en' для проверки английского, 'auto' для кружков (RU и т.п.)
   const ct = req.headers['content-type'] || 'audio/webm';
   const params = new URLSearchParams({ model: 'nova-2', smart_format: 'true', punctuate: 'true' });
