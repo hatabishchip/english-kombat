@@ -300,6 +300,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
         <div class="stat">⭐ <span id="stXp">0</span></div>
         <div class="stat">🔥 <span id="stStreak">1</span></div>
       </div>
+      <button class="stat" id="inviteBtn" style="border:0;background:rgba(255,255,255,.2)">👥</button>
     </div>
     <div class="map-wrap" id="mapWrap">
       <svg class="island-svg" viewBox="0 0 400 640" preserveAspectRatio="xMidYMid slice">
@@ -950,6 +951,69 @@ function sheet({emoji,title,text,rewards,cta,onCta}){
   $('#overlay').classList.add('on'); $('#sheetCta').onclick=onCta;
 }
 function closeSheet(){$('#overlay').classList.remove('on');}
+// ── ВИРАЛЬНОСТЬ (viral1-4,6) ──
+function refCode(){ if(!S.ref){ const ch='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; S.ref=Array.from({length:5},()=>ch[Math.floor(Math.random()*ch.length)]).join(''); save(); } return S.ref; }
+function inviteLink(){ return 'english-kombat.vercel.app/island?ref='+refCode(); }
+function buildShareCard(){
+  const c=document.createElement('canvas'); c.width=540; c.height=720; const x=c.getContext('2d');
+  // фон закат
+  const g=x.createLinearGradient(0,0,0,720); g.addColorStop(0,'#ffd59e'); g.addColorStop(.55,'#ff9d6b'); g.addColorStop(1,'#ff5a6e');
+  x.fillStyle=g; x.fillRect(0,0,540,720);
+  x.fillStyle='rgba(255,255,255,.15)'; x.beginPath(); x.arc(430,120,70,0,7); x.fill(); // солнце
+  x.textAlign='center';
+  x.font='800 34px system-ui'; x.fillStyle='#0b1f2a'; x.fillText('ENGLISH KOMBAT', 270, 90);
+  x.font='700 20px system-ui'; x.fillStyle='#7a3b1f'; x.fillText('🏝️ Остров', 270, 122);
+  // аватар-червячок
+  x.fillStyle='#3ecf6b'; x.beginPath(); x.ellipse(270,270,80,66,0,0,7); x.fill();
+  x.fillStyle='#2a6b7d'; x.beginPath(); x.arc(270,215,58,0,7); x.fill();
+  x.font='58px system-ui'; x.fillText(S.avatar?'🥷':'🙂',270,234);
+  x.font='800 30px system-ui'; x.fillStyle='#0b1f2a'; x.fillText((S.name||'Боец')+' зовёт тебя!', 270, 400);
+  // статы
+  x.font='700 22px system-ui'; x.fillStyle='#0b1f2a';
+  x.fillText('⭐ '+S.xp+' XP   🔥 '+S.streak+' дней   🍌 '+S.ammo, 270, 445);
+  // призыв
+  x.font='600 21px system-ui'; x.fillStyle='#7a3b1f';
+  x.fillText('Учи английский в драках 🥊', 270, 520);
+  x.fillText('Заходи по коду и мы оба', 270, 552);
+  x.fillText('получим награду 🎁', 270, 584);
+  // код
+  x.fillStyle='rgba(11,31,42,.9)'; roundRect(x,120,620,300,60,16); x.fill();
+  x.font='800 30px system-ui'; x.fillStyle='#ffd23f'; x.fillText(refCode(), 270, 660);
+  return c.toDataURL('image/png');
+}
+function roundRect(x,px,py,w,h,r){x.beginPath();x.moveTo(px+r,py);x.arcTo(px+w,py,px+w,py+h,r);x.arcTo(px+w,py+h,px,py+h,r);x.arcTo(px,py+h,px,py,r);x.arcTo(px,py,px+w,py,r);x.closePath();}
+function showInvite(peak){
+  const img=buildShareCard();
+  const s=$('#sheet');
+  s.innerHTML=
+    (peak?'<div class="big">🔥</div><h3>Ты в ударе!</h3><p>Позови друга - вы оба получите бонус 🎁</p>':'<h3>👥 Позвать друга</h3><p>Приведи друга: он получит буст, а ты +30% его наград (viral).</p>')+
+    '<img src="'+img+'" style="width:100%;border-radius:16px;box-shadow:var(--shadow);margin-bottom:14px">'+
+    '<button class="btn sun wide" id="invShare">📲 Поделиться в сторис</button>'+
+    '<div style="height:8px"></div>'+
+    '<button class="btn ghost wide sm" id="invCopy" style="color:var(--ink-soft);background:var(--paper2)">Скопировать ссылку</button>'+
+    '<div style="height:8px"></div>'+
+    '<button class="btn ghost wide sm" id="invClose" style="color:#9fb3bc;background:transparent">Позже</button>';
+  $('#overlay').classList.add('on');
+  $('#invShare').onclick=async()=>{
+    try{
+      const blob=await (await fetch(img)).blob();
+      const file=new File([blob],'english-kombat.png',{type:'image/png'});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){ await navigator.share({files:[file],text:'Учу английский в драках на острове 🥊🏝️ Заходи по коду '+refCode()+' '+inviteLink()}); }
+      else if(navigator.share){ await navigator.share({text:'Учу английский в драках на острове 🥊 '+inviteLink()}); }
+      else { copyText(inviteLink()); toast('Ссылка скопирована 📋'); }
+    }catch(e){}
+  };
+  $('#invCopy').onclick=()=>{ copyText(inviteLink()); toast('Ссылка скопирована 📋'); };
+  $('#invClose').onclick=()=>{closeSheet(); if($('#s-duel').classList.contains('on')){screen('s-map');selTab('map');refreshStats();}};
+}
+function copyText(t){ try{navigator.clipboard.writeText(t);}catch(e){ const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(_){}ta.remove(); } }
+// приветствие пришедшего по реф-ссылке (viral2 - двусторонняя награда)
+(function refWelcome(){
+  const m=location.search.match(/[?&]ref=([A-Z0-9]{4,6})/i);
+  if(m && !S.refUsedBy && m[1].toUpperCase()!==S.ref){ S.refUsedBy=m[1].toUpperCase(); S.xp=(S.xp||0)+30; S.ammo=(S.ammo||0)+3; save();
+    setTimeout(()=>toast('🎁 Бонус за приглашение: +30 XP, +3 🍌'),1600); }
+})();
+
 // paywall (money2) - оффер премиума. Реальная оплата НЕ подключена (money hard-stop).
 function showPaywall(reason){
   const s=$('#sheet');
@@ -1210,10 +1274,11 @@ function endDuel(){
   sheet({emoji:win?'🏆':'🤝',title:win?'Ты выиграл дуэль!':'Дуэль окончена',
     text:'Счёт '+D.you+' : '+D.ai+'. '+(win?'Ты говорил лучше 🔥':'Соперник вырвался вперёд. Реванш?'),
     rewards:[['⭐','+'+reward],['🍌',S.ammo]],
-    cta:win?'Забрать награду':'Реванш ⚔️',onCta:()=>{closeSheet(); if(win){screen('s-map');selTab('map');refreshStats();} else {startDuel();}}});
+    cta:win?'Забрать награду':'Реванш ⚔️',onCta:()=>{closeSheet(); if(win){refreshStats(); showInvite(true);} else {startDuel();}}});
 }
 $('#duelBack').onclick=()=>{ if(D){D.running=false;clearInterval(D._t);} screen('s-map');selTab('map');refreshStats(); };
 $('#floatDuel').addEventListener('click',()=>startDuel());
+$('#inviteBtn')&&$('#inviteBtn').addEventListener('click',()=>showInvite(false));
 
 boot();
 })();
