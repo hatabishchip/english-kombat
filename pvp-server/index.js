@@ -919,24 +919,48 @@ const ISLAND_PERSONAS = {
   nadia:  { name: 'Nadia',  emoji: '🎨', accent: 'neutral', bio: 'художница-кочевник, творческая, вдумчивая' },
   bruno:  { name: 'Bruno',  emoji: '⚽', accent: 'Brazilian', bio: 'тренер по футболу на пляже, громкий, весёлый' },
 };
-function islandSystemPrompt(personaKey, userName, level, goal) {
+// шаги онбординга: к чему вернуть игрока после свободной реплики
+const ONB_STEPS = {
+  watch: 'предложи нажать на видео-кружок и посмотреть, как тут всё устроено',
+  name: 'спроси, как его зовут',
+  goal: 'спроси, зачем ему английский (переезд, путешествия, работа)',
+  photo: 'предложи скинуть фото для аватарки бойца',
+  done: 'позови его на карту острова начинать первое задание',
+};
+function islandSystemPrompt(personaKey, userName, level, goal, mode, step) {
   const p = ISLAND_PERSONAS[personaKey] || ISLAND_PERSONAS.roman;
+  // ── РЕЖИМ ОНБОРДИНГА: игрок ещё НЕ знает английского, всё по-русски, вести по сценарию ──
+  if (mode === 'onboarding') {
+    const stepLine = ONB_STEPS[step] || ONB_STEPS.done;
+    return [
+      `Ты Роман - весёлый основатель тропического острова в игре English Kombat, свой парень, пишешь как в мессенджере.`,
+      `Ты ведёшь онбординг новичка${userName ? ' по имени ' + userName : ''}. Игрок ещё НЕ знает английского.`,
+      `ПРАВИЛА:`,
+      `1) Отвечай ТОЛЬКО по-русски. Никакого английского (кроме названия игры English Kombat).`,
+      `2) Коротко: 1-2 предложения, живо, с эмодзи, без пафоса.`,
+      `3) Сначала отреагируй по смыслу на то, что игрок сказал (он мог прислать голос/кружок о чём угодно).`,
+      `4) В КОНЦЕ обязательно верни его к сценарию: ${stepLine}.`,
+      `5) Никогда не используй длинное тире. Не упоминай, что ты ИИ.`,
+      `Верни СТРОГО JSON: {"reply": "<твоё сообщение по-русски>", "correction": ""}`,
+    ].join('\n');
+  }
   const lvl = level === 'advanced'
     ? 'Reply in natural English at B2 level with richer vocabulary and idioms, still 1 to 2 sentences.'
-    : 'Reply mostly in SIMPLE English (A2-B1), short - 1 to 2 sentences, like a real chat message.';
+    : ['The learner is a BEGINNER who barely knows English. Reply mostly in RUSSIAN (1-2 short sentences),',
+       'and naturally include exactly ONE very simple English phrase (3-6 words) with its Russian translation in parentheses,',
+       'then invite them to say or answer it in English. Example style: "Кстати, смотри: I love the ocean (я люблю океан). А ты? Скажи по-английски!"'].join(' ');
   const goalLine = goal ? `The learner's real goal is: "${goal}". Now and then, naturally connect the chat to this goal to keep them motivated (do not force it every message).` : '';
   return [
     `You are ${p.name} ${p.emoji}, a character on a tropical English-learning island game called "English Kombat".`,
     `Personality: ${p.bio}. Accent flavour: ${p.accent}.`,
-    `You are chatting with a Russian-speaking learner named ${userName || 'friend'} who is practising English.`,
+    `You are chatting with a Russian-speaking learner named ${userName || 'friend'} who is learning English.`,
     goalLine,
     `RULES:`,
     `1) ${lvl} Use emoji naturally.`,
     `2) Always end with a light question to keep the conversation going.`,
-    `3) If the learner makes an English mistake, do NOT scold. Gently model the correct version inside your reply (recasting).`,
-    `4) A few Russian words are OK to keep them comfortable, but keep English dominant.`,
-    `5) Stay fully in character as ${p.name}. Never mention you are an AI or a model.`,
-    `6) NEVER use an em dash (—). Use a normal hyphen or comma.`,
+    `3) If the learner tries English and makes a mistake, do NOT scold. Gently model the correct version inside your reply (recasting).`,
+    `4) Stay fully in character as ${p.name}. Never mention you are an AI or a model.`,
+    `5) NEVER use an em dash (—). Use a normal hyphen or comma.`,
     `Return STRICT JSON only: {"reply": "<your message>", "correction": "<corrected version of the learner's last English phrase, or empty string if it was fine or not English>"}`,
   ].join('\n');
 }
@@ -978,11 +1002,11 @@ function parseChatJson(raw, personaKey) {
   return { reply: txt || 'Nice! Tell me more 🙂', correction: '' };
 }
 app.post('/api/island/chat', async (req, res) => {
-  const { messages, persona, userName, level, goal } = req.body || {};
+  const { messages, persona, userName, level, goal, mode, step } = req.body || {};
   if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: 'messages required' });
   // ограничим контекст последними 12 репликами (talk7 — память)
   const history = messages.slice(-12).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 500) }));
-  const system = islandSystemPrompt(persona, userName, level, String(goal || '').slice(0, 80));
+  const system = islandSystemPrompt(persona, userName, level, String(goal || '').slice(0, 80), mode, step);
   let raw = '', via = '';
   try { raw = await callGroq(system, history); via = 'groq'; }
   catch (e1) {

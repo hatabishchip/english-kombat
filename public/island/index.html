@@ -898,16 +898,31 @@ function onbHandleVoice(t, echo){
   if(onbAwait==='goal'){ addMsg('out',esc(t)); pickGoal(t); return; } // сказал цель голосом на шаге выбора
   onbFreeReply(t, echo); // свободная реплика -> живой ответ Романа
 }
+// текущий шаг сценария онбординга (для возврата после свободной реплики)
+function onbStep(){
+  if(step===0) return 'watch';       // ещё не нажал «Го, показывай»
+  if(!S.name) return 'name';
+  if(!S.goal) return 'goal';
+  return 'photo';
+}
+// вернуть кнопки текущего шага, чтобы сценарий не терялся
+function onbReshowButtons(){
+  const st=onbStep();
+  if(st==='watch'){ q(['Привет 👋','Го, показывай']); }
+  else if(st==='goal'&&onbAwait==='goal'){ q(['Переехать в другую страну 🌍','Путешествовать по миру ✈️','Работа за границей 💼','Свой вариант']); }
+  else if(st==='photo'){ q(['📸 Скинуть фото','Позже']); }
+}
 async function onbFreeReply(text, echo){
   if(echo) addMsg('out',esc(text));
   typing();
-  let reply='Понял тебя 👊 Жми «Го, показывай» - и погнали на остров!';
+  let reply='Понял тебя 👊 Давай продолжим - остров ждёт!';
   try{
     const r=await fetch(API+'/api/island/chat',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({persona:'roman',userName:S.name||'друг',goal:S.goal||'',level:'basic',messages:[{role:'user',content:text}]})});
+      body:JSON.stringify({persona:'roman',userName:S.name||'',goal:S.goal||'',mode:'onboarding',step:onbStep(),messages:[{role:'user',content:text}]})});
     const j=await r.json(); if(j&&j.reply) reply=j.reply;
   }catch(e){}
   untype(); addMsg('in',reply,'🎬');
+  onbReshowButtons();
 }
 // hold-to-record: микрофон и видео-кружок в онбординге
 setupVoiceBtn($('#onbMic'), {lang:'auto', onFail:()=>addMsg('in',notUnderstoodLine(),'🎬')}, t=>onbHandleVoice(t, true));
