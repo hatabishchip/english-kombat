@@ -205,6 +205,27 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .reward-row{display:flex;gap:10px;justify-content:center;margin:0 0 18px}
 .reward{background:var(--paper2);border-radius:14px;padding:10px 16px;font-weight:900;font-size:17px;display:flex;align-items:center;gap:6px}
 
+/* premium: battle pass + voice shop */
+.prem-h{font-weight:800;font-size:16px;margin:10px 0 12px}
+.bp-track{display:flex;flex-direction:column;gap:0}
+.bp-tier{display:flex;align-items:center;gap:12px;position:relative;padding:0 0 2px}
+.bp-num{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex:0 0 auto;z-index:2}
+.bp-tier.done .bp-num{background:var(--leaf)}
+.bp-tier.cur .bp-num{background:var(--banana);color:#3a1c5c;box-shadow:0 0 0 4px rgba(255,210,63,.3)}
+.bp-rewards{display:flex;gap:8px;flex:1;padding:6px 0}
+.bp-r{flex:1;border-radius:12px;padding:8px;text-align:center;font-size:12px;font-weight:700}
+.bp-r.free{background:rgba(255,255,255,.12)}
+.bp-r.prem{background:linear-gradient(135deg,rgba(255,210,63,.25),rgba(255,138,61,.25));border:1px solid rgba(255,210,63,.4);position:relative}
+.bp-r.prem::after{content:"👑";position:absolute;top:-6px;right:-4px;font-size:12px}
+.bp-r .em{font-size:20px;display:block}
+.bp-line{position:absolute;left:16px;top:0;bottom:0;width:3px;background:rgba(255,255,255,.12);z-index:1}
+.vshop{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.vpack{background:rgba(255,255,255,.1);border-radius:16px;padding:14px;text-align:center}
+.vpack .em{font-size:34px}
+.vpack .vn{font-weight:800;font-size:14px;margin-top:4px}
+.vpack .vp{font-size:12px;color:#c8b6e8;margin:2px 0 8px}
+.vpack .btn{padding:8px;font-size:13px;box-shadow:none}
+
 /* карта мира (map2) */
 .world-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .wc{border-radius:18px;padding:16px 14px;color:#fff;position:relative;overflow:hidden;min-height:118px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:var(--shadow)}
@@ -395,6 +416,21 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
     </div>
   </section>
 
+  <!-- ============ 10 · PREMIUM: Battle Pass (money4) + Voice Shop (money5) ============ -->
+  <section id="s-premium" class="screen" style="background:linear-gradient(180deg,#1a1030,#0b1f2a)">
+    <div class="map-top" style="color:#fff">
+      <button class="back" id="premBack" style="background:rgba(255,255,255,.15);color:#fff">←</button>
+      <div class="scene-title" style="color:#fff">👑 Premium</div>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:6px 14px calc(20px + var(--safe-b));color:#fff">
+      <div class="prem-h">🎟️ Battle Pass · сезон «Бали»</div>
+      <div class="bp-track" id="bpTrack"></div>
+      <div class="prem-h" style="margin-top:22px">🎙️ Voice Shop · акцент-паки</div>
+      <div class="vshop" id="vshop"></div>
+      <button class="btn sun wide" id="premBuy" style="margin-top:20px">👑 Оформить Premium · $4.99/мес</button>
+    </div>
+  </section>
+
   <!-- ============ 9 · КАРТА МИРА (map2, Фаза 3) ============ -->
   <section id="s-world" class="screen" style="background:linear-gradient(180deg,#0b2b3a,#0b1f2a)">
     <div class="map-top" style="color:#fff">
@@ -514,7 +550,7 @@ function screen(id){$$('.screen').forEach(s=>s.classList.remove('on'));$('#'+id)
   const fc=$('#floatChat'); if(fc){ if(id==='s-map'){ if(fc.dataset.armed==='1') fc.classList.add('on'); } else { fc.classList.remove('on'); } }
   const fd=$('#floatDuel'); if(fd){ fd.classList.toggle('on', id==='s-map'); }
   // таббар прячем на чат-экранах (поле ввода не должно быть под ним); возврат кнопкой назад
-  const tb=$('#tabbar'); if(tb&&tb.dataset.armed==='1'){ tb.classList.toggle('on', id!=='s-live'&&id!=='s-onb'&&id!=='s-duel'); }
+  const tb=$('#tabbar'); if(tb&&tb.dataset.armed==='1'){ tb.classList.toggle('on', id!=='s-live'&&id!=='s-onb'&&id!=='s-duel'&&id!=='s-premium'); }
 }
 function refreshStats(){
   $('#stAmmo').textContent=S.ammo; $('#stXp').textContent=S.xp; $('#stStreak').textContent=S.streak;
@@ -1061,7 +1097,7 @@ function showPaywall(reason){
     '<div style="height:8px"></div>'+
     '<button class="btn ghost wide sm" id="payLater" style="color:var(--ink-soft);background:var(--paper2)">Продолжить бесплатно</button>';
   $('#overlay').classList.add('on');
-  $('#payGo').onclick=()=>{ toast('💳 Оплата скоро подключится'); };
+  $('#payGo').onclick=()=>{ closeSheet(); openPremium(); };
   $('#payLater').onclick=()=>{ // демо-режим: не блокируем тест
     if(S.usage){S.usage.chat=Math.max(0,S.usage.chat-5);save();}
     closeSheet();
@@ -1342,6 +1378,51 @@ function renderWorld(){
   });
 }
 $('#worldBack').onclick=()=>{ screen('s-map'); selTab('map'); refreshStats(); };
+
+/* Premium: Battle Pass (money4) + Voice Shop (money5) */
+const BP_REWARDS=[
+  {free:{em:'🍌',t:'5 бананов'},prem:{em:'🥥',t:'Кокос-оружие'}},
+  {free:{em:'⭐',t:'20 XP'},prem:{em:'🎨',t:'Скин аватара'}},
+  {free:{em:'🪙',t:'30 монет'},prem:{em:'🎙️',t:'Акцент-пак'}},
+  {free:{em:'🍌',t:'8 бананов'},prem:{em:'🍍',t:'Ананас-оружие'}},
+  {free:{em:'⭐',t:'40 XP'},prem:{em:'👕',t:'Экип червячка'}},
+  {free:{em:'🎁',t:'Сундук'},prem:{em:'🌋',t:'Вулкан-оружие'}},
+  {free:{em:'🪙',t:'50 монет'},prem:{em:'🏝️',t:'Секретная локация'}},
+  {free:{em:'⭐',t:'60 XP'},prem:{em:'💎',t:'Джекпот-сундук'}},
+  {free:{em:'🍌',t:'12 бананов'},prem:{em:'😎',t:'Легендарный скин'}},
+  {free:{em:'🏆',t:'Титул'},prem:{em:'👑',t:'Корона сезона'}},
+];
+function bpTier(){ return Math.min(BP_REWARDS.length, Math.floor((S.xp||0)/50)+1); }
+const VOICE_PACKS=[
+  {em:'🇬🇧',n:'British',p:'Акцент Тома'},{em:'🇺🇸',n:'American',p:'Акцент Mia'},
+  {em:'🇦🇺',n:'Aussie',p:'Акцент Liam'},{em:'🇫🇷',n:'French',p:'Акцент Pierre'},
+];
+function openPremium(){ screen('s-premium'); renderBattlePass(); renderVoiceShop(); }
+function renderBattlePass(){
+  const cur=bpTier(); const box=$('#bpTrack'); box.innerHTML='<div class="bp-line"></div>';
+  BP_REWARDS.forEach((r,i)=>{
+    const n=i+1; const cls=n<cur?'done':(n===cur?'cur':'');
+    const el=document.createElement('div'); el.className='bp-tier '+cls;
+    el.innerHTML='<div class="bp-num">'+(n<cur?'✓':n)+'</div>'+
+      '<div class="bp-rewards">'+
+        '<div class="bp-r free"><span class="em">'+r.free.em+'</span>'+r.free.t+'</div>'+
+        '<div class="bp-r prem"><span class="em">'+r.prem.em+'</span>'+r.prem.t+'</div>'+
+      '</div>';
+    box.appendChild(el);
+  });
+}
+function renderVoiceShop(){
+  const box=$('#vshop'); box.innerHTML='';
+  VOICE_PACKS.forEach(v=>{
+    const el=document.createElement('div'); el.className='vpack';
+    el.innerHTML='<div class="em">'+v.em+'</div><div class="vn">'+v.n+'</div><div class="vp">'+v.p+'</div>'+
+      '<button class="btn sun sm wide">👑 Premium</button>';
+    el.querySelector('button').onclick=()=>showPaywall('country');
+    box.appendChild(el);
+  });
+}
+$('#premBack').onclick=()=>{ screen('s-map'); selTab('map'); refreshStats(); };
+$('#premBuy').onclick=()=>toast('💳 Оплата скоро подключится');
 // два трека (lvl3)
 function updateTrackBtn(){ const b=$('#worldTrack'); if(b) b.textContent = (S.track==='advanced'?'🎚️ Продвинутый':'🎚️ Базовый'); }
 $('#worldTrack')&&$('#worldTrack').addEventListener('click',()=>{ S.track = S.track==='advanced'?'basic':'advanced'; save(); updateTrackBtn(); toast(S.track==='advanced'?'Уровень: продвинутый 🧠':'Уровень: базовый 🌱'); });
