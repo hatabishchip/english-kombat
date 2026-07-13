@@ -6,258 +6,480 @@
 <meta name="theme-color" content="#7fd3e6">
 <title>English Kombat - Worms-арена (бета)</title>
 <style>
-  html,body{margin:0;padding:0;height:100%;background:#0b1f2a;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  html,body{margin:0;padding:0;height:100%;background:#0b1f2a;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
   #game{position:fixed;inset:0}
   .back-link{position:fixed;top:calc(8px + env(safe-area-inset-top));left:10px;z-index:50;background:rgba(11,31,42,.75);color:#fff;
     font:800 14px system-ui;padding:9px 14px;border-radius:14px;text-decoration:none}
+  /* стартовое меню */
+  #menu{position:fixed;inset:0;z-index:60;background:linear-gradient(180deg,#123c2e,#0b1f2a);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:26px;text-align:center;color:#fff}
+  #menu h1{font-size:30px;margin:0 0 6px}
+  #menu p{color:#9fc9b8;font-size:15px;line-height:1.5;margin:0 0 26px;max-width:320px}
+  .mbtn{width:100%;max-width:320px;padding:16px;border-radius:18px;border:0;font:800 17px system-ui;color:#fff;margin-bottom:12px;cursor:pointer}
+  .mbtn.bot{background:linear-gradient(180deg,#ff8a3d,#e56b1f);box-shadow:0 6px 0 #b54f12}
+  .mbtn.live{background:linear-gradient(180deg,#9b5cff,#6a2cc9);box-shadow:0 6px 0 #4a1f8f}
+  .mbtn:active{transform:translateY(3px);box-shadow:none}
+  #searching{display:none;color:#c8b6e8;font-weight:700;margin-top:8px}
+  /* карточка речи-зарядки */
+  #speech{position:fixed;left:10px;right:10px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:55;background:rgba(11,31,42,.94);border-radius:20px;padding:14px 14px 12px;color:#fff;display:none;text-align:center;box-shadow:0 8px 26px rgba(0,0,0,.35)}
+  #speech .ru{font-size:13px;color:#bcd3db}
+  #speech .en{font-size:24px;font-weight:900;color:#ffd23f;margin:3px 0 2px}
+  #speech .heard{min-height:17px;font-size:13px;font-weight:700;margin:4px 0 8px}
+  #speech .row{display:flex;gap:9px}
+  .sbtn{flex:1;padding:13px;border-radius:14px;border:0;font:800 15px system-ui;cursor:pointer}
+  #spSay{background:rgba(255,255,255,.14);color:#fff;flex:0 0 118px}
+  #spMic{background:linear-gradient(180deg,#ff8a3d,#e56b1f);color:#fff}
+  #spMic.rec{background:linear-gradient(180deg,#ff5a6e,#d83a4d);animation:pl 1s infinite}
+  @keyframes pl{0%,100%{box-shadow:0 0 0 0 rgba(255,90,110,.5)}50%{box-shadow:0 0 0 14px rgba(255,90,110,0)}}
+  /* тост */
+  #toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);z-index:70;background:rgba(11,31,42,.95);color:#fff;padding:10px 16px;border-radius:14px;font:700 14px system-ui;opacity:0;transition:.25s;pointer-events:none;white-space:nowrap}
+  #toast.on{opacity:1}
 </style>
 </head>
 <body>
 <a class="back-link" href="/island/">← Остров</a>
 <div id="game"></div>
+
+<div id="menu">
+  <div style="font-size:64px;line-height:1;margin-bottom:10px">🧨🍌</div>
+  <h1>Worms-арена</h1>
+  <p>Скажи фразу на английском - заряди банан. Потяни, как рогатку - взорви соперника. Земля разрушается по-настоящему!</p>
+  <button class="mbtn bot" id="mBot">🤖 Против DON BANANA</button>
+  <button class="mbtn live" id="mLive">🌐 Живой бой с игроком</button>
+  <div id="searching">🔍 Ищем соперника… <span style="opacity:.7">(позови друга сюда же)</span></div>
+</div>
+
+<div id="speech">
+  <div class="ru" id="spRu"></div>
+  <div class="en" id="spEn"></div>
+  <div class="heard" id="spHeard"></div>
+  <div class="row">
+    <button class="sbtn" id="spSay">🔊</button>
+    <button class="sbtn" id="spMic">🎙️ Держи и говори</button>
+  </div>
+</div>
+<div id="toast"></div>
+
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script src="https://unpkg.com/colyseus.js@^0.16.0/dist/colyseus.js"></script>
 <script>
 /* =====================================================================
-   WORMS-АРЕНА (бета) - прототип по ресёрчу: разрушаемая земля (битмап +
-   пиксельные коллизии), рогатка-прицел с призрачной траекторией, ветер,
-   частицы, вода. Игрок против бота. Дальше: интеграция речи + PvP.
+   WORMS-АРЕНА: речь-зарядка (Deepgram) + PvP (Colyseus worms_duel, relay)
    ===================================================================== */
-// мир подгоняется под пропорцию экрана (портрет = выше, ландшафт = шире)
-const _iw=Math.max(320, window.innerWidth), _ih=Math.max(480, window.innerHeight);
-const W=_iw>_ih?1280:900, H=Math.round(W*_ih/_iw), WATER_Y=H-64, G=0.35;
+const API='https://ek-pvp.13-140-178-130.sslip.io';
+const WSURL='wss://ek-pvp.13-140-178-130.sslip.io';
+const G=0.35;
+
+/* ── банк боевых фраз ── */
+const PHRASES=[
+  {ru:'Получай банан!', en:'Take this banana!', ans:['take this banana','take the banana','take this']},
+  {ru:'Я тебя достану', en:'I will get you', ans:['i will get you','i\'ll get you','i will catch you']},
+  {ru:'Это мой остров', en:'This is my island', ans:['this is my island','it is my island','its my island']},
+  {ru:'Ты не спрячешься', en:'You cannot hide', ans:['you cannot hide','you can\'t hide','you cant hide']},
+  {ru:'Огонь!', en:'Fire!', ans:['fire','open fire']},
+  {ru:'Смотри и учись', en:'Watch and learn', ans:['watch and learn','look and learn']},
+  {ru:'Слишком легко', en:'Too easy', ans:['too easy','so easy','its too easy']},
+  {ru:'Я чемпион', en:'I am the champion', ans:['i am the champion','i\'m the champion','i am champion']},
+  {ru:'Беги, пока можешь', en:'Run while you can', ans:['run while you can','run when you can']},
+  {ru:'Кокос летит к тебе', en:'Coconut is coming', ans:['coconut is coming','the coconut is coming','coconut coming']},
+  {ru:'Не зли меня', en:'Do not make me angry', ans:['do not make me angry','don\'t make me angry','dont make me angry']},
+  {ru:'Победа будет моей', en:'Victory will be mine', ans:['victory will be mine','the victory will be mine','victory is mine']},
+];
+function norm(t){return String(t).toLowerCase().replace(/[.,!?;:'"()\-]/g,'').replace(/\s+/g,' ').trim();}
+function matchPhrase(said,ans){ const n=norm(said); if(!n) return false; return ans.some(a=>{const na=norm(a); return n===na||n.includes(na)||na.includes(n);}); }
+function toast(t){ const el=document.getElementById('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('on'),1900); }
+function say(text){ try{const u=new SpeechSynthesisUtterance(text);u.lang='en-US';u.rate=.95;speechSynthesis.cancel();speechSynthesis.speak(u);}catch(e){} }
+
+/* ── запись + Deepgram (компакт, hold-to-record) ── */
+let micStream=null;
+async function getMic(){
+  if(micStream && micStream.getAudioTracks().some(t=>t.readyState==='live')) return micStream;
+  micStream=await navigator.mediaDevices.getUserMedia({audio:true});
+  return micStream;
+}
+function pickMime(list){ for(const m of list){ try{ if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m)) return m; }catch(e){} } return ''; }
+async function transcribe(blob){
+  const ct=((blob.type||'').split(';')[0].trim())||'application/octet-stream';
+  const r=await fetch(API+'/api/island/transcribe?lang=en',{method:'POST',headers:{'Content-Type':ct},body:blob});
+  if(!r.ok) throw new Error('t '+r.status);
+  const j=await r.json(); return (j.transcript||'').trim();
+}
+function holdRecord(btn,onText,onState){
+  let ses=null;
+  btn.style.touchAction='none';
+  btn.addEventListener('contextmenu',e=>e.preventDefault());
+  btn.addEventListener('pointerdown',async ev=>{
+    if(ev.cancelable) ev.preventDefault(); if(ses) return;
+    if(!(navigator.mediaDevices&&window.MediaRecorder)){ toast('Запись не поддерживается'); return; }
+    try{ btn.setPointerCapture&&btn.setPointerCapture(ev.pointerId); }catch(e){}
+    const s={rec:null,chunks:[],released:false,t0:0}; ses=s;
+    btn.classList.add('rec'); onState&&onState('rec');
+    try{
+      const stream=await getMic();
+      if(s.released){ ses=null; btn.classList.remove('rec'); onState&&onState('idle'); toast('Доступ есть ✅ Зажми и говори'); return; }
+      const mime=pickMime(['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg']);
+      const mr=new MediaRecorder(stream, mime?{mimeType:mime}:undefined);
+      s.rec=mr; s.t0=Date.now();
+      mr.ondataavailable=e=>{ if(e.data&&e.data.size) s.chunks.push(e.data); };
+      mr.onstop=async()=>{
+        btn.classList.remove('rec'); ses=null;
+        const held=Date.now()-s.t0;
+        const blob=new Blob(s.chunks,{type:(s.chunks[0]&&s.chunks[0].type)||mime||'audio/mp4'});
+        if(held<350||blob.size<1500){ onState&&onState('idle'); toast('Зажми и держи, пока говоришь 🎙️'); return; }
+        onState&&onState('busy');
+        let t=''; try{ t=await transcribe(blob); }catch(e){}
+        onState&&onState('idle');
+        onText(t);
+      };
+      mr.start(250);
+    }catch(e){ ses=null; btn.classList.remove('rec'); onState&&onState('idle'); toast('Нет доступа к микрофону 🎙️'); }
+  });
+  const end=()=>{ if(!ses) return; const s=ses; s.released=true; if(s.rec){ const w=Math.max(0,650-(Date.now()-s.t0)); setTimeout(()=>{ try{ if(s.rec.state!=='inactive') s.rec.stop(); }catch(e){} }, s.chunks.length?0:w); } };
+  btn.addEventListener('pointerup',end);
+  btn.addEventListener('pointercancel',end);
+}
+
+/* ── seeded RNG для одинакового террейна у обоих игроков ── */
+function lcg(seed){ let s=seed>>>0; return ()=>{ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
+
+/* ── глобальный конфиг партии ── */
+let CFG=null;   // {mode:'bot'|'pvp', W,H, seed, room?, mySid?, order?, turn?, wind?, names?}
+let SCENE=null; // текущая Phaser-сцена
 
 class Arena extends Phaser.Scene {
   create(){
-    const sc=this;
-    // ── небо, солнце, облака, пальмы (параллакс) ──
+    SCENE=this;
+    const {W,H,seed}=CFG; const WATER_Y=H-64;
+    this.W=W; this.H=H; this.WATER_Y=WATER_Y;
+    const rnd=lcg(seed);
+    const ph1=rnd()*6.28, ph2=rnd()*6.28;
+
+    // небо/солнце/облака
     const sky=this.add.graphics();
     for(let i=0;i<20;i++){ const t=i/20;
-      sky.fillStyle(Phaser.Display.Color.GetColor(127+t*80, 211+t*20, 230), 1);
-      sky.fillRect(0, i*H/20, W, H/20+1); }
-    this.add.circle(W-140, 110, 55, 0xfff3c0).setAlpha(.95);
-    this.add.circle(W-140, 110, 80, 0xffe680, .25);
-    for(let i=0;i<4;i++){ const c=this.add.ellipse(80+i*(W/4), 80+((i%2)*50), 150, 40, 0xffffff, .8);
-      this.tweens.add({targets:c, x:'+=60', duration:9000+i*2000, yoyo:true, repeat:-1}); }
+      sky.fillStyle(Phaser.Display.Color.GetColor(127+t*80,211+t*20,230),1);
+      sky.fillRect(0,i*H/20,W,H/20+1); }
+    this.add.circle(W-140,110,55,0xfff3c0).setAlpha(.95);
+    this.add.circle(W-140,110,80,0xffe680,.25);
+    for(let i=0;i<4;i++){ const c=this.add.ellipse(80+i*(W/4),80+((i%2)*50),150,40,0xffffff,.8);
+      this.tweens.add({targets:c,x:'+=60',duration:9000+i*2000,yoyo:true,repeat:-1}); }
 
-    // ── разрушаемая земля: canvas-битмап ──
-    const tex=this.textures.createCanvas('terra', W, H);
+    // земля (битмап, детерминирована seed'ом)
+    const tex=this.textures.createCanvas('terra'+seed, W, H);
     const ctx=tex.getContext();
-    // остров: две горки-дюны
     ctx.fillStyle='#e8c98a';
-    ctx.beginPath(); ctx.moveTo(0, WATER_Y+20);
-    const base=Math.min(WATER_Y-96, Math.round(H*0.76)); // в портрете земля выше, поле драматичнее
+    ctx.beginPath(); ctx.moveTo(0,WATER_Y+20);
+    const base=Math.min(WATER_Y-96, Math.round(H*0.76));
     for(let x=0;x<=W;x+=8){
-      const y = base - 110*Math.sin(x/W*Math.PI) - 48*Math.sin(x/170) - 22*Math.sin(x/61+2);
-      ctx.lineTo(x, y);
+      const y=base -110*Math.sin(x/W*Math.PI) -48*Math.sin(x/170+ph1) -22*Math.sin(x/61+ph2);
+      ctx.lineTo(x,y);
     }
-    ctx.lineTo(W, WATER_Y+20); ctx.closePath(); ctx.fill();
-    // трава сверху: перекрасим верхнюю кромку
+    ctx.lineTo(W,WATER_Y+20); ctx.closePath(); ctx.fill();
     const img=ctx.getImageData(0,0,W,H), d=img.data;
     for(let x=0;x<W;x++){ let top=-1;
-      for(let y=0;y<H;y++){ if(d[(y*W+x)*4+3]>50){ top=y; break; } }
+      for(let y=0;y<H;y++){ if(d[(y*W+x)*4+3]>50){top=y;break;} }
       if(top>=0){ for(let y=top;y<Math.min(top+10,H);y++){ const i=(y*W+x)*4; d[i]=62;d[i+1]=176;d[i+2]=94; } } }
-    ctx.putImageData(img,0,0);
-    tex.refresh();
-    this.terra=this.add.image(0,0,'terra').setOrigin(0).setDepth(2);
+    ctx.putImageData(img,0,0); tex.refresh();
+    this.add.image(0,0,'terra'+seed).setOrigin(0).setDepth(2);
     this.terraCtx=ctx; this.terraTex=tex;
-    this.alpha=ctx.getImageData(0,0,W,H).data; // карта прочности (альфа)
-    // декор сажаем на рельеф
-    [[Math.round(W*0.06),'🌴',80],[Math.round(W*0.94),'🌴',86],[Math.round(W*0.36),'🌺',26],[Math.round(W*0.66),'🌺',24]].forEach(([x,e,s])=>
-      this.add.text(x, this.surfaceY(x)+4, e, {fontSize:s+'px'}).setOrigin(.5,1).setDepth(1));
+    this.alphaMap=ctx.getImageData(0,0,W,H).data;
 
-    // ── вода ──
-    const water=this.add.rectangle(W/2, (H+WATER_Y)/2+14, W, H-WATER_Y, 0x2e86b5, .92).setDepth(3);
-    this.tweens.add({targets:water, y:'+=6', duration:1600, yoyo:true, repeat:-1});
-    this.add.rectangle(W/2, WATER_Y+16, W, 6, 0x7fd3e6, .8).setDepth(3);
-
-    // ── текстура частиц ──
+    // вода
+    const water=this.add.rectangle(W/2,(H+WATER_Y)/2+14,W,H-WATER_Y,0x2e86b5,.92).setDepth(3);
+    this.tweens.add({targets:water,y:'+=6',duration:1600,yoyo:true,repeat:-1});
+    this.add.rectangle(W/2,WATER_Y+16,W,6,0x7fd3e6,.8).setDepth(3);
+    // декор на рельефе
+    [[Math.round(W*0.06),'🌴',78],[Math.round(W*0.94),'🌴',84],[Math.round(W*0.36),'🌺',24],[Math.round(W*0.66),'🌺',22]].forEach(([x,e,s])=>
+      this.add.text(x,this.surfaceY(x)+4,e,{fontSize:s+'px'}).setOrigin(.5,1).setDepth(1));
     const g2=this.make.graphics({x:0,y:0,add:false});
     g2.fillStyle(0xffffff,1); g2.fillCircle(6,6,6); g2.generateTexture('spark',12,12);
 
-    // ── червячки ──
-    this.player=this.makeWorm(Math.round(W*0.19), 'ТЫ', '🙂', 0x3ecf6b);
-    this.enemy =this.makeWorm(Math.round(W*0.81),'DON BANANA','🍌', 0xff5a6e);
-    this.dropWorm(this.player); this.dropWorm(this.enemy);
+    // бойцы: A слева, B справа
+    const names=CFG.names||{A:'ТЫ',B:'DON BANANA'};
+    this.wormA=this.makeWorm(Math.round(W*0.19), names.A, CFG.mode==='pvp'?'🙂':'🙂', 0x3ecf6b);
+    this.wormB=this.makeWorm(Math.round(W*0.81), names.B, CFG.mode==='pvp'?'🧑':'🍌', 0xff5a6e);
+    this.dropWorm(this.wormA); this.dropWorm(this.wormB);
+    // кто я
+    this.mySeat = CFG.mode==='pvp' ? (CFG.order[0]===CFG.mySid?'A':'B') : 'A';
+    this.myWorm = this.mySeat==='A'?this.wormA:this.wormB;
+    this.foeWorm= this.mySeat==='A'?this.wormB:this.wormA;
+    const marker=this.add.text(0,-78,'▼',{fontSize:'20px',color:'#ffd23f'}).setOrigin(.5); this.myWorm.add(marker);
 
-    // ── UI ──
+    // UI
     this.ui={};
-    this.ui.turn=this.add.text(W/2, 34, '', {fontFamily:'system-ui', fontSize:'30px', fontStyle:'900', color:'#0b1f2a'}).setOrigin(.5).setDepth(20);
-    this.ui.wind=this.add.text(W/2, 72, '', {fontFamily:'system-ui', fontSize:'22px', fontStyle:'700', color:'#0b3a52'}).setOrigin(.5).setDepth(20);
-    this.ui.hint=this.add.text(W/2, H-26, '⬅️ Потяни от своего бойца назад, как рогатку, и отпусти!', {fontFamily:'system-ui', fontSize:'22px', fontStyle:'700', color:'#ffffff'}).setOrigin(.5).setDepth(20).setShadow(0,2,'#0b1f2a',4);
+    this.ui.turn=this.add.text(W/2,36,'',{fontFamily:'system-ui',fontSize:'30px',fontStyle:'900',color:'#0b1f2a'}).setOrigin(.5).setDepth(20);
+    this.ui.wind=this.add.text(W/2,74,'',{fontFamily:'system-ui',fontSize:'22px',fontStyle:'700',color:'#0b3a52'}).setOrigin(.5).setDepth(20);
+    this.ui.hint=this.add.text(W/2,H-190,'⬅️ Потяни назад, как рогатку, и отпусти!',{fontFamily:'system-ui',fontSize:'22px',fontStyle:'700',color:'#ffffff'}).setOrigin(.5).setDepth(20).setShadow(0,2,'#0b1f2a',4).setVisible(false);
     this.ghost=this.add.graphics().setDepth(15);
 
-    // ── состояние ──
-    this.banana=null; this.busy=false;
-    this.newTurn('player');
+    this.banana=null; this.busy=false; this.charged=false; this.moveLog=null;
+    this.wind=CFG.wind!=null?CFG.wind:+((Math.random()*2-1).toFixed(2));
 
-    // ── рогатка (drag-back) ──
+    // рогатка
     this.aiming=false;
-    this.input.on('pointerdown', p=>{ if(this.turn!=='player'||this.busy) return; this.aiming=true; this.aimStart={x:p.worldX,y:p.worldY}; });
-    this.input.on('pointermove', p=>{ if(!this.aiming) return; this.drawGhost(p); });
-    this.input.on('pointerup', p=>{
+    this.input.on('pointerdown',p=>{ if(!this.canAim()) return; this.aiming=true; this.aimStart={x:p.worldX,y:p.worldY}; });
+    this.input.on('pointermove',p=>{ if(this.aiming) this.drawGhost(p); });
+    this.input.on('pointerup',p=>{
       if(!this.aiming) return; this.aiming=false; this.ghost.clear();
-      const v=this.aimVec(p); if(!v){ return; }
-      this.fire(this.player, v.vx, v.vy);
+      const v=this.aimVec(p); if(!v) return;
+      this.charged=false;
+      if(CFG.mode==='pvp'){ try{CFG.room.send('shot',{vx:v.vx,vy:v.vy});}catch(e){} this.moveLog={craters:[],drowned:[]}; }
+      this.fire(this.myWorm, v.vx, v.vy, true);
     });
+
+    // старт хода
+    if(CFG.mode==='pvp'){ this.setTurn(CFG.turn===CFG.mySid?'me':'foe', CFG.wind); }
+    else this.setTurn('me', this.wind);
   }
 
-  makeWorm(x, name, face, color){
-    const c=this.add.container(x, 300).setDepth(10);
-    const body=this.add.ellipse(0, 16, 46, 34, color);
-    const head=this.add.circle(0, -12, 20, 0x2a4a5c);
-    const f=this.add.text(0, -12, face, {fontSize:'26px'}).setOrigin(.5);
-    const nm=this.add.text(0, -46, name, {fontFamily:'system-ui', fontSize:'15px', fontStyle:'800', color:'#0b1f2a'}).setOrigin(.5);
-    const hpBg=this.add.rectangle(0, -62, 64, 9, 0x0b1f2a, .5);
-    const hpFg=this.add.rectangle(-31, -62, 62, 6, 0x3ecf6b).setOrigin(0,.5);
-    c.add([body, head, f, nm, hpBg, hpFg]);
-    c.hp=100; c.hpFg=hpFg; c.face=f; c.alive=true; c.wname=name;
-    // idle-дыхание
-    this.tweens.add({targets:body, scaleY:1.06, duration:900, yoyo:true, repeat:-1});
+  /* ── боец ── */
+  makeWorm(x,name,face,color){
+    const c=this.add.container(x,300).setDepth(10);
+    const body=this.add.ellipse(0,16,46,34,color);
+    const head=this.add.circle(0,-12,20,0x2a4a5c);
+    const f=this.add.text(0,-12,face,{fontSize:'26px'}).setOrigin(.5);
+    const nm=this.add.text(0,-46,name,{fontFamily:'system-ui',fontSize:'15px',fontStyle:'800',color:'#0b1f2a'}).setOrigin(.5);
+    const hpBg=this.add.rectangle(0,-62,64,9,0x0b1f2a,.5);
+    const hpFg=this.add.rectangle(-31,-62,62,6,0x3ecf6b).setOrigin(0,.5);
+    c.add([body,head,f,nm,hpBg,hpFg]);
+    c.hp=100; c.hpFg=hpFg; c.face=f; c.alive=true; c.wname=name; c.baseFace=face;
+    this.tweens.add({targets:body,scaleY:1.06,duration:900,yoyo:true,repeat:-1});
     return c;
   }
-  solid(x,y){ x|=0; y|=0; if(x<0||y<0||x>=W||y>=H) return false; return this.alpha[(y*W+x)*4+3]>50; }
-  surfaceY(x){ for(let y=0;y<H;y++){ if(this.solid(x,y)) return y; } return WATER_Y+40; }
+  solid(x,y){ x|=0;y|=0; if(x<0||y<0||x>=this.W||y>=this.H) return false; return this.alphaMap[(y*this.W+x)*4+3]>50; }
+  surfaceY(x){ for(let y=0;y<this.H;y++){ if(this.solid(x,y)) return y; } return this.WATER_Y+40; }
   dropWorm(w){
     const y=this.surfaceY(w.x);
-    if(y>WATER_Y){ this.drown(w); return; }
-    this.tweens.add({targets:w, y:y-26, duration:220, ease:'Bounce.Out'});
+    if(y>this.WATER_Y){ this.drown(w); return; }
+    this.tweens.add({targets:w,y:y-26,duration:220,ease:'Bounce.Out'});
   }
   drown(w){
-    if(!w.alive) return; w.alive=false;
-    this.splash(w.x, WATER_Y+8);
-    this.tweens.add({targets:w, y:H+80, angle:180, duration:900, ease:'Quad.In'});
-    this.time.delayedCall(1000, ()=>this.checkEnd(true));
+    if(!w.alive) return; w.alive=false; w.hp=0;
+    if(this.moveLog) this.moveLog.drowned.push(w===this.myWorm?CFG.mySid:(CFG.order?CFG.order.find(s=>s!==CFG.mySid):null));
+    this.splash(w.x,this.WATER_Y+8);
+    this.tweens.add({targets:w,y:this.H+80,angle:180,duration:900,ease:'Quad.In'});
   }
 
+  /* ── прицел ── */
+  canAim(){ return !this.busy && this.turn==='me' && this.charged && this.myWorm.alive; }
   aimVec(p){
     const dx=this.aimStart.x-p.worldX, dy=this.aimStart.y-p.worldY;
     const len=Math.hypot(dx,dy); if(len<24) return null;
-    const pow=Phaser.Math.Clamp(len/230, .15, 1);
-    return { vx: dx/len*pow*23, vy: dy/len*pow*23 };
+    const pow=Phaser.Math.Clamp(len/230,.15,1);
+    return {vx:dx/len*pow*23, vy:dy/len*pow*23};
   }
   drawGhost(p){
     const v=this.aimVec(p); this.ghost.clear(); if(!v) return;
-    this.ghost.fillStyle(0xffd23f, .9);
-    let x=this.player.x, y=this.player.y-20, vx=v.vx, vy=v.vy;
-    for(let i=0;i<90;i++){
-      vy+=G; vx+=this.wind*0.012; x+=vx; y+=vy;
-      if(i%4===0) this.ghost.fillCircle(x,y, Math.max(2.5, 5-i*0.04));
-      if(this.solid(x,y)||y>WATER_Y+10) break;
-    }
+    this.ghost.fillStyle(0xffd23f,.9);
+    let x=this.myWorm.x,y=this.myWorm.y-20,vx=v.vx,vy=v.vy;
+    for(let i=0;i<90;i++){ vy+=G;vx+=this.wind*0.012;x+=vx;y+=vy;
+      if(i%4===0) this.ghost.fillCircle(x,y,Math.max(2.5,5-i*.04));
+      if(this.solid(x,y)||y>this.WATER_Y+10) break; }
   }
 
-  fire(from, vx, vy){
-    this.busy=true; this.ui.hint.setVisible(false);
-    const b=this.add.text(from.x, from.y-20, '🍌', {fontSize:'30px'}).setOrigin(.5).setDepth(12);
-    this.banana={obj:b, vx, vy};
+  fire(from,vx,vy,mine){
+    this.busy=true; this.ui.hint.setVisible(false); speechHide();
+    const b=this.add.text(from.x,from.y-20,'🍌',{fontSize:'30px'}).setOrigin(.5).setDepth(12);
+    this.banana={obj:b,vx,vy,mine};
   }
 
   update(){
     if(!this.banana) return;
-    const bn=this.banana, b=bn.obj;
+    const bn=this.banana,b=bn.obj;
     bn.vy+=G; bn.vx+=this.wind*0.012;
     b.x+=bn.vx; b.y+=bn.vy; b.angle+=14;
-    // попадание в бойца
-    for(const w of [this.player, this.enemy]){
-      if(w.alive && Math.hypot(b.x-w.x, b.y-w.y+16)<34){ this.explode(b.x, b.y); return; }
+    for(const w of [this.wormA,this.wormB]){
+      if(w.alive&&Math.hypot(b.x-w.x,b.y-w.y+16)<34){ this.explode(b.x,b.y); return; }
     }
-    if(this.solid(b.x, b.y)){ this.explode(b.x, b.y); return; }
-    if(b.y>WATER_Y+12){ this.splash(b.x, WATER_Y+8); this.endShot(); return; }
-    if(b.x<-60||b.x>W+60||b.y<-2000){ this.endShot(); return; }
+    if(this.solid(b.x,b.y)){ this.explode(b.x,b.y); return; }
+    if(b.y>this.WATER_Y+12){ this.splash(b.x,this.WATER_Y+8); this.endShot(); return; }
+    if(b.x<-60||b.x>this.W+60||b.y<-2500){ this.endShot(); return; }
   }
 
-  explode(x, y, r=46){
-    const b=this.banana; if(b){ b.obj.destroy(); this.banana=null; }
-    // вырезаем воронку
+  cutCrater(x,y,r){
     const ctx=this.terraCtx;
     ctx.save(); ctx.globalCompositeOperation='destination-out';
-    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.restore();
-    // тёмная кромка воронки
+    ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill(); ctx.restore();
     ctx.save(); ctx.globalCompositeOperation='source-atop';
     ctx.strokeStyle='rgba(90,60,20,.55)'; ctx.lineWidth=5;
-    ctx.beginPath(); ctx.arc(x, y, r+2, 0, 7); ctx.stroke(); ctx.restore();
+    ctx.beginPath(); ctx.arc(x,y,r+2,0,7); ctx.stroke(); ctx.restore();
     this.terraTex.refresh();
-    this.alpha=ctx.getImageData(0,0,W,H).data;
-    // сочность: вспышка, частицы, тряска
-    const flash=this.add.circle(x, y, r*.8, 0xfff3c0, .95).setDepth(14);
-    this.tweens.add({targets:flash, scale:2.2, alpha:0, duration:320, onComplete:()=>flash.destroy()});
-    this.add.particles(x, y, 'spark', {speed:{min:120,max:340}, lifespan:600, scale:{start:1,end:0}, quantity:26, tint:[0xffd23f,0xff8a3d,0xe8c98a], emitting:false}).explode(26);
-    for(let i=0;i<5;i++){ const bit=this.add.text(x,y,'🍌',{fontSize:'16px'}).setDepth(14);
-      this.tweens.add({targets:bit, x:x+Phaser.Math.Between(-120,120), y:y-Phaser.Math.Between(30,130), angle:Phaser.Math.Between(-300,300), alpha:0, duration:700, ease:'Quad.Out', onComplete:()=>bit.destroy()}); }
-    this.cameras.main.shake(200, .012);
-    // урон + отброс
-    for(const w of [this.player, this.enemy]){
-      if(!w.alive) continue;
-      const d=Math.hypot(w.x-x, w.y-y);
-      if(d<r+56){
-        const dmg=Math.round(Phaser.Math.Clamp(46*(1-(d/(r+56))), 8, 46));
-        this.hurt(w, dmg, Math.sign(w.x-x)||1);
-      }
-    }
-    // земля под ногами могла исчезнуть
-    this.time.delayedCall(240, ()=>{ [this.player,this.enemy].forEach(w=>{ if(w.alive) this.dropWorm(w); }); });
-    this.time.delayedCall(650, ()=>this.endShot());
+    this.alphaMap=ctx.getImageData(0,0,this.W,this.H).data;
   }
-  hurt(w, dmg, dir){
-    w.hp=Math.max(0, w.hp-dmg);
+  explode(x,y,r=46){
+    if(this.banana){ this.banana.obj.destroy(); this.banana=null; }
+    this.cutCrater(x,y,r);
+    if(this.moveLog) this.moveLog.craters.push({x:Math.round(x),y:Math.round(y),r});
+    const flash=this.add.circle(x,y,r*.8,0xfff3c0,.95).setDepth(14);
+    this.tweens.add({targets:flash,scale:2.2,alpha:0,duration:320,onComplete:()=>flash.destroy()});
+    this.add.particles(x,y,'spark',{speed:{min:120,max:340},lifespan:600,scale:{start:1,end:0},quantity:26,tint:[0xffd23f,0xff8a3d,0xe8c98a],emitting:false}).explode(26);
+    for(let i=0;i<5;i++){ const bit=this.add.text(x,y,'🍌',{fontSize:'16px'}).setDepth(14);
+      this.tweens.add({targets:bit,x:x+Phaser.Math.Between(-120,120),y:y-Phaser.Math.Between(30,130),angle:Phaser.Math.Between(-300,300),alpha:0,duration:700,ease:'Quad.Out',onComplete:()=>bit.destroy()}); }
+    this.cameras.main.shake(200,.012);
+    for(const w of [this.wormA,this.wormB]){
+      if(!w.alive) continue;
+      const d=Math.hypot(w.x-x,w.y-y);
+      if(d<r+56){ const dmg=Math.round(Phaser.Math.Clamp(46*(1-(d/(r+56))),8,46)); this.hurt(w,dmg,Math.sign(w.x-x)||1); }
+    }
+    this.time.delayedCall(240,()=>{ [this.wormA,this.wormB].forEach(w=>{ if(w.alive) this.dropWorm(w); }); });
+    this.time.delayedCall(650,()=>this.endShot());
+  }
+  hurt(w,dmg,dir){
+    w.hp=Math.max(0,w.hp-dmg);
     w.hpFg.width=62*w.hp/100;
-    w.hpFg.fillColor = w.hp>50?0x3ecf6b:(w.hp>25?0xffd23f:0xff5a6e);
-    const t=this.add.text(w.x, w.y-84, '-'+dmg, {fontFamily:'system-ui', fontSize:'24px', fontStyle:'900', color:'#ff5a6e'}).setOrigin(.5).setDepth(20);
-    this.tweens.add({targets:t, y:'-=42', alpha:0, duration:800, onComplete:()=>t.destroy()});
-    this.tweens.add({targets:w, x:w.x+dir*26, duration:200, ease:'Quad.Out'});
+    w.hpFg.fillColor=w.hp>50?0x3ecf6b:(w.hp>25?0xffd23f:0xff5a6e);
+    const t=this.add.text(w.x,w.y-84,'-'+dmg,{fontFamily:'system-ui',fontSize:'24px',fontStyle:'900',color:'#ff5a6e'}).setOrigin(.5).setDepth(20);
+    this.tweens.add({targets:t,y:'-=42',alpha:0,duration:800,onComplete:()=>t.destroy()});
+    this.tweens.add({targets:w,x:w.x+dir*26,duration:200,ease:'Quad.Out'});
     w.face.setText(w.hp<=0?'😵':'😖');
-    this.time.delayedCall(700, ()=>{ if(w.alive&&w.hp>0) w.face.setText(w===this.player?'🙂':'🍌'); });
-    if(w.hp<=0){ w.alive=false; this.tweens.add({targets:w, angle:90, y:'+=16', duration:500}); }
+    this.time.delayedCall(700,()=>{ if(w.alive&&w.hp>0) w.face.setText(w.baseFace); });
+    if(w.hp<=0){ w.alive=false; this.tweens.add({targets:w,angle:90,y:'+=16',duration:500}); }
   }
   splash(x,y){
-    this.add.particles(x, y, 'spark', {speed:{min:80,max:240}, angle:{min:230,max:310}, lifespan:700, scale:{start:.9,end:0}, tint:0x7fd3e6, emitting:false}).explode(22);
+    this.add.particles(x,y,'spark',{speed:{min:80,max:240},angle:{min:230,max:310},lifespan:700,scale:{start:.9,end:0},tint:0x7fd3e6,emitting:false}).explode(22);
     this.cameras.main.shake(120,.006);
   }
 
+  /* ── конец броска ── */
   endShot(){
     if(this.banana){ this.banana.obj.destroy(); this.banana=null; }
-    if(this.checkEnd()) return;
-    this.newTurn(this.turn==='player'?'enemy':'player');
+    if(CFG.mode==='bot'){
+      if(this.checkEndLocal()) return;
+      this.setTurn(this.turn==='me'?'foe':'me', +((Math.random()*2-1).toFixed(2)));
+      return;
+    }
+    // PvP: если это был МОЙ бросок - шлю авторитарный результат; ход переключит сервер
+    if(this.moveLog){
+      const hp={}; hp[CFG.mySid]=this.myWorm.hp; hp[CFG.order.find(s=>s!==CFG.mySid)]=this.foeWorm.hp;
+      const pos={}; pos[CFG.mySid]={x:Math.round(this.myWorm.x),y:Math.round(this.myWorm.y)};
+      pos[CFG.order.find(s=>s!==CFG.mySid)]={x:Math.round(this.foeWorm.x),y:Math.round(this.foeWorm.y)};
+      try{ CFG.room.send('moveDone',{hp,craters:this.moveLog.craters,pos,drowned:this.moveLog.drowned.filter(Boolean)}); }catch(e){}
+      this.moveLog=null;
+      this.ui.turn.setText('⏳ ...');
+    }
+    this.busy=false;
   }
-  checkEnd(fromDrown){
-    const pDead=!this.player.alive||this.player.hp<=0, eDead=!this.enemy.alive||this.enemy.hp<=0;
+  checkEndLocal(){
+    const pDead=!this.myWorm.alive||this.myWorm.hp<=0, eDead=!this.foeWorm.alive||this.foeWorm.hp<=0;
     if(!pDead&&!eDead) return false;
-    const win=eDead&&!pDead;
-    const s=this.add.rectangle(W/2,H/2,W,H,0x0b1f2a,.55).setDepth(30);
-    this.add.text(W/2, H/2-60, win?'🏆 ПОБЕДА!':'😵 ПОРАЖЕНИЕ', {fontFamily:'system-ui', fontSize:'64px', fontStyle:'900', color:win?'#ffd23f':'#ff5a6e'}).setOrigin(.5).setDepth(31);
-    const again=this.add.text(W/2, H/2+30, '🔄 Ещё раз', {fontFamily:'system-ui', fontSize:'34px', fontStyle:'800', color:'#ffffff', backgroundColor:'#0e9e90', padding:{x:26,y:14}}).setOrigin(.5).setDepth(31).setInteractive();
-    again.on('pointerdown', ()=>this.scene.restart());
-    this.busy=true; this.turn='over';
-    return true;
+    this.showEnd(eDead&&!pDead); return true;
+  }
+  showEnd(win){
+    this.busy=true; this.turn='over'; speechHide();
+    this.add.rectangle(this.W/2,this.H/2,this.W,this.H,0x0b1f2a,.55).setDepth(30);
+    this.add.text(this.W/2,this.H/2-60,win?'🏆 ПОБЕДА!':'😵 ПОРАЖЕНИЕ',{fontFamily:'system-ui',fontSize:'58px',fontStyle:'900',color:win?'#ffd23f':'#ff5a6e'}).setOrigin(.5).setDepth(31);
+    if(win){ try{ const LS='ek_island_v1'; const S=JSON.parse(localStorage.getItem(LS)||'{}'); S.league=S.league||{tier:0,trophies:0}; S.league.trophies+=(CFG.mode==='pvp'?25:10); localStorage.setItem(LS,JSON.stringify(S)); }catch(e){}
+      this.add.text(this.W/2,this.H/2-4,CFG.mode==='pvp'?'+25 🏆':'+10 🏆',{fontFamily:'system-ui',fontSize:'30px',fontStyle:'800',color:'#ffffff'}).setOrigin(.5).setDepth(31); }
+    const again=this.add.text(this.W/2,this.H/2+66,'🔄 Ещё раз',{fontFamily:'system-ui',fontSize:'32px',fontStyle:'800',color:'#ffffff',backgroundColor:'#0e9e90',padding:{x:26,y:14}}).setOrigin(.5).setDepth(31).setInteractive();
+    again.on('pointerdown',()=>location.reload());
   }
 
-  newTurn(who){
-    this.turn=who; this.busy=false;
-    this.wind=+((Math.random()*2-1).toFixed(2));
+  /* ── ходы ── */
+  setTurn(who,wind){
+    this.turn=who; this.busy=false; this.charged=false;
+    if(wind!=null) this.wind=wind;
     const arrow=this.wind>0?'→':'←';
     this.ui.wind.setText('🌬 ветер '+arrow+' '+Math.abs(this.wind).toFixed(1));
-    this.ui.turn.setText(who==='player'?'⚡ ТВОЙ ХОД':'🍌 ХОД DON BANANA');
-    this.ui.hint.setVisible(who==='player');
-    if(who==='enemy'&&this.enemy.alive){
-      this.time.delayedCall(1100, ()=>{
-        if(this.turn!=='enemy') return;
-        // бот целится в игрока с разбросом
-        const dx=this.player.x-this.enemy.x, base=Math.hypot(dx, 300);
-        const pow=Phaser.Math.Clamp(Math.abs(dx)/900 + Phaser.Math.FloatBetween(-.12,.18), .3, 1);
-        const ang=Math.atan2(-(0.55+Phaser.Math.FloatBetween(-.1,.15)), Math.sign(dx)*(0.8+Phaser.Math.FloatBetween(-.12,.12)));
-        this.fire(this.enemy, Math.cos(ang)*pow*23, Math.sin(ang)*pow*23);
-      });
+    this.ui.hint.setVisible(false);
+    if(who==='me'){
+      this.ui.turn.setText('⚡ ТВОЙ ХОД');
+      speechShow(); // сначала фраза, потом рогатка
+    } else {
+      this.ui.turn.setText(CFG.mode==='bot'?'🍌 ХОД DON BANANA':'⏳ ХОД '+(this.foeWorm.wname||'СОПЕРНИКА'));
+      speechHide();
+      if(CFG.mode==='bot'&&this.foeWorm.alive){
+        this.time.delayedCall(1100,()=>{
+          if(this.turn!=='foe') return;
+          const dx=this.myWorm.x-this.foeWorm.x;
+          const pow=Phaser.Math.Clamp(Math.abs(dx)/900+Phaser.Math.FloatBetween(-.12,.18),.3,1);
+          const ang=Math.atan2(-(0.55+Phaser.Math.FloatBetween(-.1,.15)),Math.sign(dx)*(0.8+Phaser.Math.FloatBetween(-.12,.12)));
+          this.fire(this.foeWorm,Math.cos(ang)*pow*23,Math.sin(ang)*pow*23,false);
+        });
+      }
     }
+  }
+  /* PvP: входящие события */
+  pvpIncomingShot(m){ if(this.turn!=='foe') this.setTurn('foe'); this.fire(this.foeWorm,m.vx,m.vy,false); this.wind=m.wind; }
+  pvpApplyMove(m){
+    // реконсиляция: авторитарные воронки/hp/позиции от бросавшего
+    (m.craters||[]).forEach(c=>this.cutCrater(c.x,c.y,c.r));
+    const mySid=CFG.mySid, foeSid=CFG.order.find(s=>s!==mySid);
+    if(m.hp){ if(typeof m.hp[mySid]==='number'){ this.myWorm.hp=m.hp[mySid]; this.myWorm.hpFg.width=62*this.myWorm.hp/100; }
+              if(typeof m.hp[foeSid]==='number'){ this.foeWorm.hp=m.hp[foeSid]; this.foeWorm.hpFg.width=62*this.foeWorm.hp/100; } }
+    if(m.pos){ const mp=m.pos[mySid], fp=m.pos[foeSid];
+      if(mp) this.tweens.add({targets:this.myWorm,x:mp.x,y:mp.y,duration:250});
+      if(fp) this.tweens.add({targets:this.foeWorm,x:fp.x,y:fp.y,duration:250}); }
+    (m.drowned||[]).forEach(sid=>{ const w=sid===mySid?this.myWorm:this.foeWorm; if(w.alive) this.drown(w); });
+  }
+  pvpTurn(m){ if(m.skipped) toast('⏰ Время хода вышло'); this.setTurn(m.turn===CFG.mySid?'me':'foe', m.wind); }
+  pvpEnd(winner,reason){
+    if(this.turn==='over') return;
+    if(reason==='left') toast('Соперник вышел 🏳️');
+    this.showEnd(winner===CFG.mySid);
+    try{ CFG.room&&CFG.room.leave(); }catch(e){}
   }
 }
 
-window.game=new Phaser.Game({
-  type: Phaser.AUTO,
-  parent: 'game',
-  width: W, height: H,
-  backgroundColor: '#7fd3e6',
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: Arena,
+/* ── речь-зарядка (DOM поверх канваса) ── */
+let curPhrase=null;
+const spEl=document.getElementById('speech');
+function speechShow(){
+  curPhrase=PHRASES[Math.floor(Math.random()*PHRASES.length)];
+  document.getElementById('spRu').textContent=curPhrase.ru;
+  document.getElementById('spEn').textContent=curPhrase.en;
+  const h=document.getElementById('spHeard'); h.textContent='Скажи фразу - зарядишь банан 🍌'; h.style.color='#bcd3db';
+  spEl.style.display='block';
+}
+function speechHide(){ spEl.style.display='none'; }
+document.getElementById('spSay').addEventListener('click',()=>{ if(curPhrase) say(curPhrase.en); });
+holdRecord(document.getElementById('spMic'), t=>{
+  const h=document.getElementById('spHeard');
+  if(!t){ h.textContent='Не расслышал, зажми и скажи чётче 🎙️'; h.style.color='#ff8aa0'; return; }
+  if(matchPhrase(t,curPhrase.ans)){
+    h.textContent='✅ «'+t+'» - заряжено!'; h.style.color='#5ef2c9';
+    say(curPhrase.en);
+    setTimeout(()=>{ speechHide(); if(SCENE){ SCENE.charged=true; SCENE.ui.hint.setVisible(true); } },600);
+  } else {
+    h.textContent='🔁 «'+t+'» - не то, ещё раз'; h.style.color='#ff8aa0';
+  }
+}, st=>{ const h=document.getElementById('spHeard');
+  if(st==='rec'){ h.textContent='🔴 Говорю…'; h.style.color='#ffd23f'; }
+  if(st==='busy'){ h.textContent='⏳ Распознаю…'; h.style.color='#bcd3db'; } });
+
+/* ── старт: меню -> игра ── */
+function bootGame(){
+  document.getElementById('menu').style.display='none';
+  window.game=new Phaser.Game({
+    type:Phaser.AUTO, parent:'game',
+    width:CFG.W, height:CFG.H, backgroundColor:'#7fd3e6',
+    scale:{mode:Phaser.Scale.FIT, autoCenter:Phaser.Scale.CENTER_BOTH},
+    scene:Arena,
+  });
+}
+document.getElementById('mBot').addEventListener('click',()=>{
+  const iw=Math.max(320,innerWidth), ih=Math.max(480,innerHeight);
+  const W=iw>ih?1280:900, H=Math.round(W*ih/iw);
+  CFG={mode:'bot', W, H, seed:(Math.random()*1e9)|0};
+  bootGame();
+});
+document.getElementById('mLive').addEventListener('click',async()=>{
+  if(typeof Colyseus==='undefined'){ toast('Мультиплеер не загрузился 😕'); return; }
+  document.getElementById('searching').style.display='block';
+  let name='Боец'; try{ name=(JSON.parse(localStorage.getItem('ek_island_v1')||'{}').name)||'Боец'; }catch(e){}
+  try{
+    const client=new Colyseus.Client(WSURL);
+    const room=await client.joinOrCreate('worms_duel',{name});
+    room.onMessage('start', st=>{
+      const names={A:st.players[st.order[0]].name, B:st.players[st.order[1]].name};
+      CFG={mode:'pvp', W:900, H:1600, seed:st.seed, room, mySid:room.sessionId, order:st.order, turn:st.turn, wind:st.wind, names};
+      bootGame();
+    });
+    room.onMessage('shot', m=>{ SCENE&&SCENE.pvpIncomingShot(m); });
+    room.onMessage('applyMove', m=>{ SCENE&&SCENE.pvpApplyMove(m); });
+    room.onMessage('turn', m=>{ SCENE&&SCENE.pvpTurn(m); });
+    room.onMessage('end', m=>{ SCENE&&SCENE.pvpEnd(m.winner,m.reason); });
+    room.onLeave(()=>{});
+  }catch(e){ document.getElementById('searching').style.display='none'; toast('Сервер боёв недоступен 🌴'); }
 });
 </script>
 </body>

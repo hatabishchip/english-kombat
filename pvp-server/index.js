@@ -392,6 +392,102 @@ class IslandDuel extends Room {
   onDispose() { if (this.turnTimer) this.turnTimer.clear(); }
 }
 
+// ─── WORMS DUEL: PvP в Worms-арене (relay: бросающий симулирует ход и присылает результат) ───
+class WormsPlayer extends Schema {}
+type('string')(WormsPlayer.prototype, 'name');
+type('number')(WormsPlayer.prototype, 'hp');
+class WormsState extends Schema {
+  constructor() { super(); this.players = new MapSchema(); }
+}
+type({ map: WormsPlayer })(WormsState.prototype, 'players');
+type('string')(WormsState.prototype, 'turn');
+type('number')(WormsState.prototype, 'wind');
+type('string')(WormsState.prototype, 'phase');
+
+class WormsDuel extends Room {
+  onCreate() {
+    this.maxClients = 2;
+    this.state = new WormsState();
+    this.state.phase = 'waiting';
+    this.order = [];
+    this.turnTimer = null;
+    // бросок: релеим сопернику для визуального реплея
+    this.onMessage('shot', (client, m) => {
+      if (this.state.phase !== 'playing' || client.sessionId !== this.state.turn) return;
+      this.broadcast('shot', { by: client.sessionId, vx: +m.vx || 0, vy: +m.vy || 0, wind: this.state.wind }, { except: client });
+    });
+    // результат хода от бросавшего: применяем hp, релеим реконсиляцию, переключаем ход
+    this.onMessage('moveDone', (client, m) => {
+      if (this.state.phase !== 'playing' || client.sessionId !== this.state.turn) return;
+      const hp = m && m.hp || {};
+      this.order.forEach(sid => {
+        const p = this.state.players.get(sid);
+        if (p && typeof hp[sid] === 'number') p.hp = Math.max(0, Math.min(100, Math.round(hp[sid])));
+      });
+      const drowned = Array.isArray(m.drowned) ? m.drowned : [];
+      drowned.forEach(sid => { const p = this.state.players.get(sid); if (p) p.hp = 0; });
+      this.broadcast('applyMove', { by: client.sessionId, hp: this.hpMap(), craters: (m.craters || []).slice(0, 12), pos: m.pos || {}, drowned }, { except: client });
+      const dead = this.order.find(sid => (this.state.players.get(sid) || {}).hp <= 0);
+      if (dead) {
+        this.state.phase = 'over';
+        const winner = this.order.find(sid => sid !== dead);
+        this.broadcast('end', { winner });
+        if (this.turnTimer) this.turnTimer.clear();
+        this.clock.setTimeout(() => { try { this.disconnect(); } catch (e) {} }, 10000);
+      } else {
+        this.switchTurn();
+        this.broadcast('turn', { turn: this.state.turn, wind: this.state.wind });
+        this.armTurnTimer();
+      }
+    });
+  }
+  hpMap() { const hp = {}; this.order.forEach(sid => { hp[sid] = (this.state.players.get(sid) || {}).hp; }); return hp; }
+  onJoin(client, opts) {
+    const p = new WormsPlayer();
+    p.name = String((opts && opts.name) || 'Боец').slice(0, 16);
+    p.hp = 100;
+    this.state.players.set(client.sessionId, p);
+    this.order.push(client.sessionId);
+    if (this.order.length === 2) {
+      this.state.phase = 'playing';
+      this.state.turn = this.order[0];
+      this.state.wind = +((Math.random() * 2 - 1).toFixed(2));
+      this.seed = Math.floor(Math.random() * 1e9);
+      const info = {};
+      this.order.forEach((sid, i) => { info[sid] = { name: this.state.players.get(sid).name, seat: i === 0 ? 'A' : 'B' }; });
+      this.lock();
+      this.clock.setTimeout(() => { // задержка: второй клиент должен навесить onMessage
+        this.broadcast('start', { players: info, order: this.order.slice(), turn: this.state.turn, wind: this.state.wind, seed: this.seed });
+        this.armTurnTimer();
+      }, 400);
+    }
+  }
+  switchTurn() {
+    this.state.turn = this.order.find(sid => sid !== this.state.turn) || this.state.turn;
+    this.state.wind = +((Math.random() * 2 - 1).toFixed(2));
+  }
+  armTurnTimer() {
+    if (this.turnTimer) this.turnTimer.clear();
+    this.turnTimer = this.clock.setTimeout(() => { // 90с на ход (речь+прицел)
+      if (this.state.phase !== 'playing') return;
+      this.switchTurn();
+      this.broadcast('turn', { turn: this.state.turn, wind: this.state.wind, skipped: true });
+      this.armTurnTimer();
+    }, 90000);
+  }
+  onLeave(client) {
+    this.state.players.delete(client.sessionId);
+    if (this.state.phase === 'playing') {
+      const winner = this.order.find(sid => sid !== client.sessionId);
+      this.state.phase = 'over';
+      if (this.turnTimer) this.turnTimer.clear();
+      this.broadcast('end', { winner, reason: 'left' });
+      this.clock.setTimeout(() => { try { this.disconnect(); } catch (e) {} }, 8000);
+    }
+  }
+  onDispose() { if (this.turnTimer) this.turnTimer.clear(); }
+}
+
 // ─── FIGHT ROOM ───
 class FightRoom extends Room {
   onCreate(opts) {
@@ -1426,6 +1522,7 @@ const gameServer = new Server({
 gameServer.define('fight', FightRoom).filterBy(['mode', 'bracket', 'code']);
 gameServer.define('island_lobby', IslandLobby);
 gameServer.define('island_duel', IslandDuel);
+gameServer.define('worms_duel', WormsDuel);
 
 const PORT = process.env.PORT || 2567;
 (async () => {
