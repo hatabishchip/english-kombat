@@ -978,6 +978,36 @@ app.post('/api/island/judge', async (req, res) => {
   }
 });
 
+// ─── ISLAND · DIALOG ANALYSIS (talk4 — AI разбирает диалог) ───
+app.post('/api/island/analyze', async (req, res) => {
+  const { messages } = req.body || {};
+  const userLines = (Array.isArray(messages) ? messages : []).filter(m => m.role === 'user').map(m => String(m.content || '').slice(0, 300)).slice(-15);
+  if (!userLines.length) return res.json({ level: 'A1', praise: '', mistakes: [], tip: 'Скажи пару фраз, и я разберу их 🙂' });
+  const system = [
+    'You are a warm English coach reviewing a learner\'s chat messages.',
+    'Analyse ONLY the learner lines given. Output in RUSSIAN except example English phrases.',
+    'Estimate CEFR level (A1..C1). Find up to 3 concrete mistakes; for each give {wrong, right, why(short ru)}. Give one genuine praise (ru) and one actionable tip (ru).',
+    'Be encouraging, never harsh. NEVER use an em dash.',
+    'Return STRICT JSON: {"level":"A2","praise":"...","mistakes":[{"wrong":"...","right":"...","why":"..."}],"tip":"..."}',
+  ].join('\n');
+  const history = [{ role: 'user', content: 'My messages:\n' + userLines.map((l, i) => (i + 1) + '. ' + l).join('\n') }];
+  let raw = '';
+  try { raw = await callGroq(system, history); }
+  catch (e1) { try { raw = await callGemini(system, history); } catch (e2) {
+    return res.json({ level: '-', praise: 'Ты практикуешься - это главное! 💪', mistakes: [], tip: 'Продолжай говорить каждый день.' });
+  } }
+  try {
+    const j = JSON.parse(raw);
+    const clean = s => String(s || '').replace(/[—–]/g, '-');
+    return res.json({
+      level: clean(j.level).slice(0, 4),
+      praise: clean(j.praise).slice(0, 200),
+      mistakes: (Array.isArray(j.mistakes) ? j.mistakes : []).slice(0, 3).map(m => ({ wrong: clean(m.wrong).slice(0, 120), right: clean(m.right).slice(0, 120), why: clean(m.why).slice(0, 140) })),
+      tip: clean(j.tip).slice(0, 200),
+    });
+  } catch (e) { return res.json({ level: '-', praise: 'Хорошая практика!', mistakes: [], tip: 'Говори больше и смелее.' }); }
+});
+
 // ─── FRIENDS ───
 app.post('/api/friends/add', async (req, res) => {
   const me = await authUserFromReq(req);

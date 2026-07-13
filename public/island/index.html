@@ -469,7 +469,8 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
       <button class="back" id="liveBack" style="background:rgba(255,255,255,.25);color:#fff;width:36px;height:36px">←</button>
       <div class="ava" id="liveAva">🧔</div>
       <div class="who"><b id="liveName">Роман</b><span id="liveStatus">на острове</span></div>
-      <button class="btn ghost sm" id="livePick" style="padding:8px 12px">👥 Люди</button>
+      <button class="btn ghost sm" id="liveAnalyze" style="padding:8px 10px">📊</button>
+      <button class="btn ghost sm" id="livePick" style="padding:8px 10px">👥</button>
     </div>
     <div class="chat-scroll" id="liveScroll"></div>
     <div class="quick" id="liveTopics"></div>
@@ -1260,6 +1261,25 @@ $('#liveMic').addEventListener('click',()=>{
   listen((said,final)=>{ if(final){mic.classList.remove('rec');sendLive(said);} },()=>{mic.classList.remove('rec');});
 });
 $('#liveBack').onclick=()=>{screen('s-map');selTab('map');refreshStats();};
+// talk4 - AI разбирает диалог
+$('#liveAnalyze').onclick=()=>analyzeDialog();
+async function analyzeDialog(){
+  const hist=(S.chats[live.persona]||[]).filter(m=>m.role==='user');
+  if(hist.length<1){ toast('Скажи пару фраз, потом разберу 🙂'); return; }
+  const s=$('#sheet');
+  s.innerHTML='<div class="big">📊</div><h3>Разбор твоей речи</h3><p>AI слушает и анализирует…</p><div class="typing" style="justify-content:center"><i></i><i></i><i></i></div>';
+  $('#overlay').classList.add('on');
+  let r={level:'-',praise:'',mistakes:[],tip:''};
+  try{ const resp=await fetch(API+'/api/island/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:(S.chats[live.persona]||[])})}); r=await resp.json(); }catch(e){}
+  const mist=(r.mistakes||[]).map(m=>'<div style="text-align:left;background:#fff4e8;border-radius:12px;padding:10px 12px;margin:6px 0;font-size:13px"><b style="color:var(--coral)">✗ '+esc(m.wrong)+'</b><br><b style="color:var(--teal-d)">✓ '+esc(m.right)+'</b><br><span style="color:var(--ink-soft)">'+esc(m.why)+'</span></div>').join('');
+  s.innerHTML='<div class="big">📊</div><h3>Твой уровень: '+esc(r.level||'-')+'</h3>'+
+    (r.praise?'<p style="color:var(--leaf);font-weight:600">👏 '+esc(r.praise)+'</p>':'')+
+    (mist||'<p style="color:var(--ink-soft)">Ошибок почти нет, красава! 🔥</p>')+
+    (r.tip?'<div style="text-align:left;background:var(--paper2);border-radius:12px;padding:10px 12px;margin:8px 0 14px;font-size:13px">💡 <b>Совет:</b> '+esc(r.tip)+'</div>':'')+
+    '<button class="btn sun wide" id="anzClose">Понятно 👍</button>';
+  $('#anzClose').onclick=()=>closeSheet();
+  addReward(10,0);
+}
 // выбор собеседника (ava4)
 $('#livePick').onclick=()=>openPicker();
 function openPicker(){
