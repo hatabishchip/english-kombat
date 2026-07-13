@@ -842,7 +842,8 @@ function addMsg(side, html, mini){
   chat.appendChild(row);scrollChat();return row;
 }
 // текст, который «говорит» кружок Романа (интерим-озвучка TTS; заменим на реальный голос Романа)
-const ROMAN_CIRCLE_TEXT='Йо! Это Роман. Смотри как тут всё устроено. Скажешь по-английски - сделаешь ход. За тридцать секунд уже подерёшься. Погнали!';
+// текст первого кружка (полный сценарий: docs/roman-first-circle.md; заменим на реальное видео Романа)
+const ROMAN_CIRCLE_TEXT='Йоу! Это Роман, ты на моём острове. Тут всё просто: английский - это оружие. Сказал фразу вслух - зарядил банан. Кинул банан - выиграл бой. Никакой зубрёжки: только драки, пляжи и живые люди. Через тридцать секунд у тебя первый бой. Но сначала ответь мне голосом или кружком: как тебя зовут?';
 function addVideoCircle(){
   const row=document.createElement('div');row.className='row in';
   row.innerHTML='<div class="mini">🎬</div><div class="vcircle" id="vc"><div class="pring"></div><div class="ring"></div><div class="face">🧔</div><div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="play"></div><div class="who">Роман</div></div>';
