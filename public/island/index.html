@@ -30,7 +30,7 @@ body{
 .screen.on{opacity:1;pointer-events:auto}
 .hidden{display:none!important}
 button{font-family:inherit;cursor:pointer;border:0;background:none}
-.voice-locked{opacity:.38;filter:grayscale(1);pointer-events:none}
+.voice-locked,.voice-gate{opacity:.38;filter:grayscale(1);pointer-events:none}
 
 /* ---------- Кнопки ---------- */
 .btn{
@@ -677,23 +677,34 @@ function holdRecord(btn, {video=false}={}, onBlob){
   btn.addEventListener('pointercancel',end);
   btn.addEventListener('contextmenu',e=>e.preventDefault());
 }
-async function transcribeSafe(blob, lang){ try{ const j=await transcribeBlob(blob, lang); return (j.transcript||'').trim(); }catch(e){ return ''; } }
+async function transcribeSafe(blob, lang){ try{ const j=await transcribeBlob(blob, lang); return {text:(j.transcript||'').trim(), conf:j.confidence||0}; }catch(e){ return {text:'',conf:0}; } }
+// варианты «Роман не разобрал» (пусто/каша)
+const NOT_UNDERSTOOD=[
+  'Хмм, не разобрал 😅 Ты там на расслабоне? Дай ещё разок, чётче',
+  'Не расслышал 🙉 Либо связь шалит, либо ты бормочешь. Повтори почётче',
+  'Опа, поймал какую-то кашу 😄 Скажи ещё раз, поближе к микрофону',
+  'Тишина или невнятно 🤔 Давай заново, чётко и погромче',
+];
+function notUnderstoodLine(){ return NOT_UNDERSTOOD[Math.floor(Math.random()*NOT_UNDERSTOOD.length)]; }
 // universal: настроить голосовую кнопку. mediaOK -> hold-to-record; иначе click->webkit
-function setupVoiceBtn(btn, {lang='en'}, onText){
+// onFail (опц.) - реакция на пусто/кашу (Роман/персонаж переспрашивает); без него - тост
+function setupVoiceBtn(btn, {lang='en', onFail}, onText){
   if(!btn) return;
-  if(mediaOK){ holdRecord(btn, {video:false}, async blob=>{ const t=await transcribeSafe(blob, lang); if(!t){ toast('Не расслышал, скажи чётче 🎙️'); return; } onText(t); }); }
-  else { btn.addEventListener('click',()=>{ btn.classList.add('rec'); webkitListen((said,final)=>{ if(final){ btn.classList.remove('rec'); const t=(said||'').trim(); if(t) onText(t); else toast('Не расслышал 🎙️'); } },()=>btn.classList.remove('rec')); }); }
+  const handle=(r)=>{ const bad = !r.text || (onFail && r.conf<0.45); if(bad){ if(onFail) onFail(); else toast('Не расслышал, скажи чётче 🎙️'); return; } onText(r.text); };
+  if(mediaOK){ holdRecord(btn, {video:false}, async blob=>{ handle(await transcribeSafe(blob, lang)); }); }
+  else { btn.addEventListener('click',()=>{ btn.classList.add('rec'); webkitListen((said,final)=>{ if(final){ btn.classList.remove('rec'); handle({text:(said||'').trim(), conf:1}); } },()=>btn.classList.remove('rec')); }); }
 }
-// видео-кружок: зажал=пишет, отпустил=стоп -> показать кружок + транскрибация
-function setupCircleBtn(btn, getScroll, lang, onText){
+// видео-кружок: зажал=пишет, отпустил=стоп -> кружок без текста -> обработка
+function setupCircleBtn(btn, getScroll, lang, onText, onFail){
   if(!btn) return;
   if(!mediaOK){ btn.style.display='none'; return; }
   holdRecord(btn, {video:true}, async blob=>{
     const scrollEl=getScroll(); const url=URL.createObjectURL(blob);
     addCircleBubble(scrollEl,'out',url); // кружок без текста
-    const t=await transcribeSafe(blob, lang||'auto');
-    if(t){ onText&&onText(t); } // текст не выводим - сразу в обработку -> AI отвечает
-    else { toast('Не расслышал, запиши кружок ещё раз 🎥'); }
+    const r=await transcribeSafe(blob, lang||'auto');
+    const bad = !r.text || (onFail && r.conf<0.45);
+    if(bad){ if(onFail) onFail(); else toast('Не расслышал, запиши кружок ещё раз 🎥'); return; }
+    onText&&onText(r.text); // текст не выводим - сразу в AI
   });
 }
 async function transcribeBlob(blob, lang){
@@ -778,9 +789,13 @@ function addVideoCircle(){
   row.querySelectorAll('.wave i').forEach((b,i)=>b.style.animationDelay=(i*0.08)+'s');
   const estDur=Math.max(4, Math.round(ROMAN_CIRCLE_TEXT.length/13)); // оценка длительности речи, сек
   let iv=null;
+  // ГЕЙТ: кнопки записи неактивны, пока не посмотрел кружок Романа
+  ['onbMic','onbCircle'].forEach(id=>{ const b=document.getElementById(id); if(b) b.classList.add('voice-gate'); });
   function stopTimer(reset){ if(iv){clearInterval(iv);iv=null;} if(reset){ pring.style.setProperty('--p',0); who.textContent='Роман'; } }
   function playCircle(){
     if(vc.classList.contains('playing')){ speechSynthesis.cancel(); return; } // onend снимет playing
+    // посмотрел кружок -> снимаем первичный гейт (во время речи держит speakLock)
+    ['onbMic','onbCircle'].forEach(id=>{ const b=document.getElementById(id); if(b) b.classList.remove('voice-gate'); });
     vc.classList.add('playing');
     const t0=Date.now();
     who.textContent='Роман · 0:00';
@@ -866,8 +881,8 @@ function submitInput(v){
   addMsg('out',esc(v));
 }
 // hold-to-record: микрофон и видео-кружок в онбординге
-setupVoiceBtn($('#onbMic'), {lang:'auto'}, t=>{ if(inputMode==='name'||inputMode==='goal') submitInput(t); else addMsg('out',esc(t)); });
-setupCircleBtn($('#onbCircle'), ()=>$('#chatScroll'), 'auto', t=>{ if(inputMode==='name'||inputMode==='goal') submitInput(t); });
+setupVoiceBtn($('#onbMic'), {lang:'auto', onFail:()=>addMsg('in',notUnderstoodLine(),'🎬')}, t=>{ if(inputMode==='name'||inputMode==='goal') submitInput(t); else addMsg('out',esc(t)); });
+setupCircleBtn($('#onbCircle'), ()=>$('#chatScroll'), 'auto', t=>{ if(inputMode==='name'||inputMode==='goal') submitInput(t); }, ()=>addMsg('in',notUnderstoodLine(),'🎬'));
 
 function openAvatarFromChat(){ screen('s-ava'); }
 function goToMapFirstTime(){
@@ -1444,7 +1459,7 @@ async function sendLive(text){
   save(); liveBusy=false;
 }
 $('#liveInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();sendLive($('#liveInput').value);} });
-setupVoiceBtn($('#liveMic'), {lang:'en'}, t=>sendLive(t));
+setupVoiceBtn($('#liveMic'), {lang:'en', onFail:()=>addLiveBubble('in',notUnderstoodLine(),'')}, t=>sendLive(t));
 // общий рендер кружка (в любом чате)
 function addCircleBubble(scrollEl, side, url){
   const row=document.createElement('div');row.className='row '+side;
@@ -1465,7 +1480,7 @@ async function liveSendFromVoice(text){
   liveTyping(false);
   h.push({role:'assistant',content:res.reply}); addLiveBubble('in',res.reply,''); addReward(5,0); save();
 }
-setupCircleBtn($('#liveCircle'), ()=>liveScroll, 'auto', t=>liveSendFromVoice(t));
+setupCircleBtn($('#liveCircle'), ()=>liveScroll, 'auto', t=>liveSendFromVoice(t), ()=>addLiveBubble('in',notUnderstoodLine(),''));
 $('#liveBack').onclick=()=>{screen('s-map');selTab('map');refreshStats();};
 // talk4 - AI разбирает диалог
 $('#liveAnalyze').onclick=()=>analyzeDialog();
