@@ -1082,7 +1082,9 @@ app.post('/api/island/transcribe', express.raw({ type: '*/*', limit: '30mb' }), 
     const j = await r.json();
     const ch = j.results && j.results.channels && j.results.channels[0];
     const alt = (ch && ch.alternatives && ch.alternatives[0]) || {};
-    res.json({ transcript: String(alt.transcript || '').trim(), confidence: alt.confidence || 0, language: (ch && ch.detected_language) || lang });
+    const tr = String(alt.transcript || '').trim();
+    console.log('[transcribe] bytes=%d ct=%s lang=%s -> "%s" conf=%s', audio.length, ct, lang, tr.slice(0, 80), alt.confidence || 0);
+    res.json({ transcript: tr, confidence: alt.confidence || 0, language: (ch && ch.detected_language) || lang });
   } catch (e) {
     console.error('[transcribe]', e.message);
     res.status(500).json({ error: 'transcribe failed' });

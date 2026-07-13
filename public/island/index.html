@@ -330,6 +330,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
     <div class="quick hidden" id="onbQuick"></div>
     <div class="composer">
       <input class="txt" id="onbInput" placeholder="Ответь текстом…" enterkeyhint="send">
+      <button class="mic" id="onbCircle" aria-label="видео-кружок" style="background:linear-gradient(180deg,#6a2cc9,#9b5cff);box-shadow:0 5px 0 #4a1f8f;font-size:20px">🔴</button>
       <button class="mic" id="onbMic" aria-label="голосом">🎙️</button>
     </div>
   </section>
@@ -611,23 +612,25 @@ const API='https://ek-pvp.13-140-178-130.sslip.io';
 
 function pickMime(list){ for(const m of list){ try{ if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m)) return m; }catch(e){} } return ''; }
 // запись клипа с VAD-автостопом по тишине (аудио или видео-кружок)
-async function recordClip({maxMs=8000, silenceMs=1300, video=false}={}){
+async function recordClip({maxMs=10000, silenceMs=1200, minMs=1600, video=false}={}){
   const constraints = video ? {audio:true, video:{facingMode:'user', width:{ideal:480}, height:{ideal:480}}} : {audio:true};
   const stream = await navigator.mediaDevices.getUserMedia(constraints);
-  const mime = video ? pickMime(['video/webm;codecs=vp8,opus','video/webm','video/mp4'])
-                     : pickMime(['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg']);
+  const mime = video ? pickMime(['video/mp4','video/webm;codecs=vp8,opus','video/webm'])
+                     : pickMime(['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg','audio/aac']);
   const mr = new MediaRecorder(stream, mime?{mimeType:mime}:undefined);
   const chunks=[]; mr.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
-  let stopped=false; const _stop=()=>{ if(!stopped){ stopped=true; try{mr.stop();}catch(e){} } };
-  const blob = new Promise(res=>{ mr.onstop=()=>{ try{stream.getTracks().forEach(t=>t.stop());}catch(e){} res(new Blob(chunks,{type:mime||(video?'video/webm':'audio/webm')})); }; });
-  mr.start(120);
+  let stopped=false; const _stop=()=>{ if(!stopped){ stopped=true; try{mr.requestData&&mr.requestData();}catch(e){} try{mr.stop();}catch(e){} } };
+  const blob = new Promise(res=>{ mr.onstop=()=>{ try{stream.getTracks().forEach(t=>t.stop());}catch(e){} res(new Blob(chunks,{type:(chunks[0]&&chunks[0].type)||mime||(video?'video/webm':'audio/webm')})); }; });
+  mr.start(); // без timeslice - надёжнее в Safari (данные придут одним куском на stop)
+  // VAD-автостоп: не раньше minMs; стоп только после УСТОЙЧИВОЙ речи и последующей паузы
   try{
-    const ac=new (window.AudioContext||window.webkitAudioContext)(); const src=ac.createMediaStreamSource(stream); const an=ac.createAnalyser(); an.fftSize=512; src.connect(an);
-    const buf=new Uint8Array(an.fftSize); let spoke=false,last=Date.now(),t0=Date.now();
+    const ac=new (window.AudioContext||window.webkitAudioContext)(); try{ if(ac.state==='suspended' && ac.resume) await ac.resume(); }catch(e){}
+    const src=ac.createMediaStreamSource(stream); const an=ac.createAnalyser(); an.fftSize=512; src.connect(an);
+    const buf=new Uint8Array(an.fftSize); let spoke=false, loud=0, lastLoud=Date.now(), t0=Date.now();
     (function tick(){ if(stopped){try{ac.close();}catch(e){} return;} an.getByteTimeDomainData(buf);
-      let sum=0; for(let i=0;i<buf.length;i++){const v=(buf[i]-128)/128;sum+=v*v;} const rms=Math.sqrt(sum/buf.length); const now=Date.now();
-      if(rms>0.05){spoke=true;last=now;}
-      if((spoke&&now-last>silenceMs)||now-t0>maxMs){ try{ac.close();}catch(e){} _stop(); return; }
+      let sum=0; for(let i=0;i<buf.length;i++){const v=(buf[i]-128)/128;sum+=v*v;} const rms=Math.sqrt(sum/buf.length); const now=Date.now(), el=now-t0;
+      if(rms>0.045){ loud++; if(loud>=3) spoke=true; lastLoud=now; } else { loud=0; }
+      if(el>minMs && ((spoke && now-lastLoud>silenceMs) || el>maxMs)){ try{ac.close();}catch(e){} _stop(); return; }
       requestAnimationFrame(tick);
     })();
   }catch(e){ setTimeout(_stop, maxMs); }
@@ -797,8 +800,15 @@ function submitInput(v){
 }
 $('#onbMic').addEventListener('click',()=>{
   const mic=$('#onbMic');mic.classList.add('rec');
-  listen((said,final)=>{ if(final){mic.classList.remove('rec'); if(inputMode==='name'||inputMode==='goal'){submitInput(said);} else {addMsg('out',esc(said));} } },
+  listen((said,final)=>{ if(final){mic.classList.remove('rec'); const t=(said||'').trim();
+    if(!t){ toast('Не расслышал, скажи чуть громче 🎙️'); return; }
+    if(inputMode==='name'||inputMode==='goal'){submitInput(t);} else {addMsg('out',esc(t));} } },
          ()=>{mic.classList.remove('rec');});
+});
+// запись видео-кружка в онбординге (как в Telegram)
+$('#onbCircle').addEventListener('click',async()=>{
+  const r=await recordCircleFlow($('#chatScroll'),'auto');
+  if(r&&r.transcript&&(inputMode==='name'||inputMode==='goal')){ submitInput(r.transcript); }
 });
 
 function openAvatarFromChat(){ screen('s-ava'); }
@@ -1381,19 +1391,36 @@ async function sendLive(text){
 $('#liveInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();sendLive($('#liveInput').value);} });
 $('#liveMic').addEventListener('click',()=>{
   const mic=$('#liveMic');mic.classList.add('rec');
-  listen((said,final)=>{ if(final){mic.classList.remove('rec');sendLive(said);} },()=>{mic.classList.remove('rec');});
+  listen((said,final)=>{ if(final){mic.classList.remove('rec'); const t=(said||'').trim(); if(!t){toast('Не расслышал, скажи чуть громче 🎙️');return;} sendLive(t);} },()=>{mic.classList.remove('rec');});
 });
-// запись видео-кружка человеком (Telegram-стиль) + транскрибация -> AI отвечает
-let liveCircleBusy=false;
-function addLiveCircle(side, url){
+// запись видео-кружка человеком (Telegram-стиль) - общая, работает в любом чате
+let circleBusy=false;
+function addCircleBubble(scrollEl, side, url){
   const row=document.createElement('div');row.className='row '+side;
   const mini=side==='in'?'<div class="mini">🎬</div>':'';
   row.innerHTML=mini+'<div><div class="vcircle hasvideo" style="width:150px;height:150px"><video src="'+url+'" playsinline loop></video><div class="play"></div></div><div class="capslot"></div></div>';
-  liveScroll.appendChild(row);liveScroll.scrollTop=liveScroll.scrollHeight;
+  scrollEl.appendChild(row);scrollEl.scrollTop=scrollEl.scrollHeight;
   const vc=row.querySelector('.vcircle'),v=row.querySelector('video');
   vc.addEventListener('click',()=>{ if(vc.classList.toggle('playing')){ v.muted=false; v.currentTime=0; v.play(); } else v.pause(); });
   v.muted=true; v.play().catch(()=>{});
   return row;
+}
+async function recordCircleFlow(scrollEl, lang){
+  if(circleBusy) return null; if(!mediaOK){ toast('Запись видео не поддерживается в этом браузере'); return null; }
+  circleBusy=true;
+  const ov=$('#recOverlay'), vid=$('#recVideo'); let out=null;
+  try{
+    const rc=await recordClip({video:true, maxMs:15000, silenceMs:1600, minMs:1800});
+    vid.srcObject=rc.stream; ov.classList.add('on'); $('#recStop').onclick=()=>rc.stop();
+    const blob=await rc.blob; ov.classList.remove('on'); vid.srcObject=null;
+    const url=URL.createObjectURL(blob);
+    const row=addCircleBubble(scrollEl,'out',url);
+    let t=''; try{ const j=await transcribeBlob(blob, lang||'auto'); t=(j.transcript||'').trim(); }catch(e){}
+    const cs=row.querySelector('.capslot');
+    if(t){ cs.className='cap'; cs.innerHTML='✍️ <b>'+esc(t)+'</b>'; } else { cs.className='cap'; cs.textContent='(не расслышал, скажи чётче 🎥)'; }
+    out={row, transcript:t};
+  }catch(e){ ov.classList.remove('on'); toast('Нет доступа к камере 🎥'); }
+  circleBusy=false; return out;
 }
 async function liveSendFromVoice(text){
   const h=liveHist(); h.push({role:'user',content:text}); save();
@@ -1402,26 +1429,7 @@ async function liveSendFromVoice(text){
   liveTyping(false);
   h.push({role:'assistant',content:res.reply}); addLiveBubble('in',res.reply,''); addReward(5,0); save();
 }
-async function recordLiveCircle(){
-  if(liveCircleBusy) return; if(!mediaOK){ toast('Запись не поддерживается в этом браузере'); return; }
-  liveCircleBusy=true;
-  const ov=$('#recOverlay'), vid=$('#recVideo');
-  try{
-    const rc=await recordClip({video:true, maxMs:15000, silenceMs:1800});
-    vid.srcObject=rc.stream; ov.classList.add('on');
-    $('#recStop').onclick=()=>rc.stop();
-    const blob=await rc.blob;
-    ov.classList.remove('on'); vid.srcObject=null;
-    const url=URL.createObjectURL(blob);
-    const row=addLiveCircle('out', url);
-    let t=''; try{ const j=await transcribeBlob(blob,'auto'); t=(j.transcript||'').trim(); }catch(e){}
-    const cs=row.querySelector('.capslot');
-    if(t){ cs.className='cap'; cs.innerHTML='✍️ <b>'+esc(t)+'</b>'; liveSendFromVoice(t); }
-    else { cs.className='cap'; cs.textContent='(не расслышал, скажи чётче 🎥)'; }
-  }catch(e){ ov.classList.remove('on'); toast('Нет доступа к камере 🎥'); }
-  liveCircleBusy=false;
-}
-$('#liveCircle').addEventListener('click',recordLiveCircle);
+$('#liveCircle').addEventListener('click',async()=>{ const r=await recordCircleFlow(liveScroll,'auto'); if(r&&r.transcript) liveSendFromVoice(r.transcript); });
 $('#liveBack').onclick=()=>{screen('s-map');selTab('map');refreshStats();};
 // talk4 - AI разбирает диалог
 $('#liveAnalyze').onclick=()=>analyzeDialog();
@@ -1686,7 +1694,7 @@ function addLobbyHost(text){
 }
 function sendLobby(text){ text=(text||'').trim(); if(!text) return; if(lobbyRoom){ lobbyRoom.send('say',{text}); $('#lobbyInput').value=''; addReward(5,0); } else { toast('Подключаюсь к комнате…'); } }
 $('#lobbyInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();sendLobby($('#lobbyInput').value);} });
-$('#lobbyMic').addEventListener('click',()=>{ const mic=$('#lobbyMic');mic.classList.add('rec');listen((said,final)=>{ if(final){mic.classList.remove('rec');sendLobby(said);} },()=>{mic.classList.remove('rec');}); });
+$('#lobbyMic').addEventListener('click',()=>{ const mic=$('#lobbyMic');mic.classList.add('rec');listen((said,final)=>{ if(final){mic.classList.remove('rec'); const t=(said||'').trim(); if(!t){toast('Не расслышал, скажи чуть громче 🎙️');return;} sendLobby(t);} },()=>{mic.classList.remove('rec');}); });
 $('#lobbyBack').onclick=()=>{ if(lobbyRoom){try{lobbyRoom.leave();}catch(e){} lobbyRoom=null;} screen('s-map');selTab('map');refreshStats(); };
 
 boot();
