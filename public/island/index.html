@@ -205,6 +205,27 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .reward-row{display:flex;gap:10px;justify-content:center;margin:0 0 18px}
 .reward{background:var(--paper2);border-radius:14px;padding:10px 16px;font-weight:900;font-size:17px;display:flex;align-items:center;gap:6px}
 
+/* дуэль (Фаза 3) */
+.duel-top{display:flex;align-items:center;gap:8px;padding:calc(12px + var(--safe-t)) 14px 8px;color:#fff}
+.duel-score{flex:1;text-align:center;background:rgba(255,255,255,.1);border-radius:14px;padding:7px}
+.duel-score span{font-size:11px;font-weight:700;opacity:.85;display:block}
+.duel-score b{font-size:26px}
+.duel-score.you{color:#5ef2c9}.duel-score.ai{color:#ff8aa0}
+.duel-timer{width:60px;height:60px;border-radius:50%;background:linear-gradient(180deg,var(--banana),var(--sun));color:#3a1c5c;font-weight:900;font-size:22px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;box-shadow:var(--shadow)}
+.duel-timer.low{background:linear-gradient(180deg,var(--coral),#d83a4d);color:#fff;animation:micpulse 1s infinite}
+.duel-body{flex:1;display:flex;flex-direction:column;padding:16px 18px calc(20px + var(--safe-b));color:#fff}
+.duel-round{text-align:center;font-weight:800;color:#c8b6e8;margin-bottom:10px}
+.duel-topic-card{background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.2);border-radius:20px;padding:22px 18px;text-align:center;backdrop-filter:blur(6px)}
+.duel-topic-lab{font-size:12px;color:#c8b6e8;text-transform:uppercase;letter-spacing:1px}
+.duel-topic{font-size:26px;font-weight:900;margin:8px 0 4px}
+.duel-topic-ru{font-size:14px;color:#c8b6e8}
+.duel-feedback{margin-top:16px;min-height:80px}
+.duel-fb-card{background:rgba(255,255,255,.12);border-radius:16px;padding:14px;animation:rise .3s}
+.duel-fb-score{font-size:32px;font-weight:900;text-align:center}
+.duel-fb-verdict{text-align:center;font-weight:700;margin:2px 0 8px}
+.duel-fb-better{font-size:13px;color:#dfe8ec;background:rgba(0,0,0,.2);border-radius:10px;padding:8px 11px}
+.duel-fb-better b{color:var(--banana)}
+
 /* выбор персонажа (ava4) */
 .persona-grid{display:grid;grid-template-columns:1fr;gap:8px;margin:14px 0 6px;max-height:56vh;overflow-y:auto}
 .pc{display:flex;align-items:center;gap:9px;padding:10px;border-radius:14px;background:var(--paper2);border:1.5px solid transparent;cursor:pointer}
@@ -354,6 +375,26 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
     </div>
   </section>
 
+  <!-- ============ 8 · ДУЭЛЬ 90 СЕК (AI-судья, Фаза 3) ============ -->
+  <section id="s-duel" class="screen" style="background:linear-gradient(180deg,#3a1c5c,#1a0e2e)">
+    <div class="duel-top">
+      <button class="back" id="duelBack" style="background:rgba(255,255,255,.15);color:#fff">←</button>
+      <div class="duel-score you"><span id="duelYouName">🙂 ТЫ</span><b id="duelYou">0</b></div>
+      <div class="duel-timer" id="duelTimer">90</div>
+      <div class="duel-score ai"><span>AI 😈</span><b id="duelAi">0</b></div>
+    </div>
+    <div class="duel-body">
+      <div class="duel-round" id="duelRound">Раунд 1</div>
+      <div class="duel-topic-card">
+        <div class="duel-topic-lab">Тема раунда:</div>
+        <div class="duel-topic" id="duelTopic">-</div>
+        <div class="duel-topic-ru" id="duelTopicRu"></div>
+      </div>
+      <div class="duel-feedback" id="duelFeedback"></div>
+      <button class="btn sun wide" id="duelMic" style="margin-top:auto">🎙️ Сказать на английском</button>
+    </div>
+  </section>
+
   <!-- ============ 7 · ЖИВОЕ ОБЩЕНИЕ (AI, Фаза 2) ============ -->
   <section id="s-live" class="screen">
     <div class="onb-head" style="background:linear-gradient(180deg,#0e9e90,#19c3b2)">
@@ -381,6 +422,8 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 
 <!-- всплывающий чат Романа поверх игры (habit5) -->
 <button class="float-chat" id="floatChat">💬<span class="dot" id="floatDot">1</span></button>
+<!-- вызов на дуэль (Фаза 3) -->
+<button class="float-chat" id="floatDuel" style="left:14px;right:auto;background:linear-gradient(180deg,#9b5cff,#6a2cc9)">⚔️</button>
 
 <!-- нижняя навигация -->
 <nav class="tabbar" id="tabbar">
@@ -435,8 +478,9 @@ function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('on');
 function screen(id){$$('.screen').forEach(s=>s.classList.remove('on'));$('#'+id).classList.add('on');
   // всплывающий чат (habit5) - только на карте, чтобы не перекрывать игровые кнопки
   const fc=$('#floatChat'); if(fc){ if(id==='s-map'){ if(fc.dataset.armed==='1') fc.classList.add('on'); } else { fc.classList.remove('on'); } }
+  const fd=$('#floatDuel'); if(fd){ fd.classList.toggle('on', id==='s-map'); }
   // таббар прячем на чат-экранах (поле ввода не должно быть под ним); возврат кнопкой назад
-  const tb=$('#tabbar'); if(tb&&tb.dataset.armed==='1'){ tb.classList.toggle('on', id!=='s-live'&&id!=='s-onb'); }
+  const tb=$('#tabbar'); if(tb&&tb.dataset.armed==='1'){ tb.classList.toggle('on', id!=='s-live'&&id!=='s-onb'&&id!=='s-duel'); }
 }
 function refreshStats(){
   $('#stAmmo').textContent=S.ammo; $('#stXp').textContent=S.xp; $('#stStreak').textContent=S.streak;
@@ -1066,6 +1110,80 @@ function openPicker(){
   $('#pickOverlay').classList.add('on');
 }
 $('#pickClose').onclick=()=>$('#pickOverlay').classList.remove('on');
+
+/* =====================================================================
+   8 · ДУЭЛЬ 90 СЕК (AI-судья) - Фаза 3 (fight6)
+   ===================================================================== */
+const DUEL_TOPICS=[
+  {en:'Your favorite food',ru:'Любимая еда'},
+  {en:'What you did today',ru:'Что делал сегодня'},
+  {en:'Your dream trip',ru:'Путешествие мечты'},
+  {en:'Describe your best friend',ru:'Опиши лучшего друга'},
+  {en:'A movie you love',ru:'Любимый фильм'},
+  {en:'Your morning routine',ru:'Твоё утро'},
+  {en:'What makes you happy',ru:'Что делает тебя счастливым'},
+  {en:'Your favorite place on Bali',ru:'Любимое место на Бали'},
+  {en:'A skill you want to learn',ru:'Навык, который хочешь освоить'},
+  {en:'The best gift you got',ru:'Лучший подарок'},
+];
+let D=null;
+function pickTopic(){ return DUEL_TOPICS[Math.floor(Math.random()*DUEL_TOPICS.length)]; }
+function startDuel(){
+  D={you:0,ai:0,round:0,timeLeft:90,running:true,busy:false};
+  $('#duelYouName').innerHTML=(S.avatar?'🖼️':'🙂')+' ТЫ';
+  $('#duelYou').textContent='0';$('#duelAi').textContent='0';
+  $('#duelFeedback').innerHTML='';
+  screen('s-duel'); nextDuelRound();
+  clearInterval(D._t);
+  D._t=setInterval(()=>{
+    if(!D||!D.running)return; D.timeLeft--;
+    const tm=$('#duelTimer'); tm.textContent=D.timeLeft; tm.classList.toggle('low',D.timeLeft<=15);
+    if(D.timeLeft<=0){ endDuel(); }
+  },1000);
+}
+function nextDuelRound(){
+  D.round++; $('#duelRound').textContent='Раунд '+D.round;
+  const t=pickTopic(); D.topic=t;
+  $('#duelTopic').textContent=t.en; $('#duelTopicRu').textContent=t.ru;
+  $('#duelMic').innerHTML='🎙️ Сказать на английском'; $('#duelMic').disabled=false;
+}
+$('#duelMic').addEventListener('click',()=>{
+  if(!D||!D.running||D.busy)return; D.busy=true;
+  const btn=$('#duelMic'); btn.innerHTML='🎙️ Слушаю…';
+  let got=false;
+  listen((said,final)=>{ if(final){got=true; btn.innerHTML='⚖️ Судья думает…'; judgeDuel(said);} },
+    ()=>{ if(!got){btn.innerHTML='🎙️ Ещё раз'; D.busy=false;} });
+});
+async function judgeDuel(said){
+  let r={score:55,verdict:'Засчитано!',better:''};
+  try{
+    const resp=await fetch(API+'/api/island/judge',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({topic:D.topic.en,said,round:D.round})});
+    r=await resp.json();
+  }catch(e){}
+  D.you+=r.score||0; $('#duelYou').textContent=D.you;
+  // ход AI-соперника (набирает конкурентно)
+  const aiGain=Math.round(45+Math.random()*45); D.ai+=aiGain; $('#duelAi').textContent=D.ai;
+  const fb=$('#duelFeedback');
+  fb.innerHTML='<div class="duel-fb-card"><div class="duel-fb-score">'+(r.score||0)+' <span style="font-size:14px;color:#c8b6e8">очков</span></div>'+
+    '<div class="duel-fb-verdict">'+esc(r.verdict||'')+'</div>'+
+    (r.better?'<div class="duel-fb-better">✍️ Лучше так: <b>'+esc(r.better)+'</b></div>':'')+
+    '<div style="text-align:center;font-size:12px;color:#ff8aa0;margin-top:6px">соперник набрал +'+aiGain+'</div></div>';
+  if(r.better) say(r.better);
+  D.busy=false;
+  if(D.running && D.timeLeft>0){ setTimeout(nextDuelRound,1600); }
+}
+function endDuel(){
+  if(!D)return; D.running=false; clearInterval(D._t);
+  const win=D.you>=D.ai;
+  const reward=win?60:20; addReward(reward,win?2:0); if(win)confetti();
+  sheet({emoji:win?'🏆':'🤝',title:win?'Ты выиграл дуэль!':'Дуэль окончена',
+    text:'Счёт '+D.you+' : '+D.ai+'. '+(win?'Ты говорил лучше 🔥':'Соперник вырвался вперёд. Реванш?'),
+    rewards:[['⭐','+'+reward],['🍌',S.ammo]],
+    cta:win?'Забрать награду':'Реванш ⚔️',onCta:()=>{closeSheet(); if(win){screen('s-map');selTab('map');refreshStats();} else {startDuel();}}});
+}
+$('#duelBack').onclick=()=>{ if(D){D.running=false;clearInterval(D._t);} screen('s-map');selTab('map');refreshStats(); };
+$('#floatDuel').addEventListener('click',()=>startDuel());
 
 boot();
 })();

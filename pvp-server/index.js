@@ -940,6 +940,41 @@ app.post('/api/island/chat', async (req, res) => {
   res.json({ ...out, via });
 });
 
+// ─── ISLAND · DUEL JUDGE (Фаза 3: fight6 — LLM-судья) ───
+// Оценивает реплику игрока на заданную тему: очки 0-100 + короткий вердикт + улучшенная версия.
+app.post('/api/island/judge', async (req, res) => {
+  const { topic, said, round } = req.body || {};
+  const phrase = String(said || '').slice(0, 300);
+  if (!phrase.trim()) return res.json({ score: 0, verdict: 'Тишина в эфире 🎤', better: '' });
+  const system = [
+    'You are a fair, encouraging English-duel judge in a fun game.',
+    `The player was asked to say something in English about the topic: "${topic || 'anything'}".`,
+    'Score their line from 0 to 100 based on: did they actually speak English, grammar, relevance to topic, and effort. Be generous but honest. Empty or non-English = low score.',
+    'Give a SHORT punchy verdict in RUSSIAN (max 8 words, like a boxing commentator), and one improved English version of their line.',
+    'NEVER use an em dash. Return STRICT JSON: {"score": <0-100 int>, "verdict": "<ru, short>", "better": "<improved english>"}',
+  ].join('\n');
+  const history = [{ role: 'user', content: `Round ${round || 1}. My line: "${phrase}"` }];
+  let raw = '';
+  try { raw = await callGroq(system, history); }
+  catch (e1) { try { raw = await callGemini(system, history); } catch (e2) {
+    // офлайн-эвристика
+    const words = phrase.trim().split(/\s+/).length;
+    const looksEn = /[a-z]/i.test(phrase);
+    const score = looksEn ? Math.min(90, 40 + words * 6) : 15;
+    return res.json({ score, verdict: looksEn ? 'Неплохо, боец! 👊' : 'Это не по-английски 😅', better: '' });
+  } }
+  try {
+    const j = JSON.parse(raw);
+    return res.json({
+      score: Math.max(0, Math.min(100, parseInt(j.score, 10) || 0)),
+      verdict: String(j.verdict || 'Есть контакт!').replace(/[—–]/g, '-').slice(0, 60),
+      better: String(j.better || '').replace(/[—–]/g, '-').slice(0, 200),
+    });
+  } catch (e) {
+    return res.json({ score: 55, verdict: 'Засчитано! 👊', better: '' });
+  }
+});
+
 // ─── FRIENDS ───
 app.post('/api/friends/add', async (req, res) => {
   const me = await authUserFromReq(req);
