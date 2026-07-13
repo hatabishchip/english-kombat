@@ -1063,7 +1063,9 @@ app.post('/api/island/analyze', async (req, res) => {
 });
 
 // ─── ISLAND · TRANSCRIBE (Deepgram — проверка устного английского + субтитры к кружкам) ───
-app.post('/api/island/transcribe', express.raw({ type: '*/*', limit: '30mb' }), async (req, res) => {
+// type:()=>true - iOS шлёт 'video/mp4; codecs=avc1...,mp4a...' с НЕквотированной запятой (невалидный CT),
+// стандартный матчер типа кидает исключение и тело молча не читается -> принимаем тело всегда
+app.post('/api/island/transcribe', express.raw({ type: () => true, limit: '30mb' }), async (req, res) => {
   const key = process.env.DEEPGRAM_API_KEY;
   if (!key) return res.status(503).json({ error: 'no deepgram key' });
   const audio = req.body;
