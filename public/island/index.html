@@ -205,6 +205,16 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .reward-row{display:flex;gap:10px;justify-content:center;margin:0 0 18px}
 .reward{background:var(--paper2);border-radius:14px;padding:10px 16px;font-weight:900;font-size:17px;display:flex;align-items:center;gap:6px}
 
+/* выбор персонажа (ava4) */
+.persona-grid{display:grid;grid-template-columns:1fr;gap:8px;margin:14px 0 6px;max-height:56vh;overflow-y:auto}
+.pc{display:flex;align-items:center;gap:9px;padding:10px;border-radius:14px;background:var(--paper2);border:1.5px solid transparent;cursor:pointer}
+.pc:active{border-color:var(--teal)}
+.pc .pe{width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;flex:0 0 auto;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.pc .pn{line-height:1.2}.pc .pn b{font-size:14px;display:block}.pc .pn span{font-size:11px;color:var(--ink-soft)}
+.pc .on{width:8px;height:8px;border-radius:50%;background:var(--leaf);margin-left:auto}
+.corr{font-size:12px;color:var(--sun-d);background:#fff4e8;border-radius:10px;padding:6px 10px;margin-top:4px;display:inline-block}
+.corr b{color:var(--teal-d)}
+
 /* всплывающий чат-пузырь поверх игры (habit5) */
 .float-chat{position:fixed;right:14px;bottom:calc(88px + var(--safe-b));z-index:40;width:56px;height:56px;border-radius:50%;background:linear-gradient(180deg,var(--teal),var(--teal-d));box-shadow:var(--shadow);display:none;align-items:center;justify-content:center;font-size:26px}
 .float-chat.on{display:flex;animation:rise .3s}
@@ -344,7 +354,30 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
     </div>
   </section>
 
+  <!-- ============ 7 · ЖИВОЕ ОБЩЕНИЕ (AI, Фаза 2) ============ -->
+  <section id="s-live" class="screen">
+    <div class="onb-head" style="background:linear-gradient(180deg,#0e9e90,#19c3b2)">
+      <button class="back" id="liveBack" style="background:rgba(255,255,255,.25);color:#fff;width:36px;height:36px">←</button>
+      <div class="ava" id="liveAva">🧔</div>
+      <div class="who"><b id="liveName">Роман</b><span id="liveStatus">на острове</span></div>
+      <button class="btn ghost sm" id="livePick" style="padding:8px 12px">👥 Люди</button>
+    </div>
+    <div class="chat-scroll" id="liveScroll"></div>
+    <div class="quick" id="liveTopics"></div>
+    <div class="composer">
+      <input class="txt" id="liveInput" placeholder="Напиши по-английски…" enterkeyhint="send">
+      <button class="mic" id="liveMic" aria-label="голосом">🎙️</button>
+    </div>
+  </section>
+
 </div>
+
+<!-- выбор собеседника (ava4) -->
+<div class="overlay" id="pickOverlay"><div class="sheet" id="pickSheet" style="max-width:380px;text-align:left">
+  <h3 style="text-align:center">👥 Кто сейчас на острове</h3>
+  <div class="persona-grid" id="personaGrid"></div>
+  <button class="btn ghost wide sm" id="pickClose" style="margin-top:8px;color:var(--ink-soft);background:var(--paper2)">Закрыть</button>
+</div></div>
 
 <!-- всплывающий чат Романа поверх игры (habit5) -->
 <button class="float-chat" id="floatChat">💬<span class="dot" id="floatDot">1</span></button>
@@ -400,8 +433,10 @@ function matchPhrase(said,ans){
 }
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),1800);}
 function screen(id){$$('.screen').forEach(s=>s.classList.remove('on'));$('#'+id).classList.add('on');
-  // всплывающий чат (habit5) — только на карте, чтобы не перекрывать игровые кнопки
+  // всплывающий чат (habit5) - только на карте, чтобы не перекрывать игровые кнопки
   const fc=$('#floatChat'); if(fc){ if(id==='s-map'){ if(fc.dataset.armed==='1') fc.classList.add('on'); } else { fc.classList.remove('on'); } }
+  // таббар прячем на чат-экранах (поле ввода не должно быть под ним); возврат кнопкой назад
+  const tb=$('#tabbar'); if(tb&&tb.dataset.armed==='1'){ tb.classList.toggle('on', id!=='s-live'&&id!=='s-onb'); }
 }
 function refreshStats(){
   $('#stAmmo').textContent=S.ammo; $('#stXp').textContent=S.xp; $('#stStreak').textContent=S.streak;
@@ -542,7 +577,7 @@ $('#onbMic').addEventListener('click',()=>{
 function openAvatarFromChat(){ screen('s-ava'); }
 function goToMapFirstTime(){
   S.guest = S.guest||false;
-  screen('s-map'); $('#tabbar').classList.add('on'); selTab('map');
+  screen('s-map'); $('#tabbar').dataset.armed='1'; $('#tabbar').classList.add('on'); selTab('map');
   refreshStats();
   setTimeout(()=>toast('🎉 Добро пожаловать на остров, '+S.name+'!'),400);
   // всплывающий чат поверх игры (habit5)
@@ -593,7 +628,7 @@ $$('.tab').forEach(t=>t.addEventListener('click',()=>{
   if(go==='map'){screen('s-map');refreshStats();}
   if(go==='scene'){openScene();}
   if(go==='fight'){openFight();}
-  if(go==='chatR'){openRomanChat();}
+  if(go==='chatR'){openLive('roman');}
 }));
 
 /* =====================================================================
@@ -820,7 +855,7 @@ submitInput=function(v){ v=(v||'').trim(); if(!v)return; if(inputMode==='roman')
 $('#onbInput').addEventListener('keydown',e=>{ if(e.key==='Enter'&&inputMode==='roman'){e.preventDefault();submitInput($('#onbInput').value);} });
 
 // всплывающий чат поверх игры (habit5)
-$('#floatChat').addEventListener('click',()=>{ $('#floatChat').classList.remove('on'); openRomanChat(); });
+$('#floatChat').addEventListener('click',()=>{ $('#floatChat').classList.remove('on'); openLive('roman'); });
 
 /* =====================================================================
    ОБЩЕЕ: озвучка, конфетти, оверлеи, привычки
@@ -872,7 +907,7 @@ function boot(){
   checkStreak(); refreshStats();
   if(S.lastDay && S.locDone>0 && S.avatar!==undefined && localStorage.getItem(LS)){
     // возвращающийся игрок - сразу на карту
-    screen('s-map'); $('#tabbar').classList.add('on'); selTab('map'); refreshStats();
+    screen('s-map'); $('#tabbar').dataset.armed='1'; $('#tabbar').classList.add('on'); selTab('map'); refreshStats();
     // восстановить статус точек
     if(S.locDone>0){const pt=$('#pt0');pt.classList.remove('active');pt.classList.add('done');pt.querySelector('.dot').textContent='✅';
       const p1=$('#pt1');p1.classList.remove('lock');p1.classList.add('active');const b=p1.querySelector('.badge');b&&b.remove();
@@ -882,6 +917,121 @@ function boot(){
     screen('s-onb'); step=0; runStep();
   }
 }
+/* =====================================================================
+   7 · ЖИВОЕ ОБЩЕНИЕ (AI) - Фаза 2
+   ===================================================================== */
+const API='https://ek-pvp.13-140-178-130.sslip.io';
+const PERSONAS={
+  roman:{n:'Роман',e:'🧔',d:'основатель острова'},
+  kadek:{n:'Kadek',e:'🏄',d:'серфер с Бали'},
+  mia:{n:'Mia',e:'💃',d:'диджей из Калифорнии'},
+  tom:{n:'Tom',e:'🎩',d:'британец, любит чай'},
+  hiro:{n:'Hiro',e:'🍣',d:'турист из Токио'},
+  sofia:{n:'Sofia',e:'🌮',d:'хозяйка кафе'},
+  liam:{n:'Liam',e:'🛵',d:'прокат байков'},
+  amara:{n:'Amara',e:'🧘',d:'йога-инструктор'},
+  chen:{n:'Chen',e:'📸',d:'фотограф'},
+  pierre:{n:'Pierre',e:'🥐',d:'шеф-повар'},
+  nadia:{n:'Nadia',e:'🎨',d:'художница'},
+  bruno:{n:'Bruno',e:'⚽',d:'тренер по футболу'},
+};
+const TOPICS=['Расскажи о себе','Что делать на Бали?','Дай совет по английскому','Пошутим 😄'];
+S.chats=S.chats||{};
+let live={persona:'roman'};
+const liveScroll=$('#liveScroll');
+
+function openLive(personaKey){
+  live.persona=personaKey||live.persona;
+  const p=PERSONAS[live.persona];
+  $('#liveAva').textContent=p.e; $('#liveName').textContent=p.n; $('#liveStatus').textContent='на острове';
+  screen('s-live'); selTab('chatR');
+  renderTopics();
+  renderLive();
+  const hist=S.chats[live.persona]||[];
+  if(!hist.length){ liveFirst(); } // talk1 - персонаж пишет первым
+}
+function renderTopics(){
+  const box=$('#liveTopics');box.innerHTML='';
+  TOPICS.forEach(t=>{const b=document.createElement('button');b.className='chip';b.textContent=t;b.onclick=()=>sendLive(t);box.appendChild(b);});
+}
+function renderLive(){
+  liveScroll.innerHTML='';
+  const hist=S.chats[live.persona]||[];
+  hist.forEach(m=>addLiveBubble(m.role==='assistant'?'in':'out', m.content, m.correction));
+}
+function addLiveBubble(side, text, correction){
+  const p=PERSONAS[live.persona];
+  const row=document.createElement('div');row.className='row '+side;
+  const time=new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+  const corr=(side==='out'&&correction)?'<div class="corr">✍️ <b>'+esc(correction)+'</b></div>':'';
+  if(side==='in') row.innerHTML='<div class="mini">'+p.e+'</div><div class="bubble">'+esc(text)+'<div class="time">'+time+'</div></div>';
+  else row.innerHTML='<div class="bubble">'+esc(text)+corr+'<div class="time">'+time+'</div></div>';
+  liveScroll.appendChild(row);liveScroll.scrollTop=liveScroll.scrollHeight;
+}
+function liveTyping(on){
+  let t=$('#liveTyping');
+  if(on){ if(t)return; const p=PERSONAS[live.persona];
+    const row=document.createElement('div');row.className='row in';row.id='liveTyping';
+    row.innerHTML='<div class="mini">'+p.e+'</div><div class="bubble"><div class="typing"><i></i><i></i><i></i></div></div>';
+    liveScroll.appendChild(row);liveScroll.scrollTop=liveScroll.scrollHeight;
+    $('#liveStatus').textContent='печатает…';
+  } else { t&&t.remove(); $('#liveStatus').textContent='на острове'; }
+}
+async function callChat(historyForApi){
+  try{
+    const r=await fetch(API+'/api/island/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({persona:live.persona,userName:S.name,messages:historyForApi})});
+    if(!r.ok) throw new Error('http '+r.status);
+    return await r.json();
+  }catch(e){ return {reply:"Hmm, connection is weak here on the island 🌴 Try again?",correction:''}; }
+}
+function liveHist(){ return (S.chats[live.persona]=S.chats[live.persona]||[]); }
+async function liveFirst(){
+  liveTyping(true);
+  const seed=[{role:'user',content:'(I just walked up to you on the island and I am a bit shy. Greet me warmly by name first and ask one simple question to start small talk.)'}];
+  const res=await callChat(seed);
+  liveTyping(false);
+  liveHist().push({role:'assistant',content:res.reply});
+  addLiveBubble('in',res.reply); save();
+}
+let liveBusy=false;
+async function sendLive(text){
+  text=(text||'').trim(); if(!text||liveBusy) return;
+  liveBusy=true; $('#liveInput').value='';
+  const h=liveHist();
+  h.push({role:'user',content:text}); addLiveBubble('out',text); save();
+  liveTyping(true);
+  const apiHist=h.slice(-12).map(m=>({role:m.role,content:m.content}));
+  const res=await callChat(apiHist);
+  liveTyping(false);
+  h.push({role:'assistant',content:res.reply, });
+  // коррекцию показываем на ПОСЛЕДНЕЙ реплике юзера
+  if(res.correction){ h[h.length-2].correction=res.correction; }
+  renderLive();
+  addReward(5,0); // rew: очки за практику разговора
+  if(h.filter(m=>m.role==='user').length%3===0) addReward(0,1); // банан за каждые 3 реплики
+  save(); liveBusy=false;
+}
+$('#liveInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();sendLive($('#liveInput').value);} });
+$('#liveMic').addEventListener('click',()=>{
+  const mic=$('#liveMic');mic.classList.add('rec');
+  listen((said,final)=>{ if(final){mic.classList.remove('rec');sendLive(said);} },()=>{mic.classList.remove('rec');});
+});
+$('#liveBack').onclick=()=>{screen('s-map');selTab('map');refreshStats();};
+// выбор собеседника (ava4)
+$('#livePick').onclick=()=>openPicker();
+function openPicker(){
+  const grid=$('#personaGrid');grid.innerHTML='';
+  Object.entries(PERSONAS).forEach(([k,p])=>{
+    const el=document.createElement('div');el.className='pc';
+    el.innerHTML='<div class="pe">'+p.e+'</div><div class="pn"><b>'+p.n+'</b><span>'+p.d+'</span></div><div class="on"></div>';
+    el.onclick=()=>{$('#pickOverlay').classList.remove('on');openLive(k);};
+    grid.appendChild(el);
+  });
+  $('#pickOverlay').classList.add('on');
+}
+$('#pickClose').onclick=()=>$('#pickOverlay').classList.remove('on');
+
 boot();
 })();
 </script>

@@ -851,6 +851,95 @@ app.post('/api/roadmap/:key', async (req, res) => {
   }
 });
 
+// ─── ISLAND · AI CHAT (Фаза 2: живое общение) ───
+// Персонажи острова (ava4). Каждый — свой характер, акцент, био.
+const ISLAND_PERSONAS = {
+  roman:  { name: 'Роман',  emoji: '🧔', accent: 'обычный', bio: 'основатель острова, весёлый наставник, свой парень, подбадривает' },
+  kadek:  { name: 'Kadek',  emoji: '🏄', accent: 'Balinese', bio: 'местный серфер с Бали, спокойный, любит океан и закаты' },
+  mia:    { name: 'Mia',    emoji: '💃', accent: 'American', bio: 'диджей из Калифорнии, энергичная, сленг, эмодзи' },
+  tom:    { name: 'Tom',    emoji: '🎩', accent: 'British', bio: 'вежливый британец, чуть ироничный, любит чай и порядок' },
+  hiro:   { name: 'Hiro',   emoji: '🍣', accent: 'Japanese', bio: 'турист из Токио, дружелюбный, немного стеснительный' },
+  sofia:  { name: 'Sofia',  emoji: '🌮', accent: 'Mexican', bio: 'хозяйка кафе, тёплая, кормит и болтает' },
+  liam:   { name: 'Liam',   emoji: '🛵', accent: 'Australian', bio: 'прокатчик байков, расслабленный, зовёт всех mate' },
+  amara:  { name: 'Amara',  emoji: '🧘', accent: 'Nigerian', bio: 'йога-инструктор, мудрая, спокойная, добрая' },
+  chen:   { name: 'Chen',   emoji: '📸', accent: 'Chinese', bio: 'фотограф-путешественник, любопытный, задаёт вопросы' },
+  pierre: { name: 'Pierre', emoji: '🥐', accent: 'French', bio: 'шеф-повар, страстный, немного драматичный' },
+  nadia:  { name: 'Nadia',  emoji: '🎨', accent: 'neutral', bio: 'художница-кочевник, творческая, вдумчивая' },
+  bruno:  { name: 'Bruno',  emoji: '⚽', accent: 'Brazilian', bio: 'тренер по футболу на пляже, громкий, весёлый' },
+};
+function islandSystemPrompt(personaKey, userName) {
+  const p = ISLAND_PERSONAS[personaKey] || ISLAND_PERSONAS.roman;
+  return [
+    `You are ${p.name} ${p.emoji}, a character on a tropical English-learning island game called "English Kombat".`,
+    `Personality: ${p.bio}. Accent flavour: ${p.accent}.`,
+    `You are chatting with a Russian-speaking learner named ${userName || 'friend'} who is practising English.`,
+    `RULES:`,
+    `1) Reply mostly in SIMPLE English (A2-B1), short — 1 to 2 sentences, like a real chat message. Use emoji naturally.`,
+    `2) Always end with a light question to keep the conversation going.`,
+    `3) If the learner makes an English mistake, do NOT scold. Gently model the correct version inside your reply (recasting).`,
+    `4) A few Russian words are OK to keep them comfortable, but keep English dominant.`,
+    `5) Stay fully in character as ${p.name}. Never mention you are an AI or a model.`,
+    `6) NEVER use an em dash (—). Use a normal hyphen or comma.`,
+    `Return STRICT JSON only: {"reply": "<your message>", "correction": "<corrected version of the learner's last English phrase, or empty string if it was fine or not English>"}`,
+  ].join('\n');
+}
+async function callGroq(system, history) {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) throw new Error('no groq key');
+  const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  const messages = [{ role: 'system', content: system }, ...history];
+  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model, messages, temperature: 0.8, max_tokens: 220, response_format: { type: 'json_object' } }),
+  });
+  if (!r.ok) throw new Error('groq ' + r.status + ' ' + (await r.text()).slice(0, 120));
+  const j = await r.json();
+  return j.choices?.[0]?.message?.content || '';
+}
+async function callGemini(system, history) {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error('no gemini key');
+  const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+  const contents = history.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { temperature: 0.8, maxOutputTokens: 220, responseMimeType: 'application/json' } }),
+  });
+  if (!r.ok) throw new Error('gemini ' + r.status);
+  const j = await r.json();
+  return j.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+function parseChatJson(raw, personaKey) {
+  try {
+    const j = JSON.parse(raw);
+    if (j && typeof j.reply === 'string') return { reply: j.reply.replace(/[—–]/g, '-'), correction: (j.correction || '').replace(/[—–]/g, '-') };
+  } catch (e) {}
+  // модель вернула просто текст — обернём
+  const txt = String(raw || '').trim().replace(/[—–]/g, '-');
+  return { reply: txt || 'Nice! Tell me more 🙂', correction: '' };
+}
+app.post('/api/island/chat', async (req, res) => {
+  const { messages, persona, userName } = req.body || {};
+  if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: 'messages required' });
+  // ограничим контекст последними 12 репликами (talk7 — память)
+  const history = messages.slice(-12).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 500) }));
+  const system = islandSystemPrompt(persona, userName);
+  let raw = '', via = '';
+  try { raw = await callGroq(system, history); via = 'groq'; }
+  catch (e1) {
+    try { raw = await callGemini(system, history); via = 'gemini'; }
+    catch (e2) {
+      console.error('[island:chat] both failed', e1.message, e2.message);
+      const p = ISLAND_PERSONAS[persona] || ISLAND_PERSONAS.roman;
+      return res.json({ reply: `Hey! I'm a bit busy catching waves 🌊 Say that again? (${p.name})`, correction: '', via: 'fallback' });
+    }
+  }
+  const out = parseChatJson(raw, persona);
+  res.json({ ...out, via });
+});
+
 // ─── FRIENDS ───
 app.post('/api/friends/add', async (req, res) => {
   const me = await authUserFromReq(req);
