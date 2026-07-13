@@ -880,9 +880,26 @@ function submitInput(v){
   if(inputMode==='goal'){ addMsg('out',esc(v)); pickGoal(v); return; }
   addMsg('out',esc(v));
 }
+// любая голосовая/кружок-реплика в онбординге обрабатывается: имя/цель -> форма, свободная -> Роман отвечает по AI
+function onbHandleVoice(t, echo){
+  if(inputMode==='name'||inputMode==='goal'){ submitInput(t); return; }
+  if(onbAwait==='goal'){ addMsg('out',esc(t)); pickGoal(t); return; } // сказал цель голосом на шаге выбора
+  onbFreeReply(t, echo); // свободная реплика -> живой ответ Романа
+}
+async function onbFreeReply(text, echo){
+  if(echo) addMsg('out',esc(text));
+  typing();
+  let reply='Понял тебя 👊 Жми «Го, показывай» - и погнали на остров!';
+  try{
+    const r=await fetch(API+'/api/island/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({persona:'roman',userName:S.name||'друг',goal:S.goal||'',level:'basic',messages:[{role:'user',content:text}]})});
+    const j=await r.json(); if(j&&j.reply) reply=j.reply;
+  }catch(e){}
+  untype(); addMsg('in',reply,'🎬');
+}
 // hold-to-record: микрофон и видео-кружок в онбординге
-setupVoiceBtn($('#onbMic'), {lang:'auto', onFail:()=>addMsg('in',notUnderstoodLine(),'🎬')}, t=>{ if(inputMode==='name'||inputMode==='goal') submitInput(t); else addMsg('out',esc(t)); });
-setupCircleBtn($('#onbCircle'), ()=>$('#chatScroll'), 'auto', t=>{ if(inputMode==='name'||inputMode==='goal') submitInput(t); }, ()=>addMsg('in',notUnderstoodLine(),'🎬'));
+setupVoiceBtn($('#onbMic'), {lang:'auto', onFail:()=>addMsg('in',notUnderstoodLine(),'🎬')}, t=>onbHandleVoice(t, true));
+setupCircleBtn($('#onbCircle'), ()=>$('#chatScroll'), 'auto', t=>onbHandleVoice(t, false), ()=>addMsg('in',notUnderstoodLine(),'🎬'));
 
 function openAvatarFromChat(){ screen('s-ava'); }
 function goToMapFirstTime(){
