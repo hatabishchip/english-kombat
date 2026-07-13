@@ -319,9 +319,9 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
         <div class="pbar"><i id="mapBar" style="width:25%"></i></div>
         <div style="font-size:11px;margin-top:5px;color:#bcd3db">начат на <span id="mapPct">25</span>%</div>
       </div>
-      <div class="country-lock">
-        <b>🇹🇭 Таиланд</b>
-        <p>Открой все точки Бали, чтобы разблокировать 🔒</p>
+      <div class="country-lock" id="countryLock" style="cursor:pointer">
+        <b>🇹🇭 Таиланд · 👑</b>
+        <p>Открывается в Premium 🔒</p>
       </div>
     </div>
   </section>
@@ -674,6 +674,7 @@ async function afterAvatar(hadPhoto){
    ===================================================================== */
 $('#pt0').addEventListener('click',()=>openScene());
 $$('.pt.lock').forEach(p=>p.addEventListener('click',()=>toast('🔒 Сначала пройди Пляж Чангу')));
+$('#countryLock')&&$('#countryLock').addEventListener('click',()=>showPaywall('country'));
 
 function selTab(name){
   $$('.tab').forEach(t=>t.classList.toggle('sel',t.dataset.go===name));
@@ -949,6 +950,26 @@ function sheet({emoji,title,text,rewards,cta,onCta}){
   $('#overlay').classList.add('on'); $('#sheetCta').onclick=onCta;
 }
 function closeSheet(){$('#overlay').classList.remove('on');}
+// paywall (money2) - оффер премиума. Реальная оплата НЕ подключена (money hard-stop).
+function showPaywall(reason){
+  const s=$('#sheet');
+  const why = reason==='country' ? 'Эта страна открывается в Premium 🌍' : 'Бесплатные диалоги на сегодня кончились 💬';
+  s.innerHTML=
+    '<div class="big">👑</div><h3>Gravity Island Premium</h3>'+
+    '<p>'+why+'</p>'+
+    '<div style="text-align:left;background:var(--paper2);border-radius:14px;padding:14px 16px;margin:0 0 14px;font-size:14px;line-height:1.9">'+
+      '✅ Безлимитное общение с AI<br>✅ Все страны и локации мира<br>✅ Эксклюзивные персонажи и акценты<br>✅ Battle Pass и сундуки</div>'+
+    '<div style="font-weight:900;font-size:20px;margin-bottom:12px">$4.99 <span style="font-size:13px;color:var(--ink-soft);font-weight:600">/ месяц</span></div>'+
+    '<button class="btn sun wide" id="payGo">Оформить подписку</button>'+
+    '<div style="height:8px"></div>'+
+    '<button class="btn ghost wide sm" id="payLater" style="color:var(--ink-soft);background:var(--paper2)">Продолжить бесплатно</button>';
+  $('#overlay').classList.add('on');
+  $('#payGo').onclick=()=>{ toast('💳 Оплата скоро подключится'); };
+  $('#payLater').onclick=()=>{ // демо-режим: не блокируем тест
+    if(S.usage){S.usage.chat=Math.max(0,S.usage.chat-5);save();}
+    closeSheet();
+  };
+}
 
 // конфетти (learn7 микропобеда)
 const conf=$('#confetti'), cctx=conf.getContext('2d'); let parts=[];
@@ -1074,8 +1095,17 @@ async function liveFirst(){
   addLiveBubble('in',res.reply); save();
 }
 let liveBusy=false;
+const FREE_CHAT_PER_DAY=15; // money3 - freemium
+function chatQuotaLeft(){
+  const today=new Date().toDateString();
+  if(!S.usage||S.usage.day!==today){ S.usage={day:today,chat:0}; save(); }
+  if(S.premium) return 999;
+  return Math.max(0,FREE_CHAT_PER_DAY-S.usage.chat);
+}
 async function sendLive(text){
   text=(text||'').trim(); if(!text||liveBusy) return;
+  if(chatQuotaLeft()<=0){ showPaywall('chat'); return; } // money3 лимит -> money2 paywall
+  S.usage.chat++; save();
   liveBusy=true; $('#liveInput').value='';
   const h=liveHist();
   h.push({role:'user',content:text}); addLiveBubble('out',text); save();
