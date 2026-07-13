@@ -247,6 +247,14 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .corr{font-size:12px;color:var(--sun-d);background:#fff4e8;border-radius:10px;padding:6px 10px;margin-top:4px;display:inline-block}
 .corr b{color:var(--teal-d)}
 
+/* пуш от персонажа (habit2) */
+.push-note{position:fixed;top:calc(10px + var(--safe-t));left:12px;right:12px;max-width:496px;margin:0 auto;z-index:90;background:rgba(255,255,255,.97);border-radius:18px;box-shadow:var(--shadow);padding:12px 14px;display:flex;gap:11px;align-items:center;transform:translateY(-140%);transition:transform .4s cubic-bezier(.2,.9,.3,1.2);cursor:pointer}
+.push-note.on{transform:translateY(0)}
+.push-note .pn-ic{width:40px;height:40px;border-radius:12px;background:var(--teal);display:flex;align-items:center;justify-content:center;font-size:22px;flex:0 0 auto}
+.push-note .pn-tx{line-height:1.35;overflow:hidden}
+.push-note .pn-tx b{font-size:14px;display:block}
+.push-note .pn-tx span{font-size:13px;color:var(--ink-soft);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 /* всплывающий чат-пузырь поверх игры (habit5) */
 .float-chat{position:fixed;right:14px;bottom:calc(88px + var(--safe-b));z-index:40;width:56px;height:56px;border-radius:50%;background:linear-gradient(180deg,var(--teal),var(--teal-d));box-shadow:var(--shadow);display:none;align-items:center;justify-content:center;font-size:26px}
 .float-chat.on{display:flex;animation:rise .3s}
@@ -448,6 +456,8 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 <button class="float-chat" id="floatChat">💬<span class="dot" id="floatDot">1</span></button>
 <!-- вызов на дуэль (Фаза 3) -->
 <button class="float-chat" id="floatDuel" style="left:14px;right:auto;background:linear-gradient(180deg,#9b5cff,#6a2cc9)">⚔️</button>
+<!-- пуш от персонажа (habit2) -->
+<div class="push-note" id="pushNote"><div class="pn-ic" id="pushIc">🧔</div><div class="pn-tx"><b id="pushName">Роман</b><span id="pushMsg"></span></div></div>
 
 <!-- нижняя навигация -->
 <nav class="tabbar" id="tabbar">
@@ -1335,6 +1345,27 @@ $('#worldBack').onclick=()=>{ screen('s-map'); selTab('map'); refreshStats(); };
 // два трека (lvl3)
 function updateTrackBtn(){ const b=$('#worldTrack'); if(b) b.textContent = (S.track==='advanced'?'🎚️ Продвинутый':'🎚️ Базовый'); }
 $('#worldTrack')&&$('#worldTrack').addEventListener('click',()=>{ S.track = S.track==='advanced'?'basic':'advanced'; save(); updateTrackBtn(); toast(S.track==='advanced'?'Уровень: продвинутый 🧠':'Уровень: базовый 🌱'); });
+
+/* пуш от персонажа (habit2) - in-app нотификация-нудж */
+const PUSH_LINES=[
+  ['kadek','Волны ждут! Забежишь на пару фраз? 🏄'],
+  ['mia','Эй, давай поболтаем по-английски 💃'],
+  ['roman','Стрик не теряй, боец! Один бой сегодня 🔥'],
+  ['sofia','Я приготовила тако, заходи поговорить 🌮'],
+  ['tom','Fancy a quick English chat? ☕'],
+  ['liam','Байк заведён, mate! Тренанёмся? 🛵'],
+];
+function showPush(){
+  if(!$('#tabbar')||$('#tabbar').dataset.armed!=='1') return; // только после онбординга
+  const [pk,msg]=PUSH_LINES[Math.floor(Math.random()*PUSH_LINES.length)];
+  const p=PERSONAS[pk];
+  $('#pushIc').textContent=p.e; $('#pushName').textContent=p.n; $('#pushMsg').textContent=msg;
+  const el=$('#pushNote'); el.classList.add('on');
+  el.onclick=()=>{ el.classList.remove('on'); openLive(pk); };
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('on'),6000);
+}
+// показать пуш через 40 сек на карте + периодически
+setTimeout(()=>{ if($('#s-map').classList.contains('on')) showPush(); }, 40000);
 
 boot();
 })();
