@@ -238,6 +238,14 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .row.host{justify-content:center;margin:8px 0}
 .row.host .bubble{background:rgba(107,44,201,.12);color:#6a2cc9;font-size:13px;font-weight:700;box-shadow:none;border-radius:14px}
 
+/* лига острова */
+.lg-row{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.08);border-radius:16px;padding:12px 14px;margin-bottom:9px;color:#fff}
+.lg-row.cur{background:rgba(255,210,63,.15);border:1.5px solid var(--banana)}
+.lg-row.locked{opacity:.45}
+.lg-ava{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:24px;flex:0 0 auto}
+.lg-info{flex:1;line-height:1.3}.lg-info b{font-size:15px;display:block}.lg-info span{font-size:12px;color:#9fc9b8}
+.lg-state{font-size:20px}
+
 /* premium: battle pass + voice shop */
 .prem-h{font-weight:800;font-size:16px;margin:10px 0 12px}
 .bp-track{display:flex;flex-direction:column;gap:0}
@@ -387,6 +395,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
         <div class="stat">🔥 <span id="stStreak">1</span></div>
       </div>
       <button class="stat" id="inviteBtn" style="border:0;background:rgba(255,255,255,.2)">👥</button>
+      <button class="stat" id="leagueBtn" style="border:0;background:rgba(255,255,255,.2)">🏆 <span id="stTrophy">0</span></button>
     </div>
     <div class="map-wrap" id="mapWrap">
       <svg class="island-svg" viewBox="0 0 400 640" preserveAspectRatio="xMidYMid slice">
@@ -475,6 +484,21 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
     <div class="composer">
       <input class="txt" id="lobbyInput" placeholder="Текст, или зажми 🎙️" enterkeyhint="send">
       <button class="mic" id="lobbyMic" aria-label="голосом" style="background:linear-gradient(180deg,#9b5cff,#6a2cc9);box-shadow:0 5px 0 #5a23a8">🎙️</button>
+    </div>
+  </section>
+
+  <!-- ============ 12 · ЛИГА ОСТРОВА (1на1 вызовы, кубки) ============ -->
+  <section id="s-league" class="screen" style="background:linear-gradient(180deg,#123c2e,#0b1f2a)">
+    <div class="map-top" style="color:#fff">
+      <button class="back" id="leagueBack" style="background:rgba(255,255,255,.15);color:#fff">←</button>
+      <div class="scene-title" style="color:#fff">🏆 Лига острова</div>
+      <div class="stat" style="background:rgba(255,255,255,.15);color:#fff">🏆 <span id="lgTrophy">0</span></div>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:8px 14px calc(96px + var(--safe-b))">
+      <p style="color:#9fc9b8;font-size:13px;margin:4px 2px 12px">Побеждай жителей острова один на один - поднимайся к боссу. Каждый бой = фразы на английском 🥊</p>
+      <div id="lgList"></div>
+      <button class="btn sun wide" id="lgChallenge" style="margin-top:14px">⚔️ Вызвать друга на бой</button>
+      <div class="lg-row" style="opacity:.65;margin-top:10px"><div class="lg-ava">🛡️</div><div class="lg-info"><b>Клановые войны</b><span>скоро: клан на клан за остров</span></div><div class="lg-state">🔜</div></div>
     </div>
   </section>
 
@@ -631,6 +655,7 @@ function refreshStats(){
   if(S.avatar){[pfp,wh].forEach(el=>{el.innerHTML='<img src="'+S.avatar+'">';});
     if(!avatarImg||avatarImg._src!==S.avatar){ avatarImg=new Image(); avatarImg._src=S.avatar; avatarImg.src=S.avatar; }
   }
+  const tr=$('#stTrophy'); if(tr) tr.textContent=(S.league&&S.league.trophies)||0;
 }
 function addReward(xp,ammo){S.xp+=xp;S.ammo+=ammo;S.coins+=Math.round(xp/2);save();refreshStats();}
 
@@ -952,6 +977,7 @@ function goToMapFirstTime(){
   setTimeout(()=>toast('🎉 Добро пожаловать на остров, '+S.name+'!'),400);
   // всплывающий чат поверх игры (habit5)
   setTimeout(()=>{$('#floatChat').dataset.armed='1';if($('#s-map').classList.contains('on'))$('#floatChat').classList.add('on');},1500);
+  checkVsChallenge(); // пришёл по ссылке-вызову друга
 }
 
 /* =====================================================================
@@ -1085,11 +1111,26 @@ const WEAPONS=[
 function currentWeapon(){ let w=WEAPONS[0]; for(const x of WEAPONS){ if(S.xp>=x.xp) w=x; } return w; }
 // соперники-боты с личностью (пока PvE; их лица - эмодзи персонажей острова)
 const FOE_KEYS=['kadek','mia','tom','hiro','sofia','liam','amara','chen','pierre','bruno'];
-function openFight(){
+// ЛИГА ОСТРОВА: лестница 1на1 от лёгкого до босса (hp/dmg/точность растут)
+const LEAGUE=[
+  {key:'kadek', hp:0.8, dmg:0.7, acc:0.15},{key:'hiro', hp:0.9, dmg:0.8, acc:0.22},
+  {key:'sofia', hp:1.0, dmg:0.9, acc:0.3},{key:'chen', hp:1.0, dmg:1.0, acc:0.36},
+  {key:'liam', hp:1.1, dmg:1.05, acc:0.42},{key:'amara', hp:1.2, dmg:1.1, acc:0.48},
+  {key:'mia', hp:1.3, dmg:1.2, acc:0.55},{key:'tom', hp:1.4, dmg:1.3, acc:0.62},
+  {key:'pierre', hp:1.5, dmg:1.4, acc:0.68},{key:'bruno', hp:1.6, dmg:1.5, acc:0.74},
+  {key:'boss', n:'DON BANANA', e:'🍌👑', hp:2.0, dmg:1.8, acc:0.85},
+];
+function leagueReward(i){ return i>=LEAGUE.length-1?100:(10+i*5); }
+function openFight(opts){
   screen('s-fight'); selTab('fight'); fitCanvas();
   const pool = S.learned.length?S.learned:SCENE.phrases;
-  const foeKey=FOE_KEYS[Math.floor(Math.random()*FOE_KEYS.length)]; const foeP=PERSONAS[foeKey]||{n:'Соперник',e:'😈'};
-  F={ meHp:100, foeHp:100, charged:false, phrase:null, pool, banana:null, power:0, powering:false, powerDir:1, wind:(Math.random()*2-1), weapon:currentWeapon(), foe:{n:foeP.n,e:foeP.e} };
+  let foe, league=null;
+  if(opts&&opts.ghost){ foe={n:opts.ghost.n,e:opts.ghost.e||'🥷'}; league={idx:-1, hp:1, dmg:1, acc:0.5, ghost:true}; }
+  else if(opts&&typeof opts.idx==='number'){ const t=LEAGUE[opts.idx]; const p=t.key==='boss'?{n:t.n,e:t.e}:(PERSONAS[t.key]||{n:'Соперник',e:'😈'});
+    foe={n:p.n,e:p.e}; league={idx:opts.idx, hp:t.hp, dmg:t.dmg, acc:t.acc}; }
+  else { const k=FOE_KEYS[Math.floor(Math.random()*FOE_KEYS.length)]; const p=PERSONAS[k]||{n:'Соперник',e:'😈'}; foe={n:p.n,e:p.e}; }
+  const foeMax=Math.round(100*((league&&league.hp)||1));
+  F={ meHp:100, meMax:100, foeHp:foeMax, foeMax, charged:false, phrase:null, pool, banana:null, power:0, powering:false, powerDir:1, wind:(Math.random()*2-1), weapon:currentWeapon(), foe, league };
   $('#meName').innerHTML='🙂 '+esc((S.name||'ТЫ').toUpperCase());
   $('#foeName').textContent=F.foe.e+' '+F.foe.n.toUpperCase();
   updateHp(); nextFightPhrase(); drawFight(); loopFight();
@@ -1098,7 +1139,7 @@ function openFight(){
 }
 function updateHp(){
   $('#meHp').textContent=Math.max(0,F.meHp|0);$('#foeHp').textContent=Math.max(0,F.foeHp|0);
-  $('#meHpBar').style.width=Math.max(0,F.meHp)+'%';$('#foeHpBar').style.width=Math.max(0,F.foeHp)+'%';
+  $('#meHpBar').style.width=Math.max(0,F.meHp/(F.meMax||100)*100)+'%';$('#foeHpBar').style.width=Math.max(0,F.foeHp/(F.foeMax||100)*100)+'%';
 }
 function nextFightPhrase(){
   F.phrase=F.pool[Math.floor(Math.random()*F.pool.length)];
@@ -1127,7 +1168,11 @@ $('#fireBtn').addEventListener('click',()=>{
 });
 function foeShoot(){
   const r=cv.getBoundingClientRect(); const gy=groundY(r.height);
-  F.foeBanana={ x:r.width-70, y:gy-40, vx:-(4.8+Math.random()*3.0), vy:-(6.4+Math.random()*3.2), r:13 };
+  // точность соперника растёт с уровнем лиги: рандомный бросок тянется к «идеальному»
+  const acc=(F.league&&F.league.acc)!=null?F.league.acc:0.35;
+  const rx=4.8+Math.random()*3.0, ry=6.4+Math.random()*3.2;   // разброс
+  const px=6+Math.random()*1.6,  py=7.6+Math.random()*1.6;    // почти гарантированное попадание
+  F.foeBanana={ x:r.width-70, y:gy-40, vx:-(rx+(px-rx)*acc), vy:-(ry+(py-ry)*acc), r:13 };
 }
 function groundY(H){return Math.round(H*0.58);}
 function drawFight(){
@@ -1221,11 +1266,28 @@ function splashFoe(d){
   if(F.foeHp<=0){ winFight(); return; }
   setTimeout(()=>{ foeShoot(); setTimeout(nextFightPhrase,600); },700);
 }
-function hitMe(){ F.meHp-=Math.round(14+Math.random()*8); if(F.meHp<0)F.meHp=0; updateHp(); shake();
+function hitMe(){ const mul=(F.league&&F.league.dmg)||1; F.meHp-=Math.round((14+Math.random()*8)*mul); if(F.meHp<0)F.meHp=0; updateHp(); shake();
   if(F.meHp<=0){ loseFight(); } }
 function shake(){cv.style.transform='translateX(4px)';setTimeout(()=>cv.style.transform='translateX(-4px)',60);setTimeout(()=>cv.style.transform='',120);}
 function winFight(){
   cancelAnimationFrame(fightRAF); addReward(40,0); confetti();
+  S.league=S.league||{tier:0,trophies:0};
+  if(F.league&&F.league.ghost){ // победа над «призраком» друга
+    S.league.trophies+=20; save(); refreshStats();
+    sheet({emoji:'🥷',title:'Ты уделал '+esc(F.foe.n)+'!',text:'+20 🏆 Кинь ему ссылку - пусть попробует отыграться 😏',
+      rewards:[['🏆',S.league.trophies]],cta:'⚔️ Позвать ещё друга',onCta:()=>{closeSheet();shareChallenge();}});
+    return;
+  }
+  if(F.league&&F.league.idx===S.league.tier){ // прошёл текущий уровень лиги
+    const rew=leagueReward(F.league.idx); S.league.trophies+=rew; S.league.tier++; save(); refreshStats();
+    const done=S.league.tier>=LEAGUE.length;
+    const nxt=done?null:LEAGUE[S.league.tier];
+    const nxtName=nxt?(nxt.key==='boss'?nxt.n:(PERSONAS[nxt.key]||{}).n):'';
+    sheet({emoji:'🏆',title:'Победа над '+esc(F.foe.n)+'!',text:done?'ТЫ ЧЕМПИОН ОСТРОВА! 👑 Все повержены.':('+'+rew+' 🏆 Следующий соперник: '+esc(nxtName)),
+      rewards:[['🏆',S.league.trophies],['⭐',S.xp]],cta:done?'На карту 🗺️':'Дальше ⚔️',
+      onCta:()=>{closeSheet(); if(done){screen('s-map');selTab('map');refreshStats();} else openFight({idx:S.league.tier});}});
+    return;
+  }
   sheet({emoji:'🏆',title:'Победа!',text:'Ты уложил соперника выученными фразами. Тебе выпал сундук 🎁',
     rewards:[['⭐',S.xp],['🪙',S.coins]],cta:'🎁 Открыть сундук',onCta:()=>openChest()});
 }
@@ -1247,8 +1309,9 @@ function openChest(){
 }
 function loseFight(){
   cancelAnimationFrame(fightRAF);
-  sheet({emoji:'😵',title:'Нокдаун',text:'Соперник дожал. Подучи фразы на пляже и вернись - банан всё исправит 🍌',
-    rewards:[],cta:'Ещё раз 🥊',onCta:()=>{closeSheet();openFight();}});
+  const retry=F.league?(F.league.ghost?{ghost:{n:F.foe.n,e:F.foe.e}}:{idx:F.league.idx}):undefined;
+  sheet({emoji:'😵',title:'Нокдаун',text:esc(F.foe.n)+' дожал. Подучи фразы на пляже и вернись - банан всё исправит 🍌',
+    rewards:[],cta:'Реванш 🥊',onCta:()=>{closeSheet();openFight(retry);}});
 }
 
 /* =====================================================================
@@ -1465,6 +1528,7 @@ function proceedBoot(){
       const p1=$('#pt1');p1.classList.remove('lock');p1.classList.add('active');const b=p1.querySelector('.badge');b&&b.remove();
       const pct=Math.min(100,25+S.locDone*25);$('#mapBar').style.width=pct+'%';$('#mapPct').textContent=pct;}
     setTimeout(()=>{$('#floatChat').dataset.armed='1';if($('#s-map').classList.contains('on'))$('#floatChat').classList.add('on');},1400);
+    checkVsChallenge(); // пришёл по ссылке-вызову друга
   } else {
     screen('s-onb'); step=0; runStep();
   }
@@ -1706,6 +1770,40 @@ function endDuel(){
 $('#duelBack').onclick=()=>{ if(D){D.running=false;clearInterval(D._t);} screen('s-map');selTab('map');refreshStats(); };
 $('#floatDuel').addEventListener('click',()=>startDuel());
 $('#inviteBtn')&&$('#inviteBtn').addEventListener('click',()=>showInvite(false));
+
+/* =====================================================================
+   12 · ЛИГА ОСТРОВА: лестница 1на1 + вызов друга (завлекающая часть боёв)
+   ===================================================================== */
+function openLeague(){ S.league=S.league||{tier:0,trophies:0}; screen('s-league'); renderLeague(); }
+function renderLeague(){
+  $('#lgTrophy').textContent=S.league.trophies;
+  const list=$('#lgList'); list.innerHTML='';
+  LEAGUE.forEach((t,i)=>{
+    const p=t.key==='boss'?{n:t.n,e:t.e,d:'босс острова'}:(PERSONAS[t.key]||{n:'?',e:'❓',d:''});
+    const st=i<S.league.tier?'done':(i===S.league.tier?'cur':'locked');
+    const row=document.createElement('div'); row.className='lg-row '+(st==='cur'?'cur':(st==='locked'?'locked':''));
+    row.innerHTML='<div class="lg-ava">'+p.e+'</div><div class="lg-info"><b>'+esc(p.n)+'</b><span>'+
+      (st==='done'?'повержен ✅':(st==='cur'?('награда: '+leagueReward(i)+' 🏆 - жми и в бой!'):'сначала пройди предыдущих'))+
+      '</span></div><div class="lg-state">'+(st==='done'?'✅':(st==='cur'?'⚔️':'🔒'))+'</div>';
+    row.onclick=()=>{ if(st==='cur'){ openFight({idx:i}); } else if(st==='locked'){ toast('🔒 Сначала победи '+esc((LEAGUE[S.league.tier].key==='boss'?LEAGUE[S.league.tier].n:(PERSONAS[LEAGUE[S.league.tier].key]||{}).n))); } else { toast('✅ Уже повержен!'); } };
+    list.appendChild(row);
+  });
+}
+function shareChallenge(){
+  const link=location.origin+'/island/?vs='+encodeURIComponent(S.name||'Боец');
+  const text='⚔️ Вызываю тебя на банановый бой в English Kombat! Попробуй меня победить: '+link;
+  if(navigator.share){ navigator.share({text}).catch(()=>{}); } else { copyText(link); toast('Ссылка-вызов скопирована 📋'); }
+}
+$('#leagueBtn')&&$('#leagueBtn').addEventListener('click',openLeague);
+$('#leagueBack').onclick=()=>{ screen('s-map'); selTab('map'); refreshStats(); };
+$('#lgChallenge').addEventListener('click',shareChallenge);
+// пришёл по ссылке-вызову ?vs=Имя -> бой с «призраком» друга
+function checkVsChallenge(){
+  const m=location.search.match(/[?&]vs=([^&]+)/); if(!m) return;
+  try{ history.replaceState(null,'',location.pathname); }catch(e){}
+  const name=decodeURIComponent(m[1]).slice(0,14);
+  setTimeout(()=>{ toast('⚔️ '+name+' вызвал тебя на бой!'); setTimeout(()=>openFight({ghost:{n:name,e:'🥷'}}),900); },700);
+}
 
 /* =====================================================================
    9 · КАРТА МИРА (map2) + ДВА ТРЕКА (lvl3) - Фаза 3
