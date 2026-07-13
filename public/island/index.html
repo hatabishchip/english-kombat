@@ -673,13 +673,29 @@ const onbFlow=[
       setTimeout(()=>{ addMsg('in','Как тебя звать? Кинь имя или ответь голосом 🎙️'); enableInput('name'); },700);
     },1000);
   },
-  ()=>{ // после имени → предложить фото
+  ()=>{ // ЦЕЛЬ (фидбек Романа: вести к цели, уклон в переезд/путешествия)
+    typing();setTimeout(()=>{untype();
+      addMsg('in','И сразу по-честному, <b>'+esc(S.name)+'</b> - зачем тебе английский? Это важно 👇');
+      setTimeout(()=>{ onbAwait='goal'; q(['Переехать в другую страну 🌍','Путешествовать по миру ✈️','Работа за границей 💼','Свой вариант']); },700);
+    },1000);
+  },
+  ()=>{ // после цели → предложить фото
     typing();setTimeout(()=>{untype();
       addMsg('in','Красавчик, <b>'+esc(S.name)+'</b>! 🤙 Теперь лицо бойца - скинь фотку, поставлю на аватарку.');
       setTimeout(()=>{ q(['📸 Скинуть фото','Позже']); },600);
     },1000);
   },
 ];
+function pickGoal(label){
+  onbAwait=null; inputMode=null;
+  S.goal=String(label).slice(0,60); save();
+  const travel=/переехать|путешеств|за границ|страну|мир|relocat|travel|move/i.test(label);
+  typing();setTimeout(()=>{untype();
+    if(travel) addMsg('in','Вот это цель 🔥 Английский - твой билет туда. Каждая страна на карте острова = шаг к ней. Дойдём вместе 💪');
+    else addMsg('in','Уважаю 🔥 Тогда договорились: качаем английский до этой цели. Остров тебя доведёт 💪');
+    setTimeout(()=>nextStep(),950); // → фото
+  },1000);
+}
 function runStep(){ if(step<onbFlow.length) onbFlow[step](); }
 function nextStep(){ step++; runStep(); }
 
@@ -689,9 +705,13 @@ function q(labels){
     b.onclick=()=>{box.classList.add('hidden');onQuick(l);};box.appendChild(b);});
 }
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
-let inputMode=null;
+let inputMode=null, onbAwait=null;
 function enableInput(mode){inputMode=mode;$('#onbInput').focus();}
 function onQuick(label){
+  if(onbAwait==='goal'){
+    if(/свой вариант/i.test(label)){ addMsg('in','Напиши своими словами - какая у тебя цель? 👇'); onbAwait=null; enableInput('goal'); return; }
+    addMsg('out',esc(label)); pickGoal(label); return;
+  }
   if(/фото/i.test(label)){ addMsg('out','📸 Скидываю фото'); openAvatarFromChat(); return; }
   if(/позже/i.test(label)){ addMsg('out','Позже'); goToMapFirstTime(); return; }
   addMsg('out',esc(label));
@@ -701,11 +721,12 @@ $('#onbInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){submitInput($
 function submitInput(v){
   v=v.trim(); if(!v) return; $('#onbInput').value='';
   if(inputMode==='name'){ S.name=v.slice(0,18); save(); addMsg('out',esc(S.name)); inputMode=null; nextStep(); return; }
+  if(inputMode==='goal'){ addMsg('out',esc(v)); pickGoal(v); return; }
   addMsg('out',esc(v));
 }
 $('#onbMic').addEventListener('click',()=>{
   const mic=$('#onbMic');mic.classList.add('rec');
-  listen((said,final)=>{ if(final){mic.classList.remove('rec'); if(inputMode==='name'){submitInput(said);} else {addMsg('out',esc(said));} } },
+  listen((said,final)=>{ if(final){mic.classList.remove('rec'); if(inputMode==='name'||inputMode==='goal'){submitInput(said);} else {addMsg('out',esc(said));} } },
          ()=>{mic.classList.remove('rec');});
 });
 
@@ -1234,7 +1255,7 @@ function liveTyping(on){
 async function callChat(historyForApi){
   try{
     const r=await fetch(API+'/api/island/chat',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({persona:live.persona,userName:S.name,level:S.track||'basic',messages:historyForApi})});
+      body:JSON.stringify({persona:live.persona,userName:S.name,level:S.track||'basic',goal:S.goal||'',messages:historyForApi})});
     if(!r.ok) throw new Error('http '+r.status);
     return await r.json();
   }catch(e){ return {reply:"Hmm, connection is weak here on the island 🌴 Try again?",correction:''}; }
