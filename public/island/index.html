@@ -1,0 +1,889 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b1f2a">
+<title>English Kombat - Остров</title>
+<style>
+/* ============ ОСТРОВ · English Kombat · Фаза 1 ============ */
+:root{
+  --water:#0b1f2a; --water2:#123246; --sand:#f4e4c1; --sand-d:#e6cf9c;
+  --teal:#19c3b2; --teal-d:#0e9e90; --sun:#ff8a3d; --sun-d:#e56b1f;
+  --banana:#ffd23f; --coral:#ff5a6e; --leaf:#3ecf6b;
+  --ink:#0b1f2a; --ink-soft:#3a5766; --paper:#ffffff; --paper2:#f3f7f9;
+  --bubble-in:#ffffff; --bubble-out:#c6f6ee; --line:#dfe8ec;
+  --shadow:0 8px 26px rgba(6,26,36,.16);
+  --safe-t:env(safe-area-inset-top); --safe-b:env(safe-area-inset-bottom);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
+  background:var(--water);color:var(--ink);
+  -webkit-font-smoothing:antialiased;user-select:none;
+}
+#app{position:fixed;inset:0;max-width:520px;margin:0 auto;overflow:hidden;background:var(--water)}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:opacity .28s ease}
+.screen.on{opacity:1;pointer-events:auto}
+.hidden{display:none!important}
+button{font-family:inherit;cursor:pointer;border:0;background:none}
+
+/* ---------- Кнопки ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:15px 22px;border-radius:16px;font-weight:800;font-size:16px;color:#fff;
+  background:linear-gradient(180deg,var(--teal),var(--teal-d));box-shadow:0 6px 0 var(--teal-d),var(--shadow);
+  transition:transform .06s, box-shadow .06s;
+}
+.btn:active{transform:translateY(4px);box-shadow:0 2px 0 var(--teal-d)}
+.btn.sun{background:linear-gradient(180deg,var(--sun),var(--sun-d));box-shadow:0 6px 0 var(--sun-d),var(--shadow)}
+.btn.sun:active{box-shadow:0 2px 0 var(--sun-d)}
+.btn.ghost{background:rgba(255,255,255,.14);box-shadow:none;color:#fff;font-weight:700}
+.btn.dark{background:rgba(10,30,42,.9);box-shadow:0 6px 0 #061722,var(--shadow)}
+.btn.wide{width:100%}
+.btn.sm{padding:10px 15px;font-size:14px;border-radius:12px;box-shadow:none}
+
+/* ============ 1 · ОНБОРДИНГ-ЧАТ (Telegram-стиль) ============ */
+#s-onb{background:var(--paper2)}
+/* заблюренные чаты позади (onb4) */
+.ghost-chats{position:absolute;inset:0;filter:blur(7px) saturate(.7);opacity:.55;pointer-events:none;padding:calc(58px + var(--safe-t)) 0 0}
+.gc{display:flex;gap:12px;padding:12px 16px;align-items:center}
+.gc .av{width:48px;height:48px;border-radius:50%;flex:0 0 auto}
+.gc .tx{flex:1}
+.gc .tx b{display:block;height:11px;width:52%;background:#c9d6dc;border-radius:6px;margin-bottom:8px}
+.gc .tx i{display:block;height:9px;width:78%;background:#dbe6ea;border-radius:6px}
+.gc .n{width:22px;height:22px;border-radius:50%;background:var(--teal);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+
+.onb-head{position:relative;z-index:3;padding:calc(10px + var(--safe-t)) 16px 12px;background:linear-gradient(180deg,var(--teal-d),var(--teal));color:#fff;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow)}
+.onb-head .ava{width:44px;height:44px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;position:relative}
+.onb-head .ava::after{content:"";position:absolute;right:0;bottom:0;width:12px;height:12px;border-radius:50%;background:var(--leaf);border:2px solid var(--teal)}
+.onb-head .who{flex:1;line-height:1.25}
+.onb-head .who b{font-size:16px}
+.onb-head .who span{font-size:12px;opacity:.9;display:flex;align-items:center;gap:5px}
+.onb-head .who span::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--leaf);display:inline-block;box-shadow:0 0 0 3px rgba(62,207,107,.35)}
+.online-pill{font-size:11px;font-weight:800;background:rgba(255,255,255,.2);padding:5px 9px;border-radius:20px;white-space:nowrap}
+
+.chat-scroll{position:relative;z-index:2;flex:1;overflow-y:auto;padding:16px 14px 8px;-webkit-overflow-scrolling:touch}
+.row{display:flex;margin:9px 0;align-items:flex-end;gap:8px;animation:pop .32s ease both}
+.row.out{justify-content:flex-end}
+@keyframes pop{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
+.mini{width:30px;height:30px;border-radius:50%;flex:0 0 auto;background:var(--teal);display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:2px}
+.bubble{max-width:74%;padding:11px 14px;border-radius:18px;font-size:15.5px;line-height:1.42;box-shadow:0 1px 2px rgba(6,26,36,.08)}
+.row.in .bubble{background:var(--bubble-in);border-bottom-left-radius:5px}
+.row.out .bubble{background:var(--bubble-out);border-bottom-right-radius:5px;color:#0a3b34}
+.bubble .en{font-weight:800;color:var(--teal-d)}
+.time{font-size:10px;color:#9fb3bc;margin-top:3px;text-align:right}
+
+/* видеокружок Романа (onb2) */
+.vcircle{width:190px;height:190px;border-radius:50%;position:relative;overflow:hidden;
+  background:radial-gradient(circle at 40% 30%,#2a6b7d,#0d2a38);box-shadow:var(--shadow),0 0 0 4px #fff;
+  display:flex;align-items:center;justify-content:center;cursor:pointer}
+.vcircle .who{position:absolute;bottom:16px;left:0;right:0;text-align:center;color:#fff;font-weight:800;font-size:13px;text-shadow:0 1px 4px #000}
+.vcircle .face{font-size:74px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.4))}
+.vcircle .ring{position:absolute;inset:0;border-radius:50%;box-shadow:inset 0 0 0 3px var(--teal);animation:vr 1.6s linear infinite}
+@keyframes vr{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
+.vcircle .play{position:absolute;width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center}
+.vcircle .play::after{content:"";border-left:18px solid var(--teal-d);border-top:11px solid transparent;border-bottom:11px solid transparent;margin-left:5px}
+.vcircle.playing .play{display:none}
+.vcircle .wave{position:absolute;bottom:44px;left:0;right:0;height:22px;display:none;align-items:flex-end;justify-content:center;gap:3px}
+.vcircle.playing .wave{display:flex}
+.vcircle .wave i{width:3px;background:var(--teal);border-radius:2px;animation:wv .7s ease-in-out infinite}
+@keyframes wv{0%,100%{height:5px}50%{height:20px}}
+
+.typing{display:flex;gap:4px;padding:12px 15px}
+.typing i{width:8px;height:8px;border-radius:50%;background:#c3d3d9;animation:tp 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes tp{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-6px);opacity:1}}
+
+/* композер ответа (onb3 + onb7 voice-first) */
+.composer{position:relative;z-index:3;padding:10px 12px calc(10px + var(--safe-b));background:var(--paper);border-top:1px solid var(--line);display:flex;gap:9px;align-items:center}
+.composer .txt{flex:1;background:var(--paper2);border:1px solid var(--line);border-radius:22px;padding:12px 15px;font-size:15px;color:var(--ink);outline:none}
+.mic{width:52px;height:52px;border-radius:50%;flex:0 0 auto;background:linear-gradient(180deg,var(--sun),var(--sun-d));display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 5px 0 var(--sun-d);transition:transform .08s}
+.mic:active{transform:scale(.92)}
+.mic.rec{animation:micpulse 1s infinite;background:linear-gradient(180deg,var(--coral),#d83a4d);box-shadow:0 5px 0 #b32a3b}
+@keyframes micpulse{0%,100%{box-shadow:0 5px 0 #b32a3b,0 0 0 0 rgba(255,90,110,.5)}50%{box-shadow:0 5px 0 #b32a3b,0 0 0 16px rgba(255,90,110,0)}}
+.quick{display:flex;gap:7px;flex-wrap:wrap;padding:0 12px 8px;position:relative;z-index:3;background:var(--paper)}
+.chip{padding:9px 13px;border-radius:16px;background:var(--paper2);border:1.5px solid var(--teal);color:var(--teal-d);font-weight:700;font-size:13.5px}
+.chip:active{background:var(--teal);color:#fff}
+
+/* ============ 2 · АВАТАР ============ */
+#s-ava{background:radial-gradient(120% 90% at 50% 0%,#1a4a5c,#0b1f2a);color:#fff;align-items:center;justify-content:center;padding:24px}
+.ava-card{width:100%;max-width:360px;text-align:center}
+.ava-card h2{font-size:24px;margin:0 0 6px}
+.ava-card p{color:#a9c6d0;margin:0 0 22px;font-size:15px;line-height:1.5}
+.worm{width:150px;height:150px;margin:0 auto 20px;position:relative}
+.worm .head{position:absolute;top:0;left:50%;transform:translateX(-50%);width:96px;height:96px;border-radius:50%;overflow:hidden;background:#2a6b7d;border:4px solid var(--banana);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;font-size:46px;z-index:2}
+.worm .head img{width:100%;height:100%;object-fit:cover}
+.worm .body{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:120px;height:74px;background:linear-gradient(180deg,var(--leaf),#2ba456);border-radius:60px 60px 40px 40px;box-shadow:var(--shadow)}
+.worm .body::before,.worm .body::after{content:"";position:absolute;top:14px;width:20px;height:34px;background:#2ba456;border-radius:12px}
+.worm .body::before{left:-9px;transform:rotate(24deg)}.worm .body::after{right:-9px;transform:rotate(-24deg)}
+#avaFile{display:none}
+
+/* ============ 3 · КАРТА БАЛИ ============ */
+#s-map{background:linear-gradient(180deg,#7fd3e6,#3aa0c4 55%,#1a6f8f);color:#fff}
+.map-top{padding:calc(12px + var(--safe-t)) 16px 8px;display:flex;align-items:center;gap:12px}
+.map-top .pfp{width:40px;height:40px;border-radius:50%;overflow:hidden;background:#2a6b7d;display:flex;align-items:center;justify-content:center;font-size:20px;border:2px solid #fff}
+.map-top .pfp img{width:100%;height:100%;object-fit:cover}
+.map-top .stats{flex:1;display:flex;gap:8px}
+.stat{background:rgba(255,255,255,.2);border-radius:14px;padding:6px 11px;font-weight:800;font-size:13px;display:flex;align-items:center;gap:5px;backdrop-filter:blur(6px)}
+.map-wrap{flex:1;position:relative;overflow:hidden}
+.island-svg{position:absolute;inset:0;width:100%;height:100%}
+.pt{position:absolute;transform:translate(-50%,-50%);text-align:center;z-index:3}
+.pt .dot{width:52px;height:52px;border-radius:50%;background:#fff;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;font-size:26px;position:relative;transition:transform .1s}
+.pt.done .dot{background:var(--leaf)}
+.pt.active .dot{background:var(--banana);animation:bob 1.6s ease-in-out infinite}
+.pt.lock .dot{background:#b9cbd2;filter:grayscale(.4)}
+.pt:active .dot{transform:scale(.9)}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.pt .lab{margin-top:5px;font-size:12px;font-weight:800;text-shadow:0 1px 3px rgba(0,0,0,.4);white-space:nowrap}
+.pt .badge{position:absolute;top:-4px;right:-6px;font-size:15px}
+.pt.active .dot::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:3px solid #fff;opacity:.7;animation:ring 1.6s ease-out infinite}
+@keyframes ring{0%{transform:scale(.8);opacity:.7}100%{transform:scale(1.5);opacity:0}}
+.country-lock{position:absolute;right:14px;bottom:calc(86px + var(--safe-b));background:rgba(10,30,42,.72);backdrop-filter:blur(8px);border-radius:18px;padding:13px 16px;max-width:200px;z-index:4}
+.country-lock b{font-size:14px}.country-lock p{margin:4px 0 0;font-size:12px;color:#bcd3db}
+.map-progress{position:absolute;left:14px;bottom:calc(86px + var(--safe-b));z-index:4;background:rgba(10,30,42,.72);backdrop-filter:blur(8px);border-radius:18px;padding:12px 15px;max-width:170px}
+.map-progress b{font-size:13px}
+.pbar{height:8px;background:rgba(255,255,255,.25);border-radius:6px;margin-top:7px;overflow:hidden}
+.pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--banana),var(--sun));border-radius:6px;transition:width .6s}
+
+/* ============ 4 · СЦЕНА ЛОКАЦИИ (касание 1) ============ */
+#s-scene{background:linear-gradient(180deg,#ffd59e,#ff9d6b 60%,#ff7a59);color:#0b1f2a}
+.scene-bg{position:absolute;inset:0;overflow:hidden}
+.scene-sun{position:absolute;top:8%;right:14%;width:80px;height:80px;border-radius:50%;background:radial-gradient(circle,#fff6d6,#ffd23f);box-shadow:0 0 60px #ffd23f}
+.palm{position:absolute;bottom:0;font-size:120px;line-height:1;filter:drop-shadow(0 6px 6px rgba(0,0,0,.15))}
+.scene-top{position:relative;z-index:2;padding:calc(12px + var(--safe-t)) 16px 4px;display:flex;align-items:center;gap:10px}
+.back{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;font-size:20px;flex:0 0 auto}
+.scene-title{flex:1;font-weight:900;font-size:18px}
+.ammo{background:rgba(11,31,42,.85);color:var(--banana);border-radius:14px;padding:7px 12px;font-weight:800;font-size:15px;display:flex;align-items:center;gap:5px}
+.scene-body{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;justify-content:flex-end;padding:16px 16px calc(86px + var(--safe-b))}
+.speaker{align-self:center;margin-bottom:auto;margin-top:8px;text-align:center}
+.speaker .em{font-size:96px;filter:drop-shadow(0 6px 8px rgba(0,0,0,.2))}
+.task-card{background:rgba(255,255,255,.96);border-radius:22px;padding:20px 18px;box-shadow:var(--shadow);text-align:center}
+.task-card .ru{font-size:15px;color:var(--ink-soft);font-weight:600}
+.task-card .en{font-size:27px;font-weight:900;margin:8px 0 4px;color:var(--teal-d);line-height:1.15}
+.task-card .hint{font-size:12.5px;color:#9fb3bc;margin-bottom:14px}
+.heard{min-height:20px;font-size:14px;font-weight:700;margin:2px 0 12px}
+.heard.ok{color:var(--leaf)}.heard.no{color:var(--coral)}
+.progress-dots{display:flex;gap:6px;justify-content:center;margin-bottom:12px}
+.progress-dots i{width:9px;height:9px;border-radius:50%;background:var(--line)}
+.progress-dots i.done{background:var(--leaf)}.progress-dots i.cur{background:var(--banana);transform:scale(1.3)}
+
+/* ============ 5 · БОЙ (касание 2) - Червячки-lite ============ */
+#s-fight{background:linear-gradient(180deg,#8fd6ea,#48a6c8 70%,#2e7d9a)}
+.fight-top{position:relative;z-index:5;padding:calc(10px + var(--safe-t)) 14px 6px;display:flex;align-items:center;gap:10px}
+.hpbar{flex:1;background:rgba(11,31,42,.35);border-radius:12px;padding:5px 8px;color:#fff}
+.hpbar .lab{font-size:11px;font-weight:800;display:flex;justify-content:space-between;margin-bottom:3px}
+.hpbar .track{height:9px;background:rgba(0,0,0,.25);border-radius:6px;overflow:hidden}
+.hpbar .track i{display:block;height:100%;border-radius:6px;transition:width .4s}
+.hpbar.me .track i{background:linear-gradient(90deg,var(--leaf),#2ba456)}
+.hpbar.foe .track i{background:linear-gradient(90deg,var(--coral),#d83a4d)}
+#fightCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:1;touch-action:none}
+.fight-cta{position:absolute;left:0;right:0;bottom:calc(84px + var(--safe-b));z-index:6;padding:0 16px;text-align:center}
+.fight-phrase{background:rgba(11,31,42,.9);color:#fff;border-radius:18px;padding:13px 16px;margin-bottom:10px;box-shadow:var(--shadow)}
+.fight-phrase .ru{font-size:13px;color:#bcd3db}
+.fight-phrase .en{font-size:22px;font-weight:900;color:var(--banana)}
+.fight-heard{min-height:18px;font-size:13px;font-weight:700;color:#fff;margin-top:4px}
+.aim-hint{color:#fff;font-size:12px;margin-top:8px;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.power-wrap{display:none;align-items:center;gap:10px;margin-top:8px}
+.power-wrap.on{display:flex}
+.power-track{flex:1;height:16px;background:rgba(0,0,0,.3);border-radius:10px;overflow:hidden}
+.power-track i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--leaf),var(--banana),var(--coral))}
+
+/* ============ 6 · ЧАТ-ЗАКРЕПЛЕНИЕ (касание 3) ============ */
+/* переиспользует стиль онбординга через .reuse-chat */
+
+/* ============ Оверлеи ============ */
+.overlay{position:fixed;inset:0;z-index:60;background:rgba(6,20,28,.66);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:24px}
+.overlay.on{display:flex;animation:fade .25s}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.sheet{background:var(--paper);border-radius:26px;padding:26px 22px calc(22px);width:100%;max-width:360px;text-align:center;box-shadow:var(--shadow);animation:rise .32s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes rise{from{transform:translateY(30px) scale(.95);opacity:0}to{transform:none;opacity:1}}
+.sheet .big{font-size:64px;line-height:1;margin-bottom:8px}
+.sheet h3{margin:0 0 6px;font-size:22px}
+.sheet p{margin:0 0 18px;color:var(--ink-soft);font-size:15px;line-height:1.5}
+.reward-row{display:flex;gap:10px;justify-content:center;margin:0 0 18px}
+.reward{background:var(--paper2);border-radius:14px;padding:10px 16px;font-weight:900;font-size:17px;display:flex;align-items:center;gap:6px}
+
+/* всплывающий чат-пузырь поверх игры (habit5) */
+.float-chat{position:fixed;right:14px;bottom:calc(88px + var(--safe-b));z-index:40;width:56px;height:56px;border-radius:50%;background:linear-gradient(180deg,var(--teal),var(--teal-d));box-shadow:var(--shadow);display:none;align-items:center;justify-content:center;font-size:26px}
+.float-chat.on{display:flex;animation:rise .3s}
+.float-chat .dot{position:absolute;top:-2px;right:-2px;width:20px;height:20px;border-radius:50%;background:var(--coral);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff}
+
+/* нижняя навигация (появляется после онбординга) */
+.tabbar{position:absolute;left:0;right:0;bottom:0;z-index:30;display:none;padding:8px 8px calc(8px + var(--safe-b));background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-top:1px solid var(--line);justify-content:space-around}
+.tabbar.on{display:flex}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;color:#9fb3bc;font-size:10.5px;font-weight:700;padding:4px}
+.tab .ic{font-size:22px}
+.tab.sel{color:var(--teal-d)}
+
+/* конфетти */
+#confetti{position:fixed;inset:0;z-index:70;pointer-events:none}
+
+/* тост */
+.toast{position:fixed;left:50%;top:calc(16px + var(--safe-t));transform:translateX(-50%);z-index:80;background:rgba(11,31,42,.94);color:#fff;padding:11px 18px;border-radius:16px;font-weight:700;font-size:14px;box-shadow:var(--shadow);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(6px)}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ 1 · ОНБОРДИНГ-ЧАТ ============ -->
+  <section id="s-onb" class="screen">
+    <div class="ghost-chats" id="ghostChats"></div>
+    <div class="onb-head">
+      <div class="ava">🏝️</div>
+      <div class="who"><b>English Kombat</b><span id="onbStatus">Роман и Саня на смене</span></div>
+      <div class="online-pill" id="onlinePill">🟢 онлайн: 1 240</div>
+    </div>
+    <div class="chat-scroll" id="chatScroll"></div>
+    <div class="quick hidden" id="onbQuick"></div>
+    <div class="composer">
+      <input class="txt" id="onbInput" placeholder="Ответь текстом…" enterkeyhint="send">
+      <button class="mic" id="onbMic" aria-label="голосом">🎙️</button>
+    </div>
+  </section>
+
+  <!-- ============ 2 · АВАТАР ============ -->
+  <section id="s-ava" class="screen">
+    <div class="ava-card">
+      <div class="worm">
+        <div class="body"></div>
+        <div class="head" id="wormHead">🙂</div>
+      </div>
+      <h2>Скинь фотку 📸</h2>
+      <p>Поставлю её тебе на аватарку. Твой боец-червячок будет ходить по острову с твоим лицом.</p>
+      <button class="btn sun wide" id="avaPick">Выбрать фото</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost wide" id="avaSkip">Позже, поехали →</button>
+      <input type="file" id="avaFile" accept="image/*">
+    </div>
+  </section>
+
+  <!-- ============ 3 · КАРТА БАЛИ ============ -->
+  <section id="s-map" class="screen">
+    <div class="map-top">
+      <div class="pfp" id="mapPfp">🙂</div>
+      <div class="stats">
+        <div class="stat">🍌 <span id="stAmmo">0</span></div>
+        <div class="stat">⭐ <span id="stXp">0</span></div>
+        <div class="stat">🔥 <span id="stStreak">1</span></div>
+      </div>
+    </div>
+    <div class="map-wrap" id="mapWrap">
+      <svg class="island-svg" viewBox="0 0 400 640" preserveAspectRatio="xMidYMid slice">
+        <path d="M60,150 C120,90 300,90 350,190 C400,290 330,470 220,540 C120,600 40,470 40,350 C40,270 20,210 60,150 Z" fill="#f4e4c1"/>
+        <path d="M60,150 C120,90 300,90 350,190 C400,290 330,470 220,540 C120,600 40,470 40,350 C40,270 20,210 60,150 Z" fill="none" stroke="#e6cf9c" stroke-width="10"/>
+        <path d="M90,300 Q150,260 210,300 T330,300" fill="none" stroke="#d9c48f" stroke-width="6" stroke-dasharray="4 10" stroke-linecap="round"/>
+        <ellipse cx="210" cy="330" rx="70" ry="40" fill="#c9e7a0" opacity=".6"/>
+      </svg>
+      <!-- 4 точки Бали (map1) -->
+      <div class="pt active" id="pt0" style="left:28%;top:26%"><div class="dot">🏖️</div><div class="lab">Пляж Чангу</div></div>
+      <div class="pt lock" id="pt1" style="left:64%;top:38%"><div class="dot">☕</div><div class="lab">Кафе</div><div class="badge">🔒</div></div>
+      <div class="pt lock" id="pt2" style="left:40%;top:60%"><div class="dot">🛵</div><div class="lab">Аренда байка</div><div class="badge">🔒</div></div>
+      <div class="pt lock" id="pt3" style="left:70%;top:72%"><div class="dot">🌅</div><div class="lab">Закат-бар</div><div class="badge">🔒</div></div>
+
+      <div class="map-progress">
+        <b>Остров Бали</b>
+        <div class="pbar"><i id="mapBar" style="width:25%"></i></div>
+        <div style="font-size:11px;margin-top:5px;color:#bcd3db">начат на <span id="mapPct">25</span>%</div>
+      </div>
+      <div class="country-lock">
+        <b>🇹🇭 Таиланд</b>
+        <p>Открой все точки Бали, чтобы разблокировать 🔒</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4 · СЦЕНА ЛОКАЦИИ ============ -->
+  <section id="s-scene" class="screen">
+    <div class="scene-bg">
+      <div class="scene-sun"></div>
+      <div class="palm" style="left:-14px">🌴</div>
+      <div class="palm" style="right:-10px;transform:scaleX(-1)">🌴</div>
+    </div>
+    <div class="scene-top">
+      <button class="back" id="sceneBack">←</button>
+      <div class="scene-title" id="sceneTitle">Пляж Чангу</div>
+      <div class="ammo">🍌 <span id="sceneAmmo">0</span></div>
+    </div>
+    <div class="scene-body">
+      <div class="speaker"><div class="em" id="sceneEmoji">🏄</div></div>
+      <div class="progress-dots" id="sceneDots"></div>
+      <div class="task-card">
+        <div class="ru" id="sceneRu">Скажи это вслух</div>
+        <div class="en" id="sceneEn"></div>
+        <div class="hint" id="sceneHint">Нажми 🎙️ и произнеси фразу</div>
+        <div class="heard" id="sceneHeard"></div>
+        <button class="btn sun wide" id="sceneMic">🎙️ Сказать</button>
+        <div style="height:8px"></div>
+        <button class="btn ghost wide sm" id="sceneReveal">Не знаю - покажи ответ</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 5 · БОЙ ============ -->
+  <section id="s-fight" class="screen">
+    <canvas id="fightCanvas"></canvas>
+    <div class="fight-top">
+      <div class="hpbar me"><div class="lab"><span id="meName">🙂 ТЫ</span><span><span id="meHp">100</span></span></div><div class="track"><i id="meHpBar" style="width:100%"></i></div></div>
+      <div class="hpbar foe"><div class="lab"><span>СОПЕРНИК 😈</span><span><span id="foeHp">100</span></span></div><div class="track"><i id="foeHpBar" style="width:100%"></i></div></div>
+    </div>
+    <div class="fight-cta">
+      <div class="fight-phrase">
+        <div class="ru" id="fightRu">Скажи фразу - зарядишь банан</div>
+        <div class="en" id="fightEn"></div>
+        <div class="fight-heard" id="fightHeard"></div>
+      </div>
+      <button class="btn sun wide" id="fightMic">🎙️ Сказать и зарядить</button>
+      <div class="power-wrap" id="powerWrap">
+        <div class="power-track"><i id="powerBar"></i></div>
+        <button class="btn dark sm" id="fireBtn">🍌 Бросить</button>
+      </div>
+      <div class="aim-hint" id="aimHint"></div>
+    </div>
+  </section>
+
+</div>
+
+<!-- всплывающий чат Романа поверх игры (habit5) -->
+<button class="float-chat" id="floatChat">💬<span class="dot" id="floatDot">1</span></button>
+
+<!-- нижняя навигация -->
+<nav class="tabbar" id="tabbar">
+  <button class="tab" data-go="map"><span class="ic">🗺️</span>Остров</button>
+  <button class="tab" data-go="scene"><span class="ic">🎯</span>Учить</button>
+  <button class="tab" data-go="fight"><span class="ic">🥊</span>Бой</button>
+  <button class="tab" data-go="chatR"><span class="ic">💬</span>Роман</button>
+</nav>
+
+<!-- оверлей -->
+<div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
+<canvas id="confetti"></canvas>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =================================================================
+   ENGLISH KOMBAT · ОСТРОВ · Фаза 1
+   Один файл, чистый фронт. ASR = webkitSpeechRecognition (+ фолбэк).
+   ================================================================= */
+(()=>{
+const $ = s=>document.querySelector(s);
+const $$ = s=>[...document.querySelectorAll(s)];
+
+// ---------- состояние ----------
+const S = {
+  name:'Ты', avatar:null, ammo:0, xp:0, coins:0, streak:1,
+  locDone:0, phraseIdx:0, learned:[], guest:false
+};
+const LS='ek_island_v1';
+function save(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
+function load(){try{Object.assign(S,JSON.parse(localStorage.getItem(LS)||'{}'))}catch(e){}}
+load();
+
+// ---------- контент: локация Пляж Чангу ----------
+const SCENE = {
+  title:'Пляж Чангу', emoji:'🏄',
+  phrases:[
+    {ru:'Одну доску, пожалуйста', en:'One board, please', ans:['one board please','one board','a board please']},
+    {ru:'Сколько это стоит?', en:'How much is it?', ans:['how much is it','how much','how much does it cost']},
+    {ru:'Вода тёплая?', en:'Is the water warm?', ans:['is the water warm','the water is warm','is water warm']},
+    {ru:'Мне нравится это место', en:'I like this place', ans:['i like this place','i love this place']},
+  ]
+};
+
+// ---------- утилиты ----------
+function norm(t){return String(t).toLowerCase().replace(/[.,!?;:'"()\-]/g,'').replace(/\s+/g,' ').trim();}
+function matchPhrase(said,ans){
+  const n=norm(said); if(!n) return false;
+  return ans.some(a=>{const na=norm(a); return n===na || n.includes(na) || na.includes(n);});
+}
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),1800);}
+function screen(id){$$('.screen').forEach(s=>s.classList.remove('on'));$('#'+id).classList.add('on');
+  // всплывающий чат (habit5) — только на карте, чтобы не перекрывать игровые кнопки
+  const fc=$('#floatChat'); if(fc){ if(id==='s-map'){ if(fc.dataset.armed==='1') fc.classList.add('on'); } else { fc.classList.remove('on'); } }
+}
+function refreshStats(){
+  $('#stAmmo').textContent=S.ammo; $('#stXp').textContent=S.xp; $('#stStreak').textContent=S.streak;
+  $('#sceneAmmo').textContent=S.ammo;
+  const pfp=$('#mapPfp'), wh=$('#wormHead');
+  if(S.avatar){[pfp,wh].forEach(el=>{el.innerHTML='<img src="'+S.avatar+'">';});}
+}
+function addReward(xp,ammo){S.xp+=xp;S.ammo+=ammo;S.coins+=Math.round(xp/2);save();refreshStats();}
+
+// ---------- ASR (Web Speech API) ----------
+const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null, recBusy=false;
+function listen(onResult, onEnd){
+  if(!SR){ // фолбэк - ввод текстом
+    const said=prompt('Голос недоступен в этом браузере. Впиши фразу по-английски:');
+    if(said!=null) onResult(said,true); if(onEnd) onEnd(); return null;
+  }
+  if(recBusy){return null;}
+  rec=new SR(); rec.lang='en-US'; rec.interimResults=true; rec.maxAlternatives=3;
+  recBusy=true; let finalGot=false;
+  rec.onresult=e=>{
+    let interim='',final='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const r=e.results[i]; if(r.isFinal){final+=r[0].transcript;} else {interim+=r[0].transcript;}
+    }
+    if(final){finalGot=true;onResult(final,true);} else if(interim){onResult(interim,false);}
+  };
+  rec.onerror=e=>{recBusy=false; if(onEnd) onEnd(e.error);};
+  rec.onend=()=>{recBusy=false; if(onEnd) onEnd(finalGot?null:'noresult');};
+  try{rec.start();}catch(e){recBusy=false;}
+  return rec;
+}
+function stopListen(){try{rec&&rec.stop();}catch(e){}}
+
+/* =====================================================================
+   1 · ОНБОРДИНГ-ЧАТ
+   ===================================================================== */
+// заблюренные чаты позади (onb4)
+(function ghost(){
+  const names=[['#coral','A'],['#19c3b2','5'],['#ff8a3d','2'],['#3ecf6b','9'],['#5b8cff','1'],['#c96bff','3']];
+  const g=$('#ghostChats');
+  names.forEach(([c,n])=>{
+    const el=document.createElement('div');el.className='gc';
+    el.innerHTML='<div class="av" style="background:'+c.replace('#','#')+'"></div><div class="tx"><b></b><i></i></div><div class="n">'+n+'</div>';
+    el.querySelector('.av').style.background=c;
+    g.appendChild(el);
+  });
+})();
+// счётчик онлайн (onb5) - живой
+(function online(){
+  let base=1240; const el=$('#onlinePill');
+  setInterval(()=>{base+=Math.floor(Math.random()*7)-2;el.textContent='🟢 онлайн: '+base.toLocaleString('ru-RU');},2600);
+})();
+
+const chat=$('#chatScroll');
+function scrollChat(){chat.scrollTop=chat.scrollHeight;}
+function addMsg(side, html, mini){
+  const row=document.createElement('div');row.className='row '+side;
+  const time=new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+  if(side==='in') row.innerHTML='<div class="mini">'+(mini||'🎬')+'</div><div class="bubble">'+html+'<div class="time">'+time+'</div></div>';
+  else row.innerHTML='<div class="bubble">'+html+'<div class="time">'+time+'</div></div>';
+  chat.appendChild(row);scrollChat();return row;
+}
+function addVideoCircle(){
+  const row=document.createElement('div');row.className='row in';
+  row.innerHTML='<div class="mini">🎬</div><div class="vcircle" id="vc"><div class="ring"></div><div class="face">🧔</div><div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="play"></div><div class="who">Роман · 0:12</div></div>';
+  chat.appendChild(row);scrollChat();
+  const vc=row.querySelector('#vc');
+  vc.addEventListener('click',()=>{
+    vc.classList.toggle('playing');
+    if(vc.classList.contains('playing')){
+      // плейсхолдер «проигрывания» кружка (реальное видео Романа подставим в Фазе 2)
+      row.querySelectorAll('.wave i').forEach((b,i)=>b.style.animationDelay=(i*0.08)+'s');
+      setTimeout(()=>vc.classList.remove('playing'),4000);
+    }
+  });
+  return vc;
+}
+function typing(){
+  const row=document.createElement('div');row.className='row in';row.id='typingRow';
+  row.innerHTML='<div class="mini">🎬</div><div class="bubble"><div class="typing"><i></i><i></i><i></i></div></div>';
+  chat.appendChild(row);scrollChat();return row;
+}
+function untype(){const t=$('#typingRow');t&&t.remove();}
+
+// сценарий онбординга
+let step=0;
+const onbFlow=[
+  ()=>{ // onb2 видеокружок + приветствие
+    typing();setTimeout(()=>{untype();
+      addMsg('in','Йо! Это <b>Роман</b> 👋 Ща покажу, как тут всё устроено - жми на кружок 👇');
+      addVideoCircle();
+      setTimeout(()=>{ q(['Привет 👋','Го, показывай']); },700);
+    },1100);
+  },
+  ()=>{ // onb7 voice-first обещание
+    typing();setTimeout(()=>{untype();
+      addMsg('in','Правило острова простое: <b>сказал по-английски - сделал ход.</b> Никакой зубрёжки. За 30 секунд уже подерёшься 🥊🍌');
+      setTimeout(()=>{ addMsg('in','Как тебя звать? Кинь имя или ответь голосом 🎙️'); enableInput('name'); },700);
+    },1000);
+  },
+  ()=>{ // после имени → предложить фото
+    typing();setTimeout(()=>{untype();
+      addMsg('in','Красавчик, <b>'+esc(S.name)+'</b>! 🤙 Теперь лицо бойца - скинь фотку, поставлю на аватарку.');
+      setTimeout(()=>{ q(['📸 Скинуть фото','Позже']); },600);
+    },1000);
+  },
+];
+function runStep(){ if(step<onbFlow.length) onbFlow[step](); }
+function nextStep(){ step++; runStep(); }
+
+function q(labels){
+  const box=$('#onbQuick');box.innerHTML='';box.classList.remove('hidden');
+  labels.forEach(l=>{const b=document.createElement('button');b.className='chip';b.textContent=l;
+    b.onclick=()=>{box.classList.add('hidden');onQuick(l);};box.appendChild(b);});
+}
+function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+let inputMode=null;
+function enableInput(mode){inputMode=mode;$('#onbInput').focus();}
+function onQuick(label){
+  if(/фото/i.test(label)){ addMsg('out','📸 Скидываю фото'); openAvatarFromChat(); return; }
+  if(/позже/i.test(label)){ addMsg('out','Позже'); goToMapFirstTime(); return; }
+  addMsg('out',esc(label));
+  if(step===0){nextStep();}
+}
+$('#onbInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){submitInput($('#onbInput').value);} });
+function submitInput(v){
+  v=v.trim(); if(!v) return; $('#onbInput').value='';
+  if(inputMode==='name'){ S.name=v.slice(0,18); save(); addMsg('out',esc(S.name)); inputMode=null; nextStep(); return; }
+  addMsg('out',esc(v));
+}
+$('#onbMic').addEventListener('click',()=>{
+  const mic=$('#onbMic');mic.classList.add('rec');
+  listen((said,final)=>{ if(final){mic.classList.remove('rec'); if(inputMode==='name'){submitInput(said);} else {addMsg('out',esc(said));} } },
+         ()=>{mic.classList.remove('rec');});
+});
+
+function openAvatarFromChat(){ screen('s-ava'); }
+function goToMapFirstTime(){
+  S.guest = S.guest||false;
+  screen('s-map'); $('#tabbar').classList.add('on'); selTab('map');
+  refreshStats();
+  setTimeout(()=>toast('🎉 Добро пожаловать на остров, '+S.name+'!'),400);
+  // всплывающий чат поверх игры (habit5)
+  setTimeout(()=>{$('#floatChat').dataset.armed='1';if($('#s-map').classList.contains('on'))$('#floatChat').classList.add('on');},1500);
+}
+
+/* =====================================================================
+   2 · АВАТАР
+   ===================================================================== */
+$('#avaPick').onclick=()=>$('#avaFile').click();
+$('#avaSkip').onclick=()=>{ S.avatar=S.avatar||null; save(); afterAvatar(false); };
+$('#avaFile').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    // ужимаем в квадрат ~256
+    const img=new Image();
+    img.onload=()=>{
+      const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');
+      const s=Math.min(img.width,img.height);
+      x.drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,256,256);
+      S.avatar=c.toDataURL('image/jpeg',0.8);save();refreshStats();
+      $('#wormHead').innerHTML='<img src="'+S.avatar+'">';
+      afterAvatar(true);
+    };
+    img.src=ev.target.result;
+  };
+  r.readAsDataURL(f);
+});
+function afterAvatar(hadPhoto){
+  screen('s-onb');
+  if(hadPhoto) addMsg('in','🔥 Огонь! Вот это боец. Погнали на остров 🏝️','🎬');
+  else addMsg('in','Ок, аватарку добьём позже. Погнали на остров 🏝️','🎬');
+  setTimeout(goToMapFirstTime,900);
+}
+
+/* =====================================================================
+   3 · КАРТА
+   ===================================================================== */
+$('#pt0').addEventListener('click',()=>openScene());
+$$('.pt.lock').forEach(p=>p.addEventListener('click',()=>toast('🔒 Сначала пройди Пляж Чангу')));
+
+function selTab(name){
+  $$('.tab').forEach(t=>t.classList.toggle('sel',t.dataset.go===name));
+}
+$$('.tab').forEach(t=>t.addEventListener('click',()=>{
+  const go=t.dataset.go; selTab(go);
+  if(go==='map'){screen('s-map');refreshStats();}
+  if(go==='scene'){openScene();}
+  if(go==='fight'){openFight();}
+  if(go==='chatR'){openRomanChat();}
+}));
+
+/* =====================================================================
+   4 · СЦЕНА ЛОКАЦИИ (касание 1)
+   ===================================================================== */
+$('#sceneBack').onclick=()=>{screen('s-map');selTab('map');};
+function renderSceneDots(){
+  const d=$('#sceneDots');d.innerHTML='';
+  SCENE.phrases.forEach((_,i)=>{const s=document.createElement('i');
+    if(i<S.phraseIdx)s.className='done';else if(i===S.phraseIdx)s.className='cur';d.appendChild(s);});
+}
+function loadPhrase(){
+  if(S.phraseIdx>=SCENE.phrases.length){ sceneComplete(); return; }
+  const p=SCENE.phrases[S.phraseIdx];
+  $('#sceneTitle').textContent=SCENE.title; $('#sceneEmoji').textContent=SCENE.emoji;
+  $('#sceneRu').textContent=p.ru; $('#sceneEn').textContent=p.en;
+  $('#sceneHint').textContent='Нажми 🎙️ и произнеси вслух';
+  $('#sceneHeard').textContent=''; $('#sceneHeard').className='heard';
+  $('#sceneMic').innerHTML='🎙️ Сказать';
+  renderSceneDots(); refreshStats();
+}
+function openScene(){ screen('s-scene'); selTab('scene'); if(S.phraseIdx>=SCENE.phrases.length)S.phraseIdx=0; loadPhrase(); }
+$('#sceneMic').addEventListener('click',()=>{
+  const p=SCENE.phrases[S.phraseIdx]; const h=$('#sceneHeard'); const btn=$('#sceneMic');
+  btn.innerHTML='🎙️ Слушаю…'; h.className='heard';
+  listen((said,final)=>{
+    h.textContent='«'+said+'»';
+    if(final){
+      if(matchPhrase(said,p.ans)){ h.className='heard ok'; h.textContent='✅ «'+said+'»'; phraseWin(); }
+      else { h.className='heard no'; h.textContent='🔁 услышал: «'+said+'» - попробуй ещё'; btn.innerHTML='🎙️ Ещё раз'; }
+    }
+  },(err)=>{ if(err&&$('#sceneHeard').className==='heard'){h.className='heard no';h.textContent='Не расслышал 🎙️ ещё разок';btn.innerHTML='🎙️ Ещё раз';} });
+});
+$('#sceneReveal').addEventListener('click',()=>{ // learn4 shadowing / lvl5 "не знаю"
+  const p=SCENE.phrases[S.phraseIdx];
+  say(p.en);
+  $('#sceneHint').textContent='Повтори за мной 👂 (shadowing)';
+});
+function phraseWin(){
+  const p=SCENE.phrases[S.phraseIdx];
+  S.learned.push(p); S.phraseIdx++;
+  addReward(10,1); // rew: XP + банан-боеприпас (rew1)
+  confetti(); say(p.en);
+  toast('+1 🍌  +10 ⭐');
+  setTimeout(loadPhrase,900);
+}
+function sceneComplete(){
+  // касание 1 пройдено → зовём в бой (касание 2)
+  sheet({emoji:'🍌', title:'Патроны собраны!', text:'Ты выучил '+SCENE.phrases.length+' фразы на Пляже Чангу. Теперь проверим их в бою!',
+    rewards:[['🍌',S.ammo],['⭐',S.xp]], cta:'В бой 🥊', onCta:()=>{closeSheet();openFight();}});
+  markPointDone();
+}
+function markPointDone(){
+  const pt=$('#pt0'); pt.classList.remove('active');pt.classList.add('done');pt.querySelector('.dot').textContent='✅';
+  // разблокировать кафе
+  const p1=$('#pt1'); p1.classList.remove('lock');p1.classList.add('active');p1.querySelector('.badge')&&p1.querySelector('.badge').remove();
+  S.locDone=Math.max(S.locDone,1);
+  const pct=Math.min(100,25+S.locDone*25); $('#mapBar').style.width=pct+'%'; $('#mapPct').textContent=pct;
+  save();
+}
+
+/* =====================================================================
+   5 · БОЙ (касание 2) - Червячки-lite (дуга броска)
+   ===================================================================== */
+const cv=$('#fightCanvas'); const ctx=cv.getContext('2d');
+let F=null; // состояние боя
+function fitCanvas(){const r=cv.getBoundingClientRect();cv.width=r.width*devicePixelRatio;cv.height=r.height*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);}
+window.addEventListener('resize',()=>{if($('#s-fight').classList.contains('on')){fitCanvas();drawFight();}});
+
+function openFight(){
+  screen('s-fight'); selTab('fight'); fitCanvas();
+  const pool = S.learned.length?S.learned:SCENE.phrases;
+  F={ meHp:100, foeHp:100, charged:false, phrase:null, pool, banana:null, power:0, powering:false, powerDir:1, wind:(Math.random()*2-1) };
+  $('#meName').innerHTML=(S.avatar?'🖼️':'🙂')+' ТЫ';
+  updateHp(); nextFightPhrase(); drawFight(); loopFight();
+  $('#aimHint').textContent='Скажи фразу → зарядишь банан';
+  $('#powerWrap').classList.remove('on');
+}
+function updateHp(){
+  $('#meHp').textContent=Math.max(0,F.meHp|0);$('#foeHp').textContent=Math.max(0,F.foeHp|0);
+  $('#meHpBar').style.width=Math.max(0,F.meHp)+'%';$('#foeHpBar').style.width=Math.max(0,F.foeHp)+'%';
+}
+function nextFightPhrase(){
+  F.phrase=F.pool[Math.floor(Math.random()*F.pool.length)];
+  $('#fightRu').textContent=F.phrase.ru;$('#fightEn').textContent=F.phrase.en;$('#fightHeard').textContent='';
+  F.charged=false; $('#fightMic').innerHTML='🎙️ Сказать и зарядить'; $('#powerWrap').classList.remove('on');
+}
+$('#fightMic').addEventListener('click',()=>{
+  if(F.charged) return;
+  const h=$('#fightHeard'); const btn=$('#fightMic'); btn.innerHTML='🎙️ Слушаю…';
+  listen((said,final)=>{ h.textContent='«'+said+'»';
+    if(final){
+      if(matchPhrase(said,F.phrase.ans)){ h.textContent='✅ заряжено!'; F.charged=true; say(F.phrase.en);
+        $('#powerWrap').classList.add('on'); startPower(); $('#aimHint').textContent='Держи силу и жми 🍌 Бросить'; btn.innerHTML='✅ Заряжено'; }
+      else { h.textContent='🔁 «'+said+'» - не то, ещё раз'; btn.innerHTML='🎙️ Ещё раз'; }
+    }
+  },()=>{ if(!F.charged){btn.innerHTML='🎙️ Ещё раз';} });
+});
+function startPower(){
+  F.power=0;F.powerDir=1;F.powering=true;
+  (function osc(){ if(!F.powering)return; F.power+=F.powerDir*2.2; if(F.power>=100){F.power=100;F.powerDir=-1;} if(F.power<=0){F.power=0;F.powerDir=1;}
+    $('#powerBar').style.width=F.power+'%'; requestAnimationFrame(osc); })();
+}
+$('#fireBtn').addEventListener('click',()=>{
+  if(!F.charged||!F.powering||F.banana) return; F.powering=false;
+  const p=F.power/100; // 0..1
+  const r=cv.getBoundingClientRect(); const gy=groundY(r.height);
+  F.banana={ x:70, y:gy-44, vx:(3+p*5), vy:-(5+p*5), r:14, done:false };
+  $('#powerWrap').classList.remove('on'); $('#aimHint').textContent='';
+});
+function foeShoot(){
+  const r=cv.getBoundingClientRect(); const gy=groundY(r.height);
+  F.foeBanana={ x:r.width-70, y:gy-40, vx:-(4.8+Math.random()*3.0), vy:-(6.4+Math.random()*3.2), r:13 };
+}
+function groundY(H){return Math.round(H*0.58);}
+function drawFight(){
+  const r=cv.getBoundingClientRect(),W=r.width,H=r.height,gy=groundY(H);
+  ctx.clearRect(0,0,W,H);
+  // пляжная полоса-остров
+  ctx.fillStyle='#f4e4c1';ctx.beginPath();ctx.moveTo(0,gy);
+  ctx.quadraticCurveTo(W*0.25,gy-32,W*0.5,gy-6);ctx.quadraticCurveTo(W*0.75,gy+22,W,gy-10);ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.fill();
+  ctx.strokeStyle='#e6cf9c';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(0,gy);
+  ctx.quadraticCurveTo(W*0.25,gy-32,W*0.5,gy-6);ctx.quadraticCurveTo(W*0.75,gy+22,W,gy-10);ctx.stroke();
+  // ветер-индикатор (в открытом поле, не за HP-барами)
+  ctx.fillStyle='rgba(11,31,42,.45)';ctx.font='13px system-ui';ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  ctx.fillText('🌬 ветер '+(F&&F.wind>0?'→':'←')+' '+Math.abs((F?F.wind:0)).toFixed(1),W/2,gy*0.35);
+  // червячки на земле
+  drawWorm(70,gy-22,true);
+  drawWorm(W-70,gy-14,false);
+  // бананы
+  if(F&&F.banana){drawBanana(F.banana.x,F.banana.y);}
+  if(F&&F.foeBanana){drawBanana(F.foeBanana.x,F.foeBanana.y);}
+}
+function drawWorm(x,y,me){
+  ctx.save();
+  ctx.fillStyle=me?'#3ecf6b':'#ff5a6e';
+  ctx.beginPath();ctx.ellipse(x,y+18,26,20,0,0,7);ctx.fill();
+  // голова
+  ctx.beginPath();ctx.arc(x,y-8,22,0,7);ctx.fillStyle=me?'#2a6b7d':'#7d2a3a';ctx.fill();
+  ctx.fillStyle='#fff';ctx.font='22px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(me?'🙂':'😈',x,y-8);
+  ctx.restore();
+}
+function drawBanana(x,y){ctx.font='26px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🍌',x,y);}
+let fightRAF=null;
+function loopFight(){
+  cancelAnimationFrame(fightRAF);
+  const tick=()=>{
+    if(!$('#s-fight').classList.contains('on')){return;}
+    const r=cv.getBoundingClientRect(),H=r.height,W=r.width,gy=groundY(H);
+    // физика банана игрока (дуга + гравитация + ветер) - fight4
+    if(F.banana){
+      const b=F.banana; b.vy+=0.5; b.vx+=F.wind*0.02; b.x+=b.vx; b.y+=b.vy;
+      // попадание во врага
+      const fx=W-70, fy=gy-22;
+      if(Math.hypot(b.x-fx,b.y-fy)<44){ hitFoe(); F.banana=null; }
+      else if(b.y>gy-6 || b.x>W+30 || b.x<-30){ F.banana=null; missShot(); }
+    }
+    // враг стреляет в ответ
+    if(F.foeBanana){
+      const b=F.foeBanana; b.vy+=0.5; b.x+=b.vx; b.y+=b.vy;
+      const mx=70,my=gy-28;
+      if(Math.hypot(b.x-mx,b.y-my)<42){ hitMe(); F.foeBanana=null; }
+      else if(b.y>gy-6||b.x<-30){ F.foeBanana=null; }
+    }
+    drawFight(); fightRAF=requestAnimationFrame(tick);
+  };
+  tick();
+}
+function hitFoe(){
+  F.foeHp-=Math.round(26+Math.random()*10); if(F.foeHp<0)F.foeHp=0; updateHp(); shake();
+  toast('💥 Попал!');
+  if(F.foeHp<=0){ winFight(); return; }
+  setTimeout(()=>{ foeShoot(); setTimeout(nextFightPhrase,600); },700);
+}
+function missShot(){ toast('🌴 Мимо!'); setTimeout(()=>{foeShoot();setTimeout(nextFightPhrase,500);},500); }
+function hitMe(){ F.meHp-=Math.round(14+Math.random()*8); if(F.meHp<0)F.meHp=0; updateHp(); shake();
+  if(F.meHp<=0){ loseFight(); } }
+function shake(){cv.style.transform='translateX(4px)';setTimeout(()=>cv.style.transform='translateX(-4px)',60);setTimeout(()=>cv.style.transform='',120);}
+function winFight(){
+  cancelAnimationFrame(fightRAF); addReward(40,0); confetti();
+  sheet({emoji:'🏆',title:'Победа!',text:'Ты уложил соперника выученными фразами. Роман это оценит 😏',
+    rewards:[['⭐',S.xp],['🪙',S.coins]],cta:'К Роману 💬',onCta:()=>{closeSheet();openRomanChat();}});
+}
+function loseFight(){
+  cancelAnimationFrame(fightRAF);
+  sheet({emoji:'😵',title:'Нокдаун',text:'Соперник дожал. Подучи фразы на пляже и вернись - банан всё исправит 🍌',
+    rewards:[],cta:'Ещё раз 🥊',onCta:()=>{closeSheet();openFight();}});
+}
+
+/* =====================================================================
+   6 · ЧАТ-ЗАКРЕПЛЕНИЕ С РОМАНОМ (касание 3)
+   ===================================================================== */
+let romanQ=null;
+function openRomanChat(){
+  screen('s-onb'); selTab('chatR'); $('#onbStatus').textContent='закрепляем пройденное';
+  $('#onbQuick').classList.add('hidden');
+  const learned = S.learned.length?S.learned:SCENE.phrases;
+  const p=learned[Math.floor(Math.random()*learned.length)];
+  typing();setTimeout(()=>{untype();
+    addMsg('in','Красава! 🔥 Быстрый чек - как по-английски будет:','🎬');
+    addMsg('in','<b>«'+esc(p.ru)+'»</b> ? Скажи голосом или впиши 👇','🎬');
+    romanQ=p; enableInput('roman');
+  },900);
+}
+// перехват ввода/микрофона в режиме "roman"
+const origSubmit=submitInput;
+window._submitRoman=function(v){
+  if(inputMode!=='roman'||!romanQ){return false;}
+  addMsg('out',esc(v));
+  if(matchPhrase(v,romanQ.ans)){
+    addReward(15,1); confetti();
+    typing();setTimeout(()=>{untype();addMsg('in','🎯 В точку! Держи +1 🍌 и +15 ⭐. Ты реально запомнил 💪','🎬');
+      setTimeout(()=>{addMsg('in','Открывай следующую точку на острове 🗺️','🎬');inputMode=null;
+        setTimeout(()=>{screen('s-map');selTab('map');refreshStats();},1200);},700);},800);
+  } else {
+    typing();setTimeout(()=>{untype();addMsg('in','Почти! Правильно: <b>«'+esc(romanQ.en)+'»</b>. Повтори разок 👂','🎬');say(romanQ.en);},800);
+  }
+  return true;
+};
+// расширяем submitInput/мик, чтобы учитывать roman-режим
+const _submitInput=submitInput;
+submitInput=function(v){ v=(v||'').trim(); if(!v)return; if(inputMode==='roman'){$('#onbInput').value='';window._submitRoman(v);return;} _submitInput(v); };
+$('#onbInput').addEventListener('keydown',e=>{ if(e.key==='Enter'&&inputMode==='roman'){e.preventDefault();submitInput($('#onbInput').value);} });
+
+// всплывающий чат поверх игры (habit5)
+$('#floatChat').addEventListener('click',()=>{ $('#floatChat').classList.remove('on'); openRomanChat(); });
+
+/* =====================================================================
+   ОБЩЕЕ: озвучка, конфетти, оверлеи, привычки
+   ===================================================================== */
+function say(text){ try{const u=new SpeechSynthesisUtterance(text);u.lang='en-US';u.rate=.95;speechSynthesis.cancel();speechSynthesis.speak(u);}catch(e){} }
+
+function sheet({emoji,title,text,rewards,cta,onCta}){
+  const s=$('#sheet');
+  s.innerHTML='<div class="big">'+emoji+'</div><h3>'+title+'</h3><p>'+text+'</p>'+
+    (rewards&&rewards.length?'<div class="reward-row">'+rewards.map(([i,v])=>'<div class="reward">'+i+' '+v+'</div>').join('')+'</div>':'')+
+    '<button class="btn sun wide" id="sheetCta">'+cta+'</button>';
+  $('#overlay').classList.add('on'); $('#sheetCta').onclick=onCta;
+}
+function closeSheet(){$('#overlay').classList.remove('on');}
+
+// конфетти (learn7 микропобеда)
+const conf=$('#confetti'), cctx=conf.getContext('2d'); let parts=[];
+function sizeConf(){conf.width=innerWidth;conf.height=innerHeight;} sizeConf(); addEventListener('resize',sizeConf);
+function confetti(){
+  const cols=['#ffd23f','#19c3b2','#ff5a6e','#3ecf6b','#ff8a3d'];
+  for(let i=0;i<70;i++)parts.push({x:innerWidth/2,y:innerHeight*0.4,vx:(Math.random()*2-1)*7,vy:(Math.random()*-1-2)*4,c:cols[i%5],r:4+Math.random()*4,a:1,rot:Math.random()*6});
+  if(parts.length<=70)confLoop();
+}
+function confLoop(){
+  cctx.clearRect(0,0,conf.width,conf.height);
+  parts.forEach(p=>{p.vy+=0.25;p.x+=p.vx;p.y+=p.vy;p.a-=0.012;p.rot+=0.2;
+    cctx.save();cctx.globalAlpha=Math.max(0,p.a);cctx.translate(p.x,p.y);cctx.rotate(p.rot);cctx.fillStyle=p.c;cctx.fillRect(-p.r,-p.r,p.r*2,p.r*2.6);cctx.restore();});
+  parts=parts.filter(p=>p.a>0&&p.y<conf.height+20);
+  if(parts.length)requestAnimationFrame(confLoop);else cctx.clearRect(0,0,conf.width,conf.height);
+}
+
+/* =====================================================================
+   СТАРТ / привычки (стрик habit1,3,4)
+   ===================================================================== */
+function checkStreak(){
+  const today=new Date().toDateString();
+  const last=S.lastDay;
+  if(last!==today){
+    if(last){
+      const diff=(new Date(today)-new Date(last))/86400000;
+      if(diff===1){S.streak=(S.streak||0)+1;}
+      else if(diff===2 && !S.usedFreeze){S.usedFreeze=true;S.streak=(S.streak||0)+1;toast('🧊 Прощаю 1 пропуск - стрик спасён!');}
+      else {S.streak=1;S.usedFreeze=false; if(S.locDone>0)setTimeout(()=>toast('🛂 Паспорт отозван - стрик сгорел. Начнём заново!'),1200);}
+    } else {S.streak=S.streak||1;}
+    S.lastDay=today; save();
+  }
+}
+function boot(){
+  checkStreak(); refreshStats();
+  if(S.lastDay && S.locDone>0 && S.avatar!==undefined && localStorage.getItem(LS)){
+    // возвращающийся игрок - сразу на карту
+    screen('s-map'); $('#tabbar').classList.add('on'); selTab('map'); refreshStats();
+    // восстановить статус точек
+    if(S.locDone>0){const pt=$('#pt0');pt.classList.remove('active');pt.classList.add('done');pt.querySelector('.dot').textContent='✅';
+      const p1=$('#pt1');p1.classList.remove('lock');p1.classList.add('active');const b=p1.querySelector('.badge');b&&b.remove();
+      const pct=Math.min(100,25+S.locDone*25);$('#mapBar').style.width=pct+'%';$('#mapPct').textContent=pct;}
+    setTimeout(()=>{$('#floatChat').dataset.armed='1';if($('#s-map').classList.contains('on'))$('#floatChat').classList.add('on');},1400);
+  } else {
+    screen('s-onb'); step=0; runStep();
+  }
+}
+boot();
+})();
+</script>
+</body>
+</html>
