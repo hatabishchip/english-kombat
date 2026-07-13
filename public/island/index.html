@@ -788,7 +788,7 @@ function addVideoCircle(){
     sayRu(ROMAN_CIRCLE_TEXT, ()=>{ vc.classList.remove('playing'); pring.style.setProperty('--p',1); stopTimer(false); setTimeout(()=>{ pring.style.setProperty('--p',0); who.textContent='Роман'; },600); });
   }
   vc.addEventListener('click',playCircle);
-  setTimeout(()=>{ if(!vc.dataset.auto){ vc.dataset.auto='1'; playCircle(); } }, 500);
+  // без автозапуска: звук на iOS работает только по тапу (жест пользователя)
   return vc;
 }
 function typing(){
