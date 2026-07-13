@@ -1429,8 +1429,22 @@ const COUNTRIES=[
   {flag:'🇬🇧',name:'Британия',state:'premium',g:'linear-gradient(135deg,#7a8aa0,#4a5768)'},
 ];
 function openWorld(){ screen('s-world'); renderWorld(); updateTrackBtn(); }
+const GOAL_LABELS={'Переехать в другую страну 🌍':'переехать за границу','Путешествовать по миру ✈️':'объехать мир','Работа за границей 💼':'работать за границей'};
 function renderWorld(){
   const grid=$('#worldGrid'); grid.innerHTML='';
+  // баннер ЦЕЛИ (усиление фидбека Романа) + спутник ava5
+  if(S.goal){
+    const g=GOAL_LABELS[S.goal]||S.goal;
+    const buddy=(S.chats&&Object.keys(S.chats)[0])?PERSONAS[Object.keys(S.chats)[0]]:PERSONAS.roman;
+    const gb=document.createElement('div');gb.style.cssText='grid-column:1/-1;background:linear-gradient(135deg,#6a2cc9,#9b5cff);border-radius:16px;padding:13px 15px;color:#fff;margin-bottom:2px';
+    gb.innerHTML='<div style="font-weight:800;font-size:14px">🎯 Твоя цель: '+esc(g)+'</div><div style="font-size:12px;opacity:.9;margin-top:3px">Открывай страны на карте - каждая приближает тебя. С тобой в пути: '+buddy.e+' '+esc(buddy.n)+'</div>';
+    grid.appendChild(gb);
+  }
+  // остров-событие (map8)
+  const ev=document.createElement('div');ev.className='wc';ev.style.cssText='grid-column:1/-1;background:linear-gradient(135deg,#ff5a6e,#ff8a3d);min-height:auto';
+  ev.innerHTML='<div style="display:flex;align-items:center;gap:12px"><div class="flag" style="font-size:30px">🎉</div><div><div class="wn">Событие: Фестиваль Бали</div><div class="wp">Ограниченное время · двойной XP в боях</div></div></div>';
+  ev.onclick=()=>toast('🎉 Фестиваль скоро! Лови двойной XP');
+  grid.appendChild(ev);
   COUNTRIES.forEach(c=>{
     const open = c.state==='open' || S.premium;
     const el=document.createElement('div'); el.className='wc'+(open?'':' locked'); el.style.background=c.g;
