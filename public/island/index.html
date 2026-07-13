@@ -205,6 +205,11 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .reward-row{display:flex;gap:10px;justify-content:center;margin:0 0 18px}
 .reward{background:var(--paper2);border-radius:14px;padding:10px 16px;font-weight:900;font-size:17px;display:flex;align-items:center;gap:6px}
 
+/* комната практики (мультиплеер) */
+.lobby-topic{background:linear-gradient(90deg,#9b5cff,#6a2cc9);color:#fff;font-weight:800;font-size:14px;padding:10px 16px;text-align:center}
+.row.host{justify-content:center;margin:8px 0}
+.row.host .bubble{background:rgba(107,44,201,.12);color:#6a2cc9;font-size:13px;font-weight:700;box-shadow:none;border-radius:14px}
+
 /* premium: battle pass + voice shop */
 .prem-h{font-weight:800;font-size:16px;margin:10px 0 12px}
 .bp-track{display:flex;flex-direction:column;gap:0}
@@ -416,6 +421,20 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
     </div>
   </section>
 
+  <!-- ============ 11 · КОМНАТА ПРАКТИКИ (мультиплеер talk3/talk5) ============ -->
+  <section id="s-lobby" class="screen" style="background:var(--paper2)">
+    <div class="onb-head" style="background:linear-gradient(180deg,#6a2cc9,#9b5cff)">
+      <button class="back" id="lobbyBack" style="background:rgba(255,255,255,.25);color:#fff;width:36px;height:36px">←</button>
+      <div class="who"><b>🗣️ Комната практики</b><span id="lobbyCount">подключаюсь…</span></div>
+    </div>
+    <div class="lobby-topic" id="lobbyTopic">Тема: …</div>
+    <div class="chat-scroll" id="lobbyScroll" style="background:var(--paper2)"></div>
+    <div class="composer">
+      <input class="txt" id="lobbyInput" placeholder="Скажи что-нибудь по-английски…" enterkeyhint="send">
+      <button class="mic" id="lobbyMic" aria-label="голосом" style="background:linear-gradient(180deg,#9b5cff,#6a2cc9);box-shadow:0 5px 0 #5a23a8">🎙️</button>
+    </div>
+  </section>
+
   <!-- ============ 10 · PREMIUM: Battle Pass (money4) + Voice Shop (money5) ============ -->
   <section id="s-premium" class="screen" style="background:linear-gradient(180deg,#1a1030,#0b1f2a)">
     <div class="map-top" style="color:#fff">
@@ -509,6 +528,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 <canvas id="confetti"></canvas>
 <div class="toast" id="toast"></div>
 
+<script src="https://unpkg.com/colyseus.js@^0.16.0/dist/colyseus.js"></script>
 <script>
 /* =================================================================
    ENGLISH KOMBAT · ОСТРОВ · Фаза 1
@@ -551,7 +571,7 @@ function screen(id){$$('.screen').forEach(s=>s.classList.remove('on'));$('#'+id)
   const fc=$('#floatChat'); if(fc){ if(id==='s-map'){ if(fc.dataset.armed==='1') fc.classList.add('on'); } else { fc.classList.remove('on'); } }
   const fd=$('#floatDuel'); if(fd){ fd.classList.toggle('on', id==='s-map'); }
   // таббар прячем на чат-экранах (поле ввода не должно быть под ним); возврат кнопкой назад
-  const tb=$('#tabbar'); if(tb&&tb.dataset.armed==='1'){ tb.classList.toggle('on', id!=='s-live'&&id!=='s-onb'&&id!=='s-duel'&&id!=='s-premium'); }
+  const tb=$('#tabbar'); if(tb&&tb.dataset.armed==='1'){ tb.classList.toggle('on', id!=='s-live'&&id!=='s-onb'&&id!=='s-duel'&&id!=='s-premium'&&id!=='s-lobby'); }
 }
 function refreshStats(){
   $('#stAmmo').textContent=S.ammo; $('#stXp').textContent=S.xp; $('#stStreak').textContent=S.streak;
@@ -1284,6 +1304,11 @@ async function analyzeDialog(){
 $('#livePick').onclick=()=>openPicker();
 function openPicker(){
   const grid=$('#personaGrid');grid.innerHTML='';
+  // мультиплеер: живая комната практики
+  const room=document.createElement('div');room.className='pc';room.style.background='linear-gradient(135deg,#9b5cff22,#6a2cc922)';room.style.borderColor='#9b5cff';
+  room.innerHTML='<div class="pe" style="background:#6a2cc9">🗣️</div><div class="pn"><b>Комната практики</b><span>живой чат с игроками · LIVE</span></div><div class="on"></div>';
+  room.onclick=()=>{$('#pickOverlay').classList.remove('on');openLobby();};
+  grid.appendChild(room);
   Object.entries(PERSONAS).forEach(([k,p])=>{
     const el=document.createElement('div');el.className='pc';
     el.innerHTML='<div class="pe">'+p.e+'</div><div class="pn"><b>'+p.n+'</b><span>'+p.d+'</span></div><div class="on"></div>';
@@ -1467,6 +1492,46 @@ function showPush(){
 }
 // показать пуш через 40 сек на карте + периодически
 setTimeout(()=>{ if($('#s-map').classList.contains('on')) showPush(); }, 40000);
+
+/* =====================================================================
+   11 · КОМНАТА ПРАКТИКИ (мультиплеер talk3/talk5)
+   ===================================================================== */
+const WS='wss://ek-pvp.13-140-178-130.sslip.io';
+let lobbyRoom=null, lobbyConnecting=false;
+const lobbyScroll=$('#lobbyScroll');
+function openLobby(){ screen('s-lobby'); if(!lobbyRoom&&!lobbyConnecting){ lobbyScroll.innerHTML=''; connectLobby(); } }
+async function connectLobby(){
+  if(typeof Colyseus==='undefined'){ addLobbyHost('Не удалось загрузить мультиплеер 😕'); return; }
+  lobbyConnecting=true; $('#lobbyCount').textContent='подключаюсь…';
+  try{
+    const client=new Colyseus.Client(WS);
+    lobbyRoom=await client.joinOrCreate('island_lobby',{name:S.name||'Гость',emoji:S.avatar?'🥷':'🙂'});
+    $('#lobbyCount').textContent='в комнате';
+    addLobbyHost('Ты вошёл в комнату практики 🎧 Говори по-английски с другими игроками!');
+    lobbyRoom.onMessage('msg',m=>addLobbyMsg(m.self===lobbyRoom.sessionId?'out':'in',m.name,m.emoji,m.text));
+    lobbyRoom.onMessage('host',m=>addLobbyHost(m.text));
+    lobbyRoom.onStateChange(st=>{ const n=st.players?st.players.size:1; $('#lobbyCount').textContent=n+' онлайн'; if(st.topic)$('#lobbyTopic').textContent='Тема: '+st.topic; });
+    lobbyRoom.onError((c,m)=>addLobbyHost('Ошибка связи 😕'));
+    lobbyRoom.onLeave(()=>{ lobbyRoom=null; });
+  }catch(e){ addLobbyHost('Комната недоступна, попробуй позже 🌴'); $('#lobbyCount').textContent='офлайн'; }
+  lobbyConnecting=false;
+}
+function addLobbyMsg(side,name,emoji,text){
+  const row=document.createElement('div');row.className='row '+side;
+  const time=new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+  if(side==='in') row.innerHTML='<div class="mini" style="background:#9b5cff">'+esc(emoji||'🙂')+'</div><div class="bubble"><b style="color:#6a2cc9;font-size:12px">'+esc(name)+'</b><br>'+esc(text)+'<div class="time">'+time+'</div></div>';
+  else row.innerHTML='<div class="bubble">'+esc(text)+'<div class="time">'+time+'</div></div>';
+  lobbyScroll.appendChild(row);lobbyScroll.scrollTop=lobbyScroll.scrollHeight;
+}
+function addLobbyHost(text){
+  const row=document.createElement('div');row.className='row host';
+  row.innerHTML='<div class="bubble">🎧 '+esc(text)+'</div>';
+  lobbyScroll.appendChild(row);lobbyScroll.scrollTop=lobbyScroll.scrollHeight;
+}
+function sendLobby(text){ text=(text||'').trim(); if(!text) return; if(lobbyRoom){ lobbyRoom.send('say',{text}); $('#lobbyInput').value=''; addReward(5,0); } else { toast('Подключаюсь к комнате…'); } }
+$('#lobbyInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();sendLobby($('#lobbyInput').value);} });
+$('#lobbyMic').addEventListener('click',()=>{ const mic=$('#lobbyMic');mic.classList.add('rec');listen((said,final)=>{ if(final){mic.classList.remove('rec');sendLobby(said);} },()=>{mic.classList.remove('rec');}); });
+$('#lobbyBack').onclick=()=>{ if(lobbyRoom){try{lobbyRoom.leave();}catch(e){} lobbyRoom=null;} screen('s-map');selTab('map');refreshStats(); };
 
 boot();
 })();

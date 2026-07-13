@@ -234,6 +234,58 @@ type('string')(FightState.prototype, 'difficulty'); // easy | medium | hard
 type('number')(FightState.prototype, 'turnEndsAt');
 type('string')(FightState.prototype, 'winnerId');
 
+// ─── ISLAND PRACTICE LOBBY (talk3/talk5 — общая комната с AI-ведущим) ───
+class LobbyPlayer extends Schema {}
+type('string')(LobbyPlayer.prototype, 'name');
+type('string')(LobbyPlayer.prototype, 'emoji');
+class LobbyState extends Schema {
+  constructor() { super(); this.players = new MapSchema(); }
+}
+type({ map: LobbyPlayer })(LobbyState.prototype, 'players');
+type('string')(LobbyState.prototype, 'topic');
+
+const LOBBY_TOPICS = [
+  'Introduce yourself in English 👋',
+  'What did you eat today? 🍜',
+  'Your favorite place on the island 🏝️',
+  'Describe your dream vacation ✈️',
+  'What music do you like? 🎧',
+  'Talk about your best friend 👫',
+];
+class IslandLobby extends Room {
+  onCreate() {
+    this.maxClients = 6;
+    this.state = new LobbyState();
+    this.topicIdx = 0;
+    this.state.topic = LOBBY_TOPICS[0];
+    this.onMessage('say', (client, msg) => {
+      const p = this.state.players.get(client.sessionId);
+      const text = String((msg && msg.text) || '').slice(0, 300);
+      if (!p || !text) return;
+      this.broadcast('msg', { name: p.name, emoji: p.emoji, text, self: client.sessionId }, { });
+    });
+    // AI-ведущий: ротация темы каждые 50 сек
+    this.topicTimer = this.clock.setInterval(() => {
+      this.topicIdx = (this.topicIdx + 1) % LOBBY_TOPICS.length;
+      this.state.topic = LOBBY_TOPICS[this.topicIdx];
+      this.broadcast('host', { text: 'New topic: ' + this.state.topic });
+    }, 50000);
+  }
+  onJoin(client, opts) {
+    const p = new LobbyPlayer();
+    p.name = String((opts && opts.name) || 'Guest').slice(0, 18);
+    p.emoji = String((opts && opts.emoji) || '🙂').slice(0, 4);
+    this.state.players.set(client.sessionId, p);
+    this.broadcast('host', { text: p.emoji + ' ' + p.name + ' joined the room 👋' });
+  }
+  onLeave(client) {
+    const p = this.state.players.get(client.sessionId);
+    if (p) this.broadcast('host', { text: p.name + ' left' });
+    this.state.players.delete(client.sessionId);
+  }
+  onDispose() { this.topicTimer && this.topicTimer.clear(); }
+}
+
 // ─── FIGHT ROOM ───
 class FightRoom extends Room {
   onCreate(opts) {
@@ -1209,6 +1261,7 @@ const gameServer = new Server({
 
 // filterBy bracket + code: public rooms match by bracket, private rooms match by code
 gameServer.define('fight', FightRoom).filterBy(['mode', 'bracket', 'code']);
+gameServer.define('island_lobby', IslandLobby);
 
 const PORT = process.env.PORT || 2567;
 (async () => {
