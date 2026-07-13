@@ -286,6 +286,112 @@ class IslandLobby extends Room {
   onDispose() { this.topicTimer && this.topicTimer.clear(); }
 }
 
+// ─── ISLAND DUEL: живой PvP 1на1 (сервер авторитарен: клиент шлёт power, сервер считает попадание/урон) ───
+// Логическое поле 400x560: бросающий всегда x=70, цель x=330 (клиенты рисуют зеркально)
+const DUEL_W = 400, DUEL_H = 560, DUEL_GY = Math.round(DUEL_H * 0.58);
+function duelSim(power, wind) {
+  let x = 70, y = DUEL_GY - 44, vx = 3 + 5 * power, vy = -(5 + 5 * power);
+  const tx = 330, ty = DUEL_GY - 22;
+  for (let i = 0; i < 400; i++) {
+    vy += 0.5; vx += wind * 0.02; x += vx; y += vy;
+    const d = Math.hypot(x - tx, y - ty);
+    if (d < 44) return { type: 'direct', d };
+    if (y > DUEL_GY - 6 || x > DUEL_W + 30 || x < -30) return { type: d < 110 ? 'splash' : 'miss', d };
+  }
+  return { type: 'miss', d: 999 };
+}
+class DuelPlayer extends Schema {}
+type('string')(DuelPlayer.prototype, 'name');
+type('number')(DuelPlayer.prototype, 'hp');
+class DuelState extends Schema {
+  constructor() { super(); this.players = new MapSchema(); }
+}
+type({ map: DuelPlayer })(DuelState.prototype, 'players');
+type('string')(DuelState.prototype, 'turn');
+type('number')(DuelState.prototype, 'wind');
+type('string')(DuelState.prototype, 'phase'); // waiting | playing | over
+
+class IslandDuel extends Room {
+  onCreate() {
+    this.maxClients = 2;
+    this.state = new DuelState();
+    this.state.phase = 'waiting';
+    this.state.wind = 0;
+    this.order = [];
+    this.onMessage('throw', (client, msg) => this.handleThrow(client, msg));
+    this.turnTimer = null;
+  }
+  onJoin(client, opts) {
+    const p = new DuelPlayer();
+    p.name = String((opts && opts.name) || 'Боец').slice(0, 16);
+    p.hp = 100;
+    this.state.players.set(client.sessionId, p);
+    this.order.push(client.sessionId);
+    if (this.order.length === 2) this.startDuel();
+  }
+  startDuel() {
+    this.state.phase = 'playing';
+    this.state.turn = this.order[0];
+    this.state.wind = +((Math.random() * 2 - 1).toFixed(2));
+    const info = {};
+    this.order.forEach(sid => { info[sid] = { name: this.state.players.get(sid).name }; });
+    this.lock();
+    // небольшая задержка: второй клиент должен успеть навесить onMessage после join
+    this.clock.setTimeout(() => {
+      this.broadcast('start', { players: info, turn: this.state.turn, wind: this.state.wind });
+      this.armTurnTimer();
+    }, 400);
+  }
+  armTurnTimer() {
+    if (this.turnTimer) this.turnTimer.clear();
+    this.turnTimer = this.clock.setTimeout(() => { // 60с на ход, иначе пропуск
+      if (this.state.phase !== 'playing') return;
+      this.switchTurn();
+      this.broadcast('turn', { turn: this.state.turn, wind: this.state.wind, skipped: true });
+      this.armTurnTimer();
+    }, 60000);
+  }
+  switchTurn() {
+    this.state.turn = this.order.find(sid => sid !== this.state.turn) || this.state.turn;
+    this.state.wind = +((Math.random() * 2 - 1).toFixed(2));
+  }
+  handleThrow(client, msg) {
+    if (this.state.phase !== 'playing' || client.sessionId !== this.state.turn) return;
+    const power = Math.max(0, Math.min(1, +((msg && msg.power) || 0)));
+    const wind = this.state.wind;
+    const res = duelSim(power, wind);
+    const otherSid = this.order.find(sid => sid !== client.sessionId);
+    const target = this.state.players.get(otherSid);
+    let dmg = 0;
+    if (res.type === 'direct') dmg = 26 + Math.floor(Math.random() * 10);
+    else if (res.type === 'splash') dmg = Math.max(5, Math.round(24 * (1 - res.d / 110) * 0.7) + 4);
+    target.hp = Math.max(0, target.hp - dmg);
+    const over = target.hp <= 0;
+    const hp = {}; this.order.forEach(sid => { hp[sid] = this.state.players.get(sid).hp; });
+    this.broadcast('shot', { by: client.sessionId, power, wind, type: res.type, dmg, hp, over, winner: over ? client.sessionId : null });
+    if (over) {
+      this.state.phase = 'over';
+      if (this.turnTimer) this.turnTimer.clear();
+      this.clock.setTimeout(() => { try { this.disconnect(); } catch (e) {} }, 10000);
+    } else {
+      this.switchTurn();
+      this.broadcast('turn', { turn: this.state.turn, wind: this.state.wind });
+      this.armTurnTimer();
+    }
+  }
+  onLeave(client) {
+    this.state.players.delete(client.sessionId);
+    if (this.state.phase === 'playing') { // соперник вышел = победа оставшегося
+      const winner = this.order.find(sid => sid !== client.sessionId);
+      this.state.phase = 'over';
+      if (this.turnTimer) this.turnTimer.clear();
+      this.broadcast('end', { winner, reason: 'left' });
+      this.clock.setTimeout(() => { try { this.disconnect(); } catch (e) {} }, 8000);
+    }
+  }
+  onDispose() { if (this.turnTimer) this.turnTimer.clear(); }
+}
+
 // ─── FIGHT ROOM ───
 class FightRoom extends Room {
   onCreate(opts) {
@@ -1319,6 +1425,7 @@ const gameServer = new Server({
 // filterBy bracket + code: public rooms match by bracket, private rooms match by code
 gameServer.define('fight', FightRoom).filterBy(['mode', 'bracket', 'code']);
 gameServer.define('island_lobby', IslandLobby);
+gameServer.define('island_duel', IslandDuel);
 
 const PORT = process.env.PORT || 2567;
 (async () => {

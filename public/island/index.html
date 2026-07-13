@@ -1042,6 +1042,7 @@ function selTab(name){
 }
 $$('.tab').forEach(t=>t.addEventListener('click',()=>{
   const go=t.dataset.go; selTab(go);
+  if(typeof duelRoom!=='undefined'&&duelRoom&&go!=='fight'){ try{duelRoom.leave();}catch(e){} duelRoom=null; if(F)F.pvp=null; toast('Ты покинул живой бой 🏳️'); }
   if(go==='map'){screen('s-map');refreshStats();}
   if(go==='scene'){openScene();}
   if(go==='fight'){openFight();}
@@ -1157,6 +1158,7 @@ function nextFightPhrase(){
 }
 $('#fightSay').addEventListener('click',()=>{ if(F&&F.phrase) say(F.phrase.en); }); // послушать боевую фразу
 setupVoiceBtn($('#fightMic'), {lang:'en'}, said=>{
+  if(F.pvp&&F.pvp.turn!==F.pvp.my){ toast('Сейчас ход соперника ⏳'); return; }
   if(F.charged) return;
   const h=$('#fightHeard'); const btn=$('#fightMic');
   if(matchPhrase(said,F.phrase.ans)){ h.textContent='✅ заряжено!'; F.charged=true; say(F.phrase.en);
@@ -1171,6 +1173,12 @@ function startPower(){
 $('#fireBtn').addEventListener('click',()=>{
   if(!F.charged||!F.powering||F.banana) return; F.powering=false;
   const p=F.power/100; // 0..1
+  if(F.pvp){ // живой бой: бросок считает сервер
+    if(F.pvp.turn!==F.pvp.my){ toast('Сейчас ход соперника ⏳'); return; }
+    try{ duelRoom&&duelRoom.send('throw',{power:p}); }catch(e){}
+    $('#powerWrap').classList.remove('on'); $('#aimHint').textContent='Бросок!'; F.charged=false;
+    return;
+  }
   const r=cv.getBoundingClientRect(); const gy=groundY(r.height);
   F.banana={ x:70, y:gy-44, vx:(3+p*5), vy:-(5+p*5), r:14, done:false };
   $('#powerWrap').classList.remove('on'); $('#aimHint').textContent='';
@@ -1209,6 +1217,12 @@ function drawFight(){
   // бананы
   if(F&&F.banana){drawBanana(F.banana.x,F.banana.y);}
   if(F&&F.foeBanana){drawBanana(F.foeBanana.x,F.foeBanana.y);}
+  // живой бой: банан по серверной траектории (логическое поле 400x560, зеркало для соперника)
+  if(F&&F.pvp&&F.pvp.anim){
+    const a=F.pvp.anim; const [lx,ly]=a.pts[Math.min(a.i,a.pts.length-1)];
+    const X=a.mirror? W-lx*(W/DUEL.W) : lx*(W/DUEL.W); const Y=ly*(H/DUEL.H);
+    drawBanana(X,Y);
+  }
 }
 function drawWorm(x,y,me){
   ctx.save();
@@ -1238,6 +1252,12 @@ function loopFight(){
   const tick=()=>{
     if(!$('#s-fight').classList.contains('on')){return;}
     const r=cv.getBoundingClientRect(),H=r.height,W=r.width,gy=groundY(H);
+    // ЖИВОЙ БОЙ: только анимация по серверным данным, локальная физика выключена
+    if(F.pvp){
+      if(F.pvp.anim){ const a=F.pvp.anim; a.i+=3;
+        if(a.i>=a.pts.length){ const m=a.m; F.pvp.anim=null; pvpApplyResult(m); } }
+      drawFight(); fightRAF=requestAnimationFrame(tick); return;
+    }
     // физика банана игрока (дуга + гравитация + ветер) - fight4
     if(F.banana){
       const b=F.banana; b.vy+=0.5; b.vx+=F.wind*0.02; b.x+=b.vx; b.y+=b.vy;
@@ -1787,6 +1807,14 @@ function openLeague(){ S.league=S.league||{tier:0,trophies:0}; screen('s-league'
 function renderLeague(){
   $('#lgTrophy').textContent=S.league.trophies;
   const list=$('#lgList'); list.innerHTML='';
+  // живой бой против реального игрока
+  const live=document.createElement('div'); live.className='lg-row'; live.style.cssText='background:linear-gradient(135deg,rgba(155,92,255,.25),rgba(106,44,201,.25));border:1.5px solid #9b5cff';
+  live.innerHTML='<div class="lg-ava" style="background:#6a2cc9">🌐</div><div class="lg-info"><b>Живой бой 1на1</b><span>против реального игрока · +30 🏆</span></div><div class="lg-state">⚡</div>';
+  live.onclick=openLiveDuel; list.appendChild(live);
+  // worms-арена (бета, прототип нового боя)
+  const wa=document.createElement('div'); wa.className='lg-row'; wa.style.cssText='background:linear-gradient(135deg,rgba(255,138,61,.25),rgba(229,107,31,.25));border:1.5px solid #ff8a3d';
+  wa.innerHTML='<div class="lg-ava" style="background:#e56b1f">🧨</div><div class="lg-info"><b>Worms-арена (бета)</b><span>разрушаемая земля, рогатка, взрывы!</span></div><div class="lg-state">🍌</div>';
+  wa.onclick=()=>{ location.href='/island/worms.html'; }; list.appendChild(wa);
   LEAGUE.forEach((t,i)=>{
     const p=t.key==='boss'?{n:t.n,e:t.e,d:'босс острова'}:(PERSONAS[t.key]||{n:'?',e:'❓',d:''});
     const st=i<S.league.tier?'done':(i===S.league.tier?'cur':'locked');
@@ -1806,6 +1834,86 @@ function shareChallenge(){
 $('#leagueBtn')&&$('#leagueBtn').addEventListener('click',openLeague);
 $('#leagueBack').onclick=()=>{ screen('s-map'); selTab('map'); refreshStats(); };
 $('#lgChallenge').addEventListener('click',shareChallenge);
+
+/* ── ЖИВОЙ PvP 1на1 (island_duel): сервер авторитарен, клиент анимирует ── */
+const DUEL={W:400,H:560,GY:Math.round(560*0.58)};
+let duelRoom=null;
+function duelSimPts(power,wind){ // та же физика, что на сервере (для анимации)
+  let x=70,y=DUEL.GY-44,vx=3+5*power,vy=-(5+5*power); const pts=[];
+  for(let i=0;i<400;i++){ vy+=0.5;vx+=wind*0.02;x+=vx;y+=vy; pts.push([x,y]);
+    if(Math.hypot(x-330,y-(DUEL.GY-22))<44) break;
+    if(y>DUEL.GY-6||x>DUEL.W+30||x<-30) break; }
+  return pts;
+}
+async function openLiveDuel(){
+  if(typeof Colyseus==='undefined'){ toast('Мультиплеер не загрузился 😕'); return; }
+  S.league=S.league||{tier:0,trophies:0};
+  const s=$('#sheet');
+  s.innerHTML='<div class="big">🌐</div><h3>Ищем соперника…</h3><p>Первый, кто зайдёт в живой бой, станет твоим противником. Позови друга!</p><div class="typing" style="justify-content:center"><i></i><i></i><i></i></div><div style="height:10px"></div><button class="btn ghost wide sm" id="duelCancel" style="color:var(--ink-soft);background:var(--paper2)">Отмена</button>';
+  $('#overlay').classList.add('on');
+  try{
+    const client=new Colyseus.Client(WS);
+    duelRoom=await client.joinOrCreate('island_duel',{name:S.name||'Боец'});
+    $('#duelCancel').onclick=()=>{ try{duelRoom&&duelRoom.leave();}catch(e){} duelRoom=null; closeSheet(); };
+    duelRoom.onMessage('start', st=>{ closeSheet(); startPvpFight(st); });
+    duelRoom.onMessage('shot', m=>pvpShot(m));
+    duelRoom.onMessage('turn', m=>pvpTurn(m));
+    duelRoom.onMessage('end', m=>pvpEnd(m.winner, m.reason));
+    duelRoom.onError(()=>{ toast('Связь с боем потеряна 😕'); });
+    duelRoom.onLeave(()=>{ duelRoom=null; });
+  }catch(e){ closeSheet(); duelRoom=null; toast('Сервер боёв недоступен 🌴'); }
+}
+function startPvpFight(st){
+  const my=duelRoom.sessionId;
+  const otherSid=Object.keys(st.players).find(k=>k!==my);
+  screen('s-fight'); selTab('fight'); fitCanvas();
+  const pool=S.learned.length?S.learned:SCENE.phrases;
+  F={ meHp:100,meMax:100,foeHp:100,foeMax:100, charged:false, phrase:null, pool, banana:null, power:0, powering:false, powerDir:1,
+      wind:st.wind, weapon:currentWeapon(), foe:{n:(st.players[otherSid]||{}).name||'Соперник', e:'🧑'},
+      pvp:{ my, other:otherSid, turn:st.turn, anim:null } };
+  $('#meName').innerHTML='🙂 '+esc((S.name||'ТЫ').toUpperCase());
+  $('#foeName').textContent='🧑 '+esc(F.foe.n.toUpperCase());
+  updateHp(); drawFight(); loopFight();
+  toast('⚡ Живой бой против '+esc(F.foe.n)+'!');
+  pvpApplyTurn();
+}
+function pvpApplyTurn(){
+  if(!F||!F.pvp) return;
+  const mine=F.pvp.turn===F.pvp.my;
+  F.charged=false; F.powering=false; $('#powerWrap').classList.remove('on');
+  if(mine){ nextFightPhrase(); $('#aimHint').textContent='⚡ ТВОЙ ХОД · ветер '+(F.wind>0?'→':'←')+' '+Math.abs(F.wind).toFixed(1); }
+  else { $('#fightRu').textContent='Ход соперника'; $('#fightEn').textContent='⏳'; $('#fightHeard').textContent='';
+    $('#fightMic').innerHTML='⏳ Ждём '+esc(F.foe.n); $('#aimHint').textContent=esc(F.foe.n)+' целится…'; }
+}
+function pvpShot(m){
+  if(!F||!F.pvp) return;
+  F.pvp.anim={ pts:duelSimPts(m.power, m.wind), i:0, mirror:(m.by!==F.pvp.my), m };
+}
+function pvpApplyResult(m){
+  F.meHp=m.hp[F.pvp.my]; F.foeHp=m.hp[F.pvp.other]; updateHp();
+  if(m.dmg>0){ shake(); toast((m.type==='direct'?'💥 Прямое попадание! -':'💥 Взрывной волной -')+m.dmg); }
+  else toast('🌴 Мимо!');
+  if(m.over){ pvpEnd(m.winner); }
+}
+function pvpTurn(m){
+  if(!F||!F.pvp) return;
+  F.pvp.turn=m.turn; F.wind=m.wind;
+  if(m.skipped) toast('⏰ Время хода вышло');
+  pvpApplyTurn();
+}
+function pvpEnd(winner, reason){
+  if(!F||!F.pvp) return;
+  cancelAnimationFrame(fightRAF);
+  const win=winner===F.pvp.my;
+  F.pvp=null;
+  try{duelRoom&&duelRoom.leave();}catch(e){} duelRoom=null;
+  S.league=S.league||{tier:0,trophies:0};
+  if(win){ S.league.trophies+=30; save(); refreshStats(); confetti(); }
+  sheet({emoji:win?'🏆':'😵', title:win?'Победа в живом бою!':'Поражение',
+    text:win?((reason==='left'?'Соперник сбежал 🏃 ':'')+'+30 🏆 Ты уделал реального игрока!'):'Реальный игрок оказался сильнее. Подучи фразы и возвращайся!',
+    rewards:win?[['🏆',S.league.trophies]]:[], cta:'В лигу 🏆',
+    onCta:()=>{closeSheet();openLeague();}});
+}
 // пришёл по ссылке-вызову ?vs=Имя -> бой с «призраком» друга
 function checkVsChallenge(){
   const m=location.search.match(/[?&]vs=([^&]+)/); if(!m) return;

@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#7fd3e6">
+<title>English Kombat - Worms-арена (бета)</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#0b1f2a;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  #game{position:fixed;inset:0}
+  .back-link{position:fixed;top:calc(8px + env(safe-area-inset-top));left:10px;z-index:50;background:rgba(11,31,42,.75);color:#fff;
+    font:800 14px system-ui;padding:9px 14px;border-radius:14px;text-decoration:none}
+</style>
+</head>
+<body>
+<a class="back-link" href="/island/">← Остров</a>
+<div id="game"></div>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script>
+/* =====================================================================
+   WORMS-АРЕНА (бета) - прототип по ресёрчу: разрушаемая земля (битмап +
+   пиксельные коллизии), рогатка-прицел с призрачной траекторией, ветер,
+   частицы, вода. Игрок против бота. Дальше: интеграция речи + PvP.
+   ===================================================================== */
+// мир подгоняется под пропорцию экрана (портрет = выше, ландшафт = шире)
+const _iw=Math.max(320, window.innerWidth), _ih=Math.max(480, window.innerHeight);
+const W=_iw>_ih?1280:900, H=Math.round(W*_ih/_iw), WATER_Y=H-64, G=0.35;
+
+class Arena extends Phaser.Scene {
+  create(){
+    const sc=this;
+    // ── небо, солнце, облака, пальмы (параллакс) ──
+    const sky=this.add.graphics();
+    for(let i=0;i<20;i++){ const t=i/20;
+      sky.fillStyle(Phaser.Display.Color.GetColor(127+t*80, 211+t*20, 230), 1);
+      sky.fillRect(0, i*H/20, W, H/20+1); }
+    this.add.circle(W-140, 110, 55, 0xfff3c0).setAlpha(.95);
+    this.add.circle(W-140, 110, 80, 0xffe680, .25);
+    for(let i=0;i<4;i++){ const c=this.add.ellipse(80+i*(W/4), 80+((i%2)*50), 150, 40, 0xffffff, .8);
+      this.tweens.add({targets:c, x:'+=60', duration:9000+i*2000, yoyo:true, repeat:-1}); }
+
+    // ── разрушаемая земля: canvas-битмап ──
+    const tex=this.textures.createCanvas('terra', W, H);
+    const ctx=tex.getContext();
+    // остров: две горки-дюны
+    ctx.fillStyle='#e8c98a';
+    ctx.beginPath(); ctx.moveTo(0, WATER_Y+20);
+    const base=Math.min(WATER_Y-96, Math.round(H*0.76)); // в портрете земля выше, поле драматичнее
+    for(let x=0;x<=W;x+=8){
+      const y = base - 110*Math.sin(x/W*Math.PI) - 48*Math.sin(x/170) - 22*Math.sin(x/61+2);
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W, WATER_Y+20); ctx.closePath(); ctx.fill();
+    // трава сверху: перекрасим верхнюю кромку
+    const img=ctx.getImageData(0,0,W,H), d=img.data;
+    for(let x=0;x<W;x++){ let top=-1;
+      for(let y=0;y<H;y++){ if(d[(y*W+x)*4+3]>50){ top=y; break; } }
+      if(top>=0){ for(let y=top;y<Math.min(top+10,H);y++){ const i=(y*W+x)*4; d[i]=62;d[i+1]=176;d[i+2]=94; } } }
+    ctx.putImageData(img,0,0);
+    tex.refresh();
+    this.terra=this.add.image(0,0,'terra').setOrigin(0).setDepth(2);
+    this.terraCtx=ctx; this.terraTex=tex;
+    this.alpha=ctx.getImageData(0,0,W,H).data; // карта прочности (альфа)
+    // декор сажаем на рельеф
+    [[Math.round(W*0.06),'🌴',80],[Math.round(W*0.94),'🌴',86],[Math.round(W*0.36),'🌺',26],[Math.round(W*0.66),'🌺',24]].forEach(([x,e,s])=>
+      this.add.text(x, this.surfaceY(x)+4, e, {fontSize:s+'px'}).setOrigin(.5,1).setDepth(1));
+
+    // ── вода ──
+    const water=this.add.rectangle(W/2, (H+WATER_Y)/2+14, W, H-WATER_Y, 0x2e86b5, .92).setDepth(3);
+    this.tweens.add({targets:water, y:'+=6', duration:1600, yoyo:true, repeat:-1});
+    this.add.rectangle(W/2, WATER_Y+16, W, 6, 0x7fd3e6, .8).setDepth(3);
+
+    // ── текстура частиц ──
+    const g2=this.make.graphics({x:0,y:0,add:false});
+    g2.fillStyle(0xffffff,1); g2.fillCircle(6,6,6); g2.generateTexture('spark',12,12);
+
+    // ── червячки ──
+    this.player=this.makeWorm(Math.round(W*0.19), 'ТЫ', '🙂', 0x3ecf6b);
+    this.enemy =this.makeWorm(Math.round(W*0.81),'DON BANANA','🍌', 0xff5a6e);
+    this.dropWorm(this.player); this.dropWorm(this.enemy);
+
+    // ── UI ──
+    this.ui={};
+    this.ui.turn=this.add.text(W/2, 34, '', {fontFamily:'system-ui', fontSize:'30px', fontStyle:'900', color:'#0b1f2a'}).setOrigin(.5).setDepth(20);
+    this.ui.wind=this.add.text(W/2, 72, '', {fontFamily:'system-ui', fontSize:'22px', fontStyle:'700', color:'#0b3a52'}).setOrigin(.5).setDepth(20);
+    this.ui.hint=this.add.text(W/2, H-26, '⬅️ Потяни от своего бойца назад, как рогатку, и отпусти!', {fontFamily:'system-ui', fontSize:'22px', fontStyle:'700', color:'#ffffff'}).setOrigin(.5).setDepth(20).setShadow(0,2,'#0b1f2a',4);
+    this.ghost=this.add.graphics().setDepth(15);
+
+    // ── состояние ──
+    this.banana=null; this.busy=false;
+    this.newTurn('player');
+
+    // ── рогатка (drag-back) ──
+    this.aiming=false;
+    this.input.on('pointerdown', p=>{ if(this.turn!=='player'||this.busy) return; this.aiming=true; this.aimStart={x:p.worldX,y:p.worldY}; });
+    this.input.on('pointermove', p=>{ if(!this.aiming) return; this.drawGhost(p); });
+    this.input.on('pointerup', p=>{
+      if(!this.aiming) return; this.aiming=false; this.ghost.clear();
+      const v=this.aimVec(p); if(!v){ return; }
+      this.fire(this.player, v.vx, v.vy);
+    });
+  }
+
+  makeWorm(x, name, face, color){
+    const c=this.add.container(x, 300).setDepth(10);
+    const body=this.add.ellipse(0, 16, 46, 34, color);
+    const head=this.add.circle(0, -12, 20, 0x2a4a5c);
+    const f=this.add.text(0, -12, face, {fontSize:'26px'}).setOrigin(.5);
+    const nm=this.add.text(0, -46, name, {fontFamily:'system-ui', fontSize:'15px', fontStyle:'800', color:'#0b1f2a'}).setOrigin(.5);
+    const hpBg=this.add.rectangle(0, -62, 64, 9, 0x0b1f2a, .5);
+    const hpFg=this.add.rectangle(-31, -62, 62, 6, 0x3ecf6b).setOrigin(0,.5);
+    c.add([body, head, f, nm, hpBg, hpFg]);
+    c.hp=100; c.hpFg=hpFg; c.face=f; c.alive=true; c.wname=name;
+    // idle-дыхание
+    this.tweens.add({targets:body, scaleY:1.06, duration:900, yoyo:true, repeat:-1});
+    return c;
+  }
+  solid(x,y){ x|=0; y|=0; if(x<0||y<0||x>=W||y>=H) return false; return this.alpha[(y*W+x)*4+3]>50; }
+  surfaceY(x){ for(let y=0;y<H;y++){ if(this.solid(x,y)) return y; } return WATER_Y+40; }
+  dropWorm(w){
+    const y=this.surfaceY(w.x);
+    if(y>WATER_Y){ this.drown(w); return; }
+    this.tweens.add({targets:w, y:y-26, duration:220, ease:'Bounce.Out'});
+  }
+  drown(w){
+    if(!w.alive) return; w.alive=false;
+    this.splash(w.x, WATER_Y+8);
+    this.tweens.add({targets:w, y:H+80, angle:180, duration:900, ease:'Quad.In'});
+    this.time.delayedCall(1000, ()=>this.checkEnd(true));
+  }
+
+  aimVec(p){
+    const dx=this.aimStart.x-p.worldX, dy=this.aimStart.y-p.worldY;
+    const len=Math.hypot(dx,dy); if(len<24) return null;
+    const pow=Phaser.Math.Clamp(len/230, .15, 1);
+    return { vx: dx/len*pow*23, vy: dy/len*pow*23 };
+  }
+  drawGhost(p){
+    const v=this.aimVec(p); this.ghost.clear(); if(!v) return;
+    this.ghost.fillStyle(0xffd23f, .9);
+    let x=this.player.x, y=this.player.y-20, vx=v.vx, vy=v.vy;
+    for(let i=0;i<90;i++){
+      vy+=G; vx+=this.wind*0.012; x+=vx; y+=vy;
+      if(i%4===0) this.ghost.fillCircle(x,y, Math.max(2.5, 5-i*0.04));
+      if(this.solid(x,y)||y>WATER_Y+10) break;
+    }
+  }
+
+  fire(from, vx, vy){
+    this.busy=true; this.ui.hint.setVisible(false);
+    const b=this.add.text(from.x, from.y-20, '🍌', {fontSize:'30px'}).setOrigin(.5).setDepth(12);
+    this.banana={obj:b, vx, vy};
+  }
+
+  update(){
+    if(!this.banana) return;
+    const bn=this.banana, b=bn.obj;
+    bn.vy+=G; bn.vx+=this.wind*0.012;
+    b.x+=bn.vx; b.y+=bn.vy; b.angle+=14;
+    // попадание в бойца
+    for(const w of [this.player, this.enemy]){
+      if(w.alive && Math.hypot(b.x-w.x, b.y-w.y+16)<34){ this.explode(b.x, b.y); return; }
+    }
+    if(this.solid(b.x, b.y)){ this.explode(b.x, b.y); return; }
+    if(b.y>WATER_Y+12){ this.splash(b.x, WATER_Y+8); this.endShot(); return; }
+    if(b.x<-60||b.x>W+60||b.y<-2000){ this.endShot(); return; }
+  }
+
+  explode(x, y, r=46){
+    const b=this.banana; if(b){ b.obj.destroy(); this.banana=null; }
+    // вырезаем воронку
+    const ctx=this.terraCtx;
+    ctx.save(); ctx.globalCompositeOperation='destination-out';
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.restore();
+    // тёмная кромка воронки
+    ctx.save(); ctx.globalCompositeOperation='source-atop';
+    ctx.strokeStyle='rgba(90,60,20,.55)'; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.arc(x, y, r+2, 0, 7); ctx.stroke(); ctx.restore();
+    this.terraTex.refresh();
+    this.alpha=ctx.getImageData(0,0,W,H).data;
+    // сочность: вспышка, частицы, тряска
+    const flash=this.add.circle(x, y, r*.8, 0xfff3c0, .95).setDepth(14);
+    this.tweens.add({targets:flash, scale:2.2, alpha:0, duration:320, onComplete:()=>flash.destroy()});
+    this.add.particles(x, y, 'spark', {speed:{min:120,max:340}, lifespan:600, scale:{start:1,end:0}, quantity:26, tint:[0xffd23f,0xff8a3d,0xe8c98a], emitting:false}).explode(26);
+    for(let i=0;i<5;i++){ const bit=this.add.text(x,y,'🍌',{fontSize:'16px'}).setDepth(14);
+      this.tweens.add({targets:bit, x:x+Phaser.Math.Between(-120,120), y:y-Phaser.Math.Between(30,130), angle:Phaser.Math.Between(-300,300), alpha:0, duration:700, ease:'Quad.Out', onComplete:()=>bit.destroy()}); }
+    this.cameras.main.shake(200, .012);
+    // урон + отброс
+    for(const w of [this.player, this.enemy]){
+      if(!w.alive) continue;
+      const d=Math.hypot(w.x-x, w.y-y);
+      if(d<r+56){
+        const dmg=Math.round(Phaser.Math.Clamp(46*(1-(d/(r+56))), 8, 46));
+        this.hurt(w, dmg, Math.sign(w.x-x)||1);
+      }
+    }
+    // земля под ногами могла исчезнуть
+    this.time.delayedCall(240, ()=>{ [this.player,this.enemy].forEach(w=>{ if(w.alive) this.dropWorm(w); }); });
+    this.time.delayedCall(650, ()=>this.endShot());
+  }
+  hurt(w, dmg, dir){
+    w.hp=Math.max(0, w.hp-dmg);
+    w.hpFg.width=62*w.hp/100;
+    w.hpFg.fillColor = w.hp>50?0x3ecf6b:(w.hp>25?0xffd23f:0xff5a6e);
+    const t=this.add.text(w.x, w.y-84, '-'+dmg, {fontFamily:'system-ui', fontSize:'24px', fontStyle:'900', color:'#ff5a6e'}).setOrigin(.5).setDepth(20);
+    this.tweens.add({targets:t, y:'-=42', alpha:0, duration:800, onComplete:()=>t.destroy()});
+    this.tweens.add({targets:w, x:w.x+dir*26, duration:200, ease:'Quad.Out'});
+    w.face.setText(w.hp<=0?'😵':'😖');
+    this.time.delayedCall(700, ()=>{ if(w.alive&&w.hp>0) w.face.setText(w===this.player?'🙂':'🍌'); });
+    if(w.hp<=0){ w.alive=false; this.tweens.add({targets:w, angle:90, y:'+=16', duration:500}); }
+  }
+  splash(x,y){
+    this.add.particles(x, y, 'spark', {speed:{min:80,max:240}, angle:{min:230,max:310}, lifespan:700, scale:{start:.9,end:0}, tint:0x7fd3e6, emitting:false}).explode(22);
+    this.cameras.main.shake(120,.006);
+  }
+
+  endShot(){
+    if(this.banana){ this.banana.obj.destroy(); this.banana=null; }
+    if(this.checkEnd()) return;
+    this.newTurn(this.turn==='player'?'enemy':'player');
+  }
+  checkEnd(fromDrown){
+    const pDead=!this.player.alive||this.player.hp<=0, eDead=!this.enemy.alive||this.enemy.hp<=0;
+    if(!pDead&&!eDead) return false;
+    const win=eDead&&!pDead;
+    const s=this.add.rectangle(W/2,H/2,W,H,0x0b1f2a,.55).setDepth(30);
+    this.add.text(W/2, H/2-60, win?'🏆 ПОБЕДА!':'😵 ПОРАЖЕНИЕ', {fontFamily:'system-ui', fontSize:'64px', fontStyle:'900', color:win?'#ffd23f':'#ff5a6e'}).setOrigin(.5).setDepth(31);
+    const again=this.add.text(W/2, H/2+30, '🔄 Ещё раз', {fontFamily:'system-ui', fontSize:'34px', fontStyle:'800', color:'#ffffff', backgroundColor:'#0e9e90', padding:{x:26,y:14}}).setOrigin(.5).setDepth(31).setInteractive();
+    again.on('pointerdown', ()=>this.scene.restart());
+    this.busy=true; this.turn='over';
+    return true;
+  }
+
+  newTurn(who){
+    this.turn=who; this.busy=false;
+    this.wind=+((Math.random()*2-1).toFixed(2));
+    const arrow=this.wind>0?'→':'←';
+    this.ui.wind.setText('🌬 ветер '+arrow+' '+Math.abs(this.wind).toFixed(1));
+    this.ui.turn.setText(who==='player'?'⚡ ТВОЙ ХОД':'🍌 ХОД DON BANANA');
+    this.ui.hint.setVisible(who==='player');
+    if(who==='enemy'&&this.enemy.alive){
+      this.time.delayedCall(1100, ()=>{
+        if(this.turn!=='enemy') return;
+        // бот целится в игрока с разбросом
+        const dx=this.player.x-this.enemy.x, base=Math.hypot(dx, 300);
+        const pow=Phaser.Math.Clamp(Math.abs(dx)/900 + Phaser.Math.FloatBetween(-.12,.18), .3, 1);
+        const ang=Math.atan2(-(0.55+Phaser.Math.FloatBetween(-.1,.15)), Math.sign(dx)*(0.8+Phaser.Math.FloatBetween(-.12,.12)));
+        this.fire(this.enemy, Math.cos(ang)*pow*23, Math.sin(ang)*pow*23);
+      });
+    }
+  }
+}
+
+window.game=new Phaser.Game({
+  type: Phaser.AUTO,
+  parent: 'game',
+  width: W, height: H,
+  backgroundColor: '#7fd3e6',
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+  scene: Arena,
+});
+</script>
+</body>
+</html>
