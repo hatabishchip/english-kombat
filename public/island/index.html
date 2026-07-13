@@ -205,6 +205,17 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .reward-row{display:flex;gap:10px;justify-content:center;margin:0 0 18px}
 .reward{background:var(--paper2);border-radius:14px;padding:10px 16px;font-weight:900;font-size:17px;display:flex;align-items:center;gap:6px}
 
+/* карта мира (map2) */
+.world-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.wc{border-radius:18px;padding:16px 14px;color:#fff;position:relative;overflow:hidden;min-height:118px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:var(--shadow)}
+.wc .flag{font-size:38px}
+.wc .wn{font-weight:800;font-size:16px}
+.wc .wp{font-size:12px;opacity:.9;margin-top:2px}
+.wc.locked{filter:grayscale(.3)}
+.wc .lockbadge{position:absolute;top:10px;right:12px;font-size:18px}
+.wc .wbar{height:6px;background:rgba(255,255,255,.3);border-radius:4px;margin-top:8px;overflow:hidden}
+.wc .wbar i{display:block;height:100%;background:#fff;border-radius:4px}
+
 /* дуэль (Фаза 3) */
 .duel-top{display:flex;align-items:center;gap:8px;padding:calc(12px + var(--safe-t)) 14px 8px;color:#fff}
 .duel-score{flex:1;text-align:center;background:rgba(255,255,255,.1);border-radius:14px;padding:7px}
@@ -373,6 +384,18 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
         <button class="btn dark sm" id="fireBtn">🍌 Бросить</button>
       </div>
       <div class="aim-hint" id="aimHint"></div>
+    </div>
+  </section>
+
+  <!-- ============ 9 · КАРТА МИРА (map2, Фаза 3) ============ -->
+  <section id="s-world" class="screen" style="background:linear-gradient(180deg,#0b2b3a,#0b1f2a)">
+    <div class="map-top" style="color:#fff">
+      <button class="back" id="worldBack" style="background:rgba(255,255,255,.15);color:#fff">←</button>
+      <div class="scene-title" style="color:#fff">🌍 Карта мира</div>
+      <button class="stat" id="worldTrack" style="border:0;background:rgba(255,255,255,.15);color:#fff">🎚️ Базовый</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:10px 14px calc(20px + var(--safe-b))">
+      <div class="world-grid" id="worldGrid"></div>
     </div>
   </section>
 
@@ -675,7 +698,7 @@ async function afterAvatar(hadPhoto){
    ===================================================================== */
 $('#pt0').addEventListener('click',()=>openScene());
 $$('.pt.lock').forEach(p=>p.addEventListener('click',()=>toast('🔒 Сначала пройди Пляж Чангу')));
-$('#countryLock')&&$('#countryLock').addEventListener('click',()=>showPaywall('country'));
+$('#countryLock')&&$('#countryLock').addEventListener('click',()=>openWorld());
 
 function selTab(name){
   $$('.tab').forEach(t=>t.classList.toggle('sel',t.dataset.go===name));
@@ -1144,7 +1167,7 @@ function liveTyping(on){
 async function callChat(historyForApi){
   try{
     const r=await fetch(API+'/api/island/chat',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({persona:live.persona,userName:S.name,messages:historyForApi})});
+      body:JSON.stringify({persona:live.persona,userName:S.name,level:S.track||'basic',messages:historyForApi})});
     if(!r.ok) throw new Error('http '+r.status);
     return await r.json();
   }catch(e){ return {reply:"Hmm, connection is weak here on the island 🌴 Try again?",correction:''}; }
@@ -1279,6 +1302,39 @@ function endDuel(){
 $('#duelBack').onclick=()=>{ if(D){D.running=false;clearInterval(D._t);} screen('s-map');selTab('map');refreshStats(); };
 $('#floatDuel').addEventListener('click',()=>startDuel());
 $('#inviteBtn')&&$('#inviteBtn').addEventListener('click',()=>showInvite(false));
+
+/* =====================================================================
+   9 · КАРТА МИРА (map2) + ДВА ТРЕКА (lvl3) - Фаза 3
+   ===================================================================== */
+const COUNTRIES=[
+  {flag:'🇮🇩',name:'Бали',state:'open',g:'linear-gradient(135deg,#19c3b2,#0e9e90)'},
+  {flag:'🇹🇭',name:'Таиланд',state:'premium',g:'linear-gradient(135deg,#ff8a3d,#e56b1f)'},
+  {flag:'🇯🇵',name:'Япония',state:'premium',g:'linear-gradient(135deg,#ff5a6e,#d83a4d)'},
+  {flag:'🇺🇸',name:'США',state:'premium',g:'linear-gradient(135deg,#5b8cff,#3a5fd0)'},
+  {flag:'🇫🇷',name:'Франция',state:'premium',g:'linear-gradient(135deg,#9b5cff,#6a2cc9)'},
+  {flag:'🇮🇹',name:'Италия',state:'premium',g:'linear-gradient(135deg,#3ecf6b,#2ba456)'},
+  {flag:'🇧🇷',name:'Бразилия',state:'premium',g:'linear-gradient(135deg,#ffd23f,#e5a11f)'},
+  {flag:'🇬🇧',name:'Британия',state:'premium',g:'linear-gradient(135deg,#7a8aa0,#4a5768)'},
+];
+function openWorld(){ screen('s-world'); renderWorld(); updateTrackBtn(); }
+function renderWorld(){
+  const grid=$('#worldGrid'); grid.innerHTML='';
+  COUNTRIES.forEach(c=>{
+    const open = c.state==='open' || S.premium;
+    const el=document.createElement('div'); el.className='wc'+(open?'':' locked'); el.style.background=c.g;
+    const pct = c.name==='Бали' ? Math.min(100,25+ (S.locDone||0)*25) : 0;
+    el.innerHTML='<div><div class="flag">'+c.flag+'</div><div class="wn">'+c.name+'</div>'+
+      '<div class="wp">'+(c.name==='Бали'?('пройдено '+pct+'%'):(open?'открыто':'Premium'))+'</div></div>'+
+      (c.name==='Бали'?'<div class="wbar"><i style="width:'+pct+'%"></i></div>':'')+
+      (open?'':'<div class="lockbadge">🔒</div>');
+    el.onclick=()=>{ if(c.name==='Бали'){ screen('s-map'); selTab('map'); refreshStats(); } else if(open){ toast('🌴 '+c.name+' скоро наполнится!'); } else { showPaywall('country'); } };
+    grid.appendChild(el);
+  });
+}
+$('#worldBack').onclick=()=>{ screen('s-map'); selTab('map'); refreshStats(); };
+// два трека (lvl3)
+function updateTrackBtn(){ const b=$('#worldTrack'); if(b) b.textContent = (S.track==='advanced'?'🎚️ Продвинутый':'🎚️ Базовый'); }
+$('#worldTrack')&&$('#worldTrack').addEventListener('click',()=>{ S.track = S.track==='advanced'?'basic':'advanced'; save(); updateTrackBtn(); toast(S.track==='advanced'?'Уровень: продвинутый 🧠':'Уровень: базовый 🌱'); });
 
 boot();
 })();

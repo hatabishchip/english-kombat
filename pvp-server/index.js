@@ -867,14 +867,17 @@ const ISLAND_PERSONAS = {
   nadia:  { name: 'Nadia',  emoji: '🎨', accent: 'neutral', bio: 'художница-кочевник, творческая, вдумчивая' },
   bruno:  { name: 'Bruno',  emoji: '⚽', accent: 'Brazilian', bio: 'тренер по футболу на пляже, громкий, весёлый' },
 };
-function islandSystemPrompt(personaKey, userName) {
+function islandSystemPrompt(personaKey, userName, level) {
   const p = ISLAND_PERSONAS[personaKey] || ISLAND_PERSONAS.roman;
+  const lvl = level === 'advanced'
+    ? 'Reply in natural English at B2 level with richer vocabulary and idioms, still 1 to 2 sentences.'
+    : 'Reply mostly in SIMPLE English (A2-B1), short - 1 to 2 sentences, like a real chat message.';
   return [
     `You are ${p.name} ${p.emoji}, a character on a tropical English-learning island game called "English Kombat".`,
     `Personality: ${p.bio}. Accent flavour: ${p.accent}.`,
     `You are chatting with a Russian-speaking learner named ${userName || 'friend'} who is practising English.`,
     `RULES:`,
-    `1) Reply mostly in SIMPLE English (A2-B1), short — 1 to 2 sentences, like a real chat message. Use emoji naturally.`,
+    `1) ${lvl} Use emoji naturally.`,
     `2) Always end with a light question to keep the conversation going.`,
     `3) If the learner makes an English mistake, do NOT scold. Gently model the correct version inside your reply (recasting).`,
     `4) A few Russian words are OK to keep them comfortable, but keep English dominant.`,
@@ -921,11 +924,11 @@ function parseChatJson(raw, personaKey) {
   return { reply: txt || 'Nice! Tell me more 🙂', correction: '' };
 }
 app.post('/api/island/chat', async (req, res) => {
-  const { messages, persona, userName } = req.body || {};
+  const { messages, persona, userName, level } = req.body || {};
   if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: 'messages required' });
   // ограничим контекст последними 12 репликами (talk7 — память)
   const history = messages.slice(-12).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 500) }));
-  const system = islandSystemPrompt(persona, userName);
+  const system = islandSystemPrompt(persona, userName, level);
   let raw = '', via = '';
   try { raw = await callGroq(system, history); via = 'groq'; }
   catch (e1) {
