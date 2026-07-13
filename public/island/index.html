@@ -607,11 +607,22 @@ $('#avaFile').addEventListener('change',e=>{
   };
   r.readAsDataURL(f);
 });
-function afterAvatar(hadPhoto){
+async function afterAvatar(hadPhoto){
   screen('s-onb');
-  if(hadPhoto) addMsg('in','🔥 Огонь! Вот это боец. Погнали на остров 🏝️','🎬');
-  else addMsg('in','Ок, аватарку добьём позже. Погнали на остров 🏝️','🎬');
-  setTimeout(goToMapFirstTime,900);
+  if(hadPhoto){
+    // ava2 - живой комплимент от AI за фото
+    typing();
+    let line='🔥 Огонь! Вот это боец. Погнали на остров 🏝️';
+    try{
+      const r=await fetch(API+'/api/island/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({persona:'roman',userName:S.name,messages:[{role:'user',content:'(I just set my profile photo. React with ONE short hyped compliment about my vibe as a fighter, then say lets go to the island. Keep it fun.)'}]})});
+      const j=await r.json(); if(j&&j.reply) line=j.reply;
+    }catch(e){}
+    untype(); addMsg('in',line,'🎬');
+  } else {
+    addMsg('in','Ок, аватарку добьём позже. Погнали на остров 🏝️','🎬');
+  }
+  setTimeout(goToMapFirstTime,1000);
 }
 
 /* =====================================================================
@@ -698,13 +709,21 @@ let F=null; // состояние боя
 function fitCanvas(){const r=cv.getBoundingClientRect();cv.width=r.width*devicePixelRatio;cv.height=r.height*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);}
 window.addEventListener('resize',()=>{if($('#s-fight').classList.contains('on')){fitCanvas();drawFight();}});
 
+// оружие за прогресс (fight3)
+const WEAPONS=[
+  {xp:0,   em:'🍌', name:'Банан',  dmg:[24,34]},
+  {xp:60,  em:'🥥', name:'Кокос',  dmg:[30,42]},
+  {xp:150, em:'🍍', name:'Ананас', dmg:[38,52]},
+  {xp:300, em:'🌋', name:'Вулкан', dmg:[48,64]},
+];
+function currentWeapon(){ let w=WEAPONS[0]; for(const x of WEAPONS){ if(S.xp>=x.xp) w=x; } return w; }
 function openFight(){
   screen('s-fight'); selTab('fight'); fitCanvas();
   const pool = S.learned.length?S.learned:SCENE.phrases;
-  F={ meHp:100, foeHp:100, charged:false, phrase:null, pool, banana:null, power:0, powering:false, powerDir:1, wind:(Math.random()*2-1) };
+  F={ meHp:100, foeHp:100, charged:false, phrase:null, pool, banana:null, power:0, powering:false, powerDir:1, wind:(Math.random()*2-1), weapon:currentWeapon() };
   $('#meName').innerHTML=(S.avatar?'🖼️':'🙂')+' ТЫ';
   updateHp(); nextFightPhrase(); drawFight(); loopFight();
-  $('#aimHint').textContent='Скажи фразу → зарядишь банан';
+  $('#aimHint').textContent='Оружие: '+F.weapon.em+' '+F.weapon.name+' · скажи фразу, чтобы зарядить';
   $('#powerWrap').classList.remove('on');
 }
 function updateHp(){
@@ -772,7 +791,7 @@ function drawWorm(x,y,me){
   ctx.fillText(me?'🙂':'😈',x,y-8);
   ctx.restore();
 }
-function drawBanana(x,y){ctx.font='26px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🍌',x,y);}
+function drawBanana(x,y){ctx.font='26px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText((F&&F.weapon?F.weapon.em:'🍌'),x,y);}
 let fightRAF=null;
 function loopFight(){
   cancelAnimationFrame(fightRAF);
@@ -799,8 +818,8 @@ function loopFight(){
   tick();
 }
 function hitFoe(){
-  F.foeHp-=Math.round(26+Math.random()*10); if(F.foeHp<0)F.foeHp=0; updateHp(); shake();
-  toast('💥 Попал!');
+  const dmg=F.weapon.dmg; F.foeHp-=Math.round(dmg[0]+Math.random()*(dmg[1]-dmg[0])); if(F.foeHp<0)F.foeHp=0; updateHp(); shake();
+  toast(F.weapon.em+' Попал!');
   if(F.foeHp<=0){ winFight(); return; }
   setTimeout(()=>{ foeShoot(); setTimeout(nextFightPhrase,600); },700);
 }
@@ -810,8 +829,24 @@ function hitMe(){ F.meHp-=Math.round(14+Math.random()*8); if(F.meHp<0)F.meHp=0; 
 function shake(){cv.style.transform='translateX(4px)';setTimeout(()=>cv.style.transform='translateX(-4px)',60);setTimeout(()=>cv.style.transform='',120);}
 function winFight(){
   cancelAnimationFrame(fightRAF); addReward(40,0); confetti();
-  sheet({emoji:'🏆',title:'Победа!',text:'Ты уложил соперника выученными фразами. Роман это оценит 😏',
-    rewards:[['⭐',S.xp],['🪙',S.coins]],cta:'К Роману 💬',onCta:()=>{closeSheet();openRomanChat();}});
+  sheet({emoji:'🏆',title:'Победа!',text:'Ты уложил соперника выученными фразами. Тебе выпал сундук 🎁',
+    rewards:[['⭐',S.xp],['🪙',S.coins]],cta:'🎁 Открыть сундук',onCta:()=>openChest()});
+}
+// сундук-рандом (rew3)
+function openChest(){
+  const loot=[
+    {em:'🍌',t:'+5 бананов',xp:0,ammo:5,coins:0},
+    {em:'🪙',t:'+30 монет',xp:0,ammo:0,coins:30},
+    {em:'⭐',t:'+25 XP',xp:25,ammo:0,coins:0},
+    {em:'💎',t:'Джекпот! +50 XP, +5 🍌',xp:50,ammo:5,coins:0},
+    {em:'🥥',t:'+3 кокоса',xp:0,ammo:3,coins:0},
+  ];
+  const g=loot[Math.floor(Math.random()*loot.length)];
+  S.xp+=g.xp;S.ammo+=g.ammo;S.coins+=g.coins;save();refreshStats();confetti();
+  const prevW=WEAPONS.filter(w=>w.xp<=S.xp-g.xp).length, nowW=WEAPONS.filter(w=>w.xp<=S.xp).length;
+  const unlocked = nowW>prevW ? '<br>🔓 Открыто оружие: '+currentWeapon().em+' '+currentWeapon().name : '';
+  sheet({emoji:g.em,title:'Сундук открыт!',text:g.t+unlocked,rewards:[['🍌',S.ammo],['⭐',S.xp],['🪙',S.coins]],
+    cta:'К Роману 💬',onCta:()=>{closeSheet();openRomanChat();}});
 }
 function loseFight(){
   cancelAnimationFrame(fightRAF);
