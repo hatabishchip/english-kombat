@@ -91,6 +91,20 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .vcircle .wave i{width:3px;background:var(--teal);border-radius:2px;animation:wv .7s ease-in-out infinite}
 @keyframes wv{0%,100%{height:5px}50%{height:20px}}
 
+/* видео в кружке (записанный человеком) */
+.vcircle video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
+.vcircle.hasvideo .face{display:none}
+.cap{font-size:12.5px;color:var(--ink-soft);margin-top:6px;font-style:italic}
+.cap b{color:var(--teal-d);font-style:normal}
+
+/* оверлей записи кружка (Telegram-стиль) */
+.rec-overlay{position:fixed;inset:0;z-index:95;background:rgba(6,20,28,.9);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.rec-overlay.on{display:flex}
+.rec-circle{width:240px;height:240px;border-radius:50%;position:relative;overflow:hidden;background:#0d2a38;box-shadow:0 0 0 5px var(--coral)}
+.rec-circle video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.rec-ring{position:absolute;inset:0;border-radius:50%;box-shadow:inset 0 0 0 4px var(--coral);animation:micpulse 1s infinite}
+.rec-hint{color:#fff;font-weight:700;margin-top:18px;font-size:15px}
+
 .typing{display:flex;gap:4px;padding:12px 15px}
 .typing i{width:8px;height:8px;border-radius:50%;background:#c3d3d9;animation:tp 1s infinite}
 .typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
@@ -495,10 +509,18 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
     <div class="quick" id="liveTopics"></div>
     <div class="composer">
       <input class="txt" id="liveInput" placeholder="Напиши по-английски…" enterkeyhint="send">
+      <button class="mic circle" id="liveCircle" aria-label="видео-кружок" style="background:linear-gradient(180deg,#6a2cc9,#9b5cff);box-shadow:0 5px 0 #4a1f8f;font-size:20px">🔴</button>
       <button class="mic" id="liveMic" aria-label="голосом">🎙️</button>
     </div>
   </section>
 
+</div>
+
+<!-- запись видео-кружка (Telegram-стиль) -->
+<div class="rec-overlay" id="recOverlay">
+  <div class="rec-circle" id="recCircle"><video id="recVideo" autoplay muted playsinline></video><div class="rec-ring"></div></div>
+  <div class="rec-hint" id="recHint">🔴 Говори по-английски…</div>
+  <button class="btn sun" id="recStop" style="margin-top:16px">Стоп</button>
 </div>
 
 <!-- выбор собеседника (ava4) -->
@@ -583,28 +605,74 @@ function addReward(xp,ammo){S.xp+=xp;S.ammo+=ammo;S.coins+=Math.round(xp/2);save
 
 // ---------- ASR (Web Speech API) ----------
 const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
-let rec=null, recBusy=false;
-function listen(onResult, onEnd){
-  if(!SR){ // фолбэк - ввод текстом
-    const said=prompt('Голос недоступен в этом браузере. Впиши фразу по-английски:');
-    if(said!=null) onResult(said,true); if(onEnd) onEnd(); return null;
-  }
+const mediaOK = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+let rec=null, recBusy=false, activeRec=null;
+const API='https://ek-pvp.13-140-178-130.sslip.io';
+
+function pickMime(list){ for(const m of list){ try{ if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m)) return m; }catch(e){} } return ''; }
+// запись клипа с VAD-автостопом по тишине (аудио или видео-кружок)
+async function recordClip({maxMs=8000, silenceMs=1300, video=false}={}){
+  const constraints = video ? {audio:true, video:{facingMode:'user', width:{ideal:480}, height:{ideal:480}}} : {audio:true};
+  const stream = await navigator.mediaDevices.getUserMedia(constraints);
+  const mime = video ? pickMime(['video/webm;codecs=vp8,opus','video/webm','video/mp4'])
+                     : pickMime(['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg']);
+  const mr = new MediaRecorder(stream, mime?{mimeType:mime}:undefined);
+  const chunks=[]; mr.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+  let stopped=false; const _stop=()=>{ if(!stopped){ stopped=true; try{mr.stop();}catch(e){} } };
+  const blob = new Promise(res=>{ mr.onstop=()=>{ try{stream.getTracks().forEach(t=>t.stop());}catch(e){} res(new Blob(chunks,{type:mime||(video?'video/webm':'audio/webm')})); }; });
+  mr.start(120);
+  try{
+    const ac=new (window.AudioContext||window.webkitAudioContext)(); const src=ac.createMediaStreamSource(stream); const an=ac.createAnalyser(); an.fftSize=512; src.connect(an);
+    const buf=new Uint8Array(an.fftSize); let spoke=false,last=Date.now(),t0=Date.now();
+    (function tick(){ if(stopped){try{ac.close();}catch(e){} return;} an.getByteTimeDomainData(buf);
+      let sum=0; for(let i=0;i<buf.length;i++){const v=(buf[i]-128)/128;sum+=v*v;} const rms=Math.sqrt(sum/buf.length); const now=Date.now();
+      if(rms>0.05){spoke=true;last=now;}
+      if((spoke&&now-last>silenceMs)||now-t0>maxMs){ try{ac.close();}catch(e){} _stop(); return; }
+      requestAnimationFrame(tick);
+    })();
+  }catch(e){ setTimeout(_stop, maxMs); }
+  return { blob, stop:_stop, stream, mime };
+}
+async function transcribeBlob(blob, lang){
+  const r=await fetch(API+'/api/island/transcribe?lang='+(lang||'en'),{method:'POST',headers:{'Content-Type':blob.type||'audio/webm'},body:blob});
+  if(!r.ok) throw new Error('transcribe '+r.status);
+  return await r.json();
+}
+// webkit-путь (фолбэк)
+function webkitListen(onResult, onEnd){
+  if(!SR){ const said=prompt('Голос недоступен. Впиши фразу по-английски:'); if(said!=null) onResult(said,true); if(onEnd) onEnd(); return null; }
   if(recBusy){return null;}
   rec=new SR(); rec.lang='en-US'; rec.interimResults=true; rec.maxAlternatives=3;
   recBusy=true; let finalGot=false;
-  rec.onresult=e=>{
-    let interim='',final='';
-    for(let i=e.resultIndex;i<e.results.length;i++){
-      const r=e.results[i]; if(r.isFinal){final+=r[0].transcript;} else {interim+=r[0].transcript;}
-    }
-    if(final){finalGot=true;onResult(final,true);} else if(interim){onResult(interim,false);}
-  };
+  rec.onresult=e=>{ let interim='',final='';
+    for(let i=e.resultIndex;i<e.results.length;i++){ const r=e.results[i]; if(r.isFinal){final+=r[0].transcript;} else {interim+=r[0].transcript;} }
+    if(final){finalGot=true;onResult(final,true);} else if(interim){onResult(interim,false);} };
   rec.onerror=e=>{recBusy=false; if(onEnd) onEnd(e.error);};
   rec.onend=()=>{recBusy=false; if(onEnd) onEnd(finalGot?null:'noresult');};
   try{rec.start();}catch(e){recBusy=false;}
   return rec;
 }
-function stopListen(){try{rec&&rec.stop();}catch(e){}}
+// listen(): Deepgram-запись (точнее, все браузеры) -> транскрибация; фолбэк webkit/prompt. Тот же контракт (onResult, onEnd).
+function listen(onResult, onEnd, opts){
+  const lang=(opts&&opts.lang)||'en';
+  if(mediaOK){
+    (async()=>{
+      try{
+        onResult && onResult('говори…', false);
+        const rc = await recordClip({video:false, maxMs:(opts&&opts.maxMs)||8000}); activeRec=rc;
+        const blob = await rc.blob; activeRec=null;
+        onResult && onResult('распознаю…', false);
+        const j = await transcribeBlob(blob, lang);
+        const t=(j.transcript||'').trim();
+        onResult && onResult(t, true);
+        onEnd && onEnd(t?null:'noresult');
+      }catch(e){ activeRec=null; webkitListen(onResult, onEnd); }
+    })();
+    return null;
+  }
+  return webkitListen(onResult, onEnd);
+}
+function stopListen(){ if(activeRec){ activeRec.stop(); return; } try{rec&&rec.stop();}catch(e){} }
 
 /* =====================================================================
    1 · ОНБОРДИНГ-ЧАТ
@@ -635,19 +703,22 @@ function addMsg(side, html, mini){
   else row.innerHTML='<div class="bubble">'+html+'<div class="time">'+time+'</div></div>';
   chat.appendChild(row);scrollChat();return row;
 }
+// текст, который «говорит» кружок Романа (интерим-озвучка TTS; заменим на реальный голос Романа)
+const ROMAN_CIRCLE_TEXT='Йо! Это Роман. Смотри как тут всё устроено. Скажешь по-английски - сделаешь ход. За тридцать секунд уже подерёшься. Погнали!';
 function addVideoCircle(){
   const row=document.createElement('div');row.className='row in';
   row.innerHTML='<div class="mini">🎬</div><div class="vcircle" id="vc"><div class="ring"></div><div class="face">🧔</div><div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="play"></div><div class="who">Роман · 0:12</div></div>';
   chat.appendChild(row);scrollChat();
   const vc=row.querySelector('#vc');
-  vc.addEventListener('click',()=>{
-    vc.classList.toggle('playing');
-    if(vc.classList.contains('playing')){
-      // плейсхолдер «проигрывания» кружка (реальное видео Романа подставим в Фазе 2)
-      row.querySelectorAll('.wave i').forEach((b,i)=>b.style.animationDelay=(i*0.08)+'s');
-      setTimeout(()=>vc.classList.remove('playing'),4000);
-    }
-  });
+  row.querySelectorAll('.wave i').forEach((b,i)=>b.style.animationDelay=(i*0.08)+'s');
+  function playCircle(){
+    if(vc.classList.contains('playing')){ speechSynthesis.cancel(); vc.classList.remove('playing'); return; }
+    vc.classList.add('playing');
+    sayRu(ROMAN_CIRCLE_TEXT, ()=>vc.classList.remove('playing'));
+  }
+  vc.addEventListener('click',playCircle);
+  // автоплей один раз (юзер только что тапнул - жест разрешает звук)
+  setTimeout(()=>{ if(!vc.dataset.auto){ vc.dataset.auto='1'; playCircle(); } }, 500);
   return vc;
 }
 function typing(){
@@ -1053,6 +1124,17 @@ $('#floatChat').addEventListener('click',()=>{ $('#floatChat').classList.remove(
    ОБЩЕЕ: озвучка, конфетти, оверлеи, привычки
    ===================================================================== */
 function say(text){ try{const u=new SpeechSynthesisUtterance(text);u.lang='en-US';u.rate=.95;speechSynthesis.cancel();speechSynthesis.speak(u);}catch(e){} }
+function ruVoice(){ try{ const vs=speechSynthesis.getVoices(); return vs.find(v=>/ru[-_]RU/i.test(v.lang)||/^ru/i.test(v.lang))||null; }catch(e){ return null; } }
+function sayRu(text, onend){
+  try{
+    const u=new SpeechSynthesisUtterance(text); u.lang='ru-RU'; u.rate=1.0; u.pitch=1.0;
+    const v=ruVoice(); if(v) u.voice=v;
+    u.onend=()=>{ onend&&onend(); }; u.onerror=()=>{ onend&&onend(); };
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+    // если голоса ещё не загружены - подождать voiceschanged
+    if(!ruVoice()){ speechSynthesis.onvoiceschanged=()=>{ const v2=ruVoice(); if(v2){ u.voice=v2; } }; }
+  }catch(e){ onend&&onend(); }
+}
 
 function sheet({emoji,title,text,rewards,cta,onCta}){
   const s=$('#sheet');
@@ -1195,7 +1277,7 @@ function boot(){
 /* =====================================================================
    7 · ЖИВОЕ ОБЩЕНИЕ (AI) - Фаза 2
    ===================================================================== */
-const API='https://ek-pvp.13-140-178-130.sslip.io';
+// API определён выше (в блоке распознавания речи)
 const PERSONAS={
   roman:{n:'Роман',e:'🧔',d:'основатель острова'},
   kadek:{n:'Kadek',e:'🏄',d:'серфер с Бали'},
@@ -1301,6 +1383,45 @@ $('#liveMic').addEventListener('click',()=>{
   const mic=$('#liveMic');mic.classList.add('rec');
   listen((said,final)=>{ if(final){mic.classList.remove('rec');sendLive(said);} },()=>{mic.classList.remove('rec');});
 });
+// запись видео-кружка человеком (Telegram-стиль) + транскрибация -> AI отвечает
+let liveCircleBusy=false;
+function addLiveCircle(side, url){
+  const row=document.createElement('div');row.className='row '+side;
+  const mini=side==='in'?'<div class="mini">🎬</div>':'';
+  row.innerHTML=mini+'<div><div class="vcircle hasvideo" style="width:150px;height:150px"><video src="'+url+'" playsinline loop></video><div class="play"></div></div><div class="capslot"></div></div>';
+  liveScroll.appendChild(row);liveScroll.scrollTop=liveScroll.scrollHeight;
+  const vc=row.querySelector('.vcircle'),v=row.querySelector('video');
+  vc.addEventListener('click',()=>{ if(vc.classList.toggle('playing')){ v.muted=false; v.currentTime=0; v.play(); } else v.pause(); });
+  v.muted=true; v.play().catch(()=>{});
+  return row;
+}
+async function liveSendFromVoice(text){
+  const h=liveHist(); h.push({role:'user',content:text}); save();
+  liveTyping(true);
+  const res=await callChat(h.slice(-12).map(m=>({role:m.role,content:m.content})));
+  liveTyping(false);
+  h.push({role:'assistant',content:res.reply}); addLiveBubble('in',res.reply,''); addReward(5,0); save();
+}
+async function recordLiveCircle(){
+  if(liveCircleBusy) return; if(!mediaOK){ toast('Запись не поддерживается в этом браузере'); return; }
+  liveCircleBusy=true;
+  const ov=$('#recOverlay'), vid=$('#recVideo');
+  try{
+    const rc=await recordClip({video:true, maxMs:15000, silenceMs:1800});
+    vid.srcObject=rc.stream; ov.classList.add('on');
+    $('#recStop').onclick=()=>rc.stop();
+    const blob=await rc.blob;
+    ov.classList.remove('on'); vid.srcObject=null;
+    const url=URL.createObjectURL(blob);
+    const row=addLiveCircle('out', url);
+    let t=''; try{ const j=await transcribeBlob(blob,'auto'); t=(j.transcript||'').trim(); }catch(e){}
+    const cs=row.querySelector('.capslot');
+    if(t){ cs.className='cap'; cs.innerHTML='✍️ <b>'+esc(t)+'</b>'; liveSendFromVoice(t); }
+    else { cs.className='cap'; cs.textContent='(не расслышал, скажи чётче 🎥)'; }
+  }catch(e){ ov.classList.remove('on'); toast('Нет доступа к камере 🎥'); }
+  liveCircleBusy=false;
+}
+$('#liveCircle').addEventListener('click',recordLiveCircle);
 $('#liveBack').onclick=()=>{screen('s-map');selTab('map');refreshStats();};
 // talk4 - AI разбирает диалог
 $('#liveAnalyze').onclick=()=>analyzeDialog();

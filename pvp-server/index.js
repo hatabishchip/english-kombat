@@ -1062,6 +1062,33 @@ app.post('/api/island/analyze', async (req, res) => {
   } catch (e) { return res.json({ level: '-', praise: 'Хорошая практика!', mistakes: [], tip: 'Говори больше и смелее.' }); }
 });
 
+// ─── ISLAND · TRANSCRIBE (Deepgram — проверка устного английского + субтитры к кружкам) ───
+app.post('/api/island/transcribe', express.raw({ type: '*/*', limit: '30mb' }), async (req, res) => {
+  const key = process.env.DEEPGRAM_API_KEY;
+  if (!key) return res.status(503).json({ error: 'no deepgram key' });
+  const audio = req.body;
+  if (!audio || !audio.length) return res.status(400).json({ error: 'no audio' });
+  const lang = String(req.query.lang || 'en');       // 'en' для проверки английского, 'auto' для кружков (RU и т.п.)
+  const ct = req.headers['content-type'] || 'audio/webm';
+  const params = new URLSearchParams({ model: 'nova-2', smart_format: 'true', punctuate: 'true' });
+  if (lang === 'auto') params.set('detect_language', 'true'); else params.set('language', lang);
+  try {
+    const r = await fetch('https://api.deepgram.com/v1/listen?' + params.toString(), {
+      method: 'POST',
+      headers: { Authorization: 'Token ' + key, 'Content-Type': ct },
+      body: audio,
+    });
+    if (!r.ok) { const t = await r.text(); console.error('[transcribe] dg', r.status, t.slice(0, 140)); return res.status(502).json({ error: 'deepgram ' + r.status }); }
+    const j = await r.json();
+    const ch = j.results && j.results.channels && j.results.channels[0];
+    const alt = (ch && ch.alternatives && ch.alternatives[0]) || {};
+    res.json({ transcript: String(alt.transcript || '').trim(), confidence: alt.confidence || 0, language: (ch && ch.detected_language) || lang });
+  } catch (e) {
+    console.error('[transcribe]', e.message);
+    res.status(500).json({ error: 'transcribe failed' });
+  }
+});
+
 // ─── FRIENDS ───
 app.post('/api/friends/add', async (req, res) => {
   const me = await authUserFromReq(req);
