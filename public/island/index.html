@@ -330,6 +330,18 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 <body>
 <div id="app">
 
+  <!-- ============ 0 · ДОСТУП К МИКРОФОНУ/КАМЕРЕ (спросить до входа) ============ -->
+  <section id="s-perm" class="screen" style="background:radial-gradient(120% 90% at 50% 0%,#1a4a5c,#0b1f2a);color:#fff;align-items:center;justify-content:center;padding:28px;text-align:center">
+    <div style="max-width:340px">
+      <div style="font-size:72px;line-height:1;margin-bottom:14px">🎤🎥</div>
+      <h2 style="font-size:24px;margin:0 0 10px">Разреши доступ</h2>
+      <p style="color:#a9c6d0;font-size:15px;line-height:1.55;margin:0 0 26px">Остров работает голосом и видео-кружками. Дай доступ к микрофону и камере один раз - дальше запись будет включаться сразу, без лишних окон.</p>
+      <button class="btn sun wide" id="permAllow">Разрешить микрофон и камеру</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost wide sm" id="permSkip" style="color:#a9c6d0">Позже</button>
+    </div>
+  </section>
+
   <!-- ============ 1 · ОНБОРДИНГ-ЧАТ ============ -->
   <section id="s-onb" class="screen">
     <div class="ghost-chats" id="ghostChats"></div>
@@ -1357,8 +1369,23 @@ function checkStreak(){
     S.lastDay=today; save();
   }
 }
+// спросить доступ к микрофону+камере ОДИН раз до входа, чтобы запись потом работала без параллельных окон
+function requestPerm(){
+  return navigator.mediaDevices.getUserMedia({audio:true, video:true})
+    .then(stream=>{ try{stream.getTracks().forEach(t=>t.stop());}catch(e){} S.permGranted=true; save(); })
+    .catch(()=>{ /* отказ - продолжим, запись попросит доступ при первом использовании */ });
+}
 function boot(){
   checkStreak(); refreshStats();
+  if(mediaOK && !S.permGranted && !S.permAsked){
+    screen('s-perm');
+    $('#permAllow').onclick=()=>{ S.permAsked=true; save(); requestPerm().then(proceedBoot); };
+    $('#permSkip').onclick=()=>{ S.permAsked=true; save(); proceedBoot(); };
+    return;
+  }
+  proceedBoot();
+}
+function proceedBoot(){
   if(S.lastDay && S.locDone>0 && S.avatar!==undefined && localStorage.getItem(LS)){
     // возвращающийся игрок - сразу на карту
     screen('s-map'); $('#tabbar').dataset.armed='1'; $('#tabbar').classList.add('on'); selTab('map'); refreshStats();
