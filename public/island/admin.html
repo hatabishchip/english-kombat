@@ -50,17 +50,40 @@
 <header><h1>🏝️ Контент Острова</h1><span class="hint" id="updatedAt"></span></header>
 <div class="wrap">
 
+  <div class="card" style="border-color:#2a6a52">
+    <h2>📖 Как это работает (30 секунд)</h2>
+    <p class="sub">
+      1. Запиши кружок в Telegram - например, себе в «Избранное».<br>
+      2. Сохрани его файлом: в Telegram на компьютере - правая кнопка по кружку → «Сохранить видео как…». С телефона - открой кружок → поделиться → «Сохранить в Файлы/Галерею». Получится обычное видео (.mp4).<br>
+      3. Тут ниже нажми <b>«📤 Загрузить кружок»</b> у нужного шага и выбери этот файл.<br>
+      4. Всё - кружок сразу появится у игроков в этом шаге чата. Ничего больше делать не надо.<br>
+      Фразы и уровни правишь в карточках ниже, в конце жми «💾 Сохранить всё».
+    </p>
+  </div>
+
   <div class="card">
     <h2>🎬 Кружки Романа (онбординг)</h2>
-    <p class="sub">Текст - что говорит кружок (пока озвучивается синтезом). Когда запишешь реальный кружок - дай Александру файл, он зальёт и вставит ссылку в «Видео», тогда будет играть твоё видео.</p>
+    <p class="sub">Текст - что говорит кружок, пока не загружено видео (озвучивается синтезом). Загрузишь видео - играет твоё видео.</p>
     <label>Кружок 1 - приветствие + «настрою игру под тебя. Окей?»</label>
     <textarea id="c1text"></textarea>
-    <label>Видео кружка 1 (URL, можно оставить пустым)</label>
-    <input id="c1video" placeholder="https://...mp4">
-    <label>Кружок 2 - «уровень понятен, лови кнопку. Я на перекур, жду фидбэк. Готов?»</label>
+    <div class="row" style="margin-top:6px">
+      <button class="add" id="c1upload">📤 Загрузить кружок 1</button>
+      <button class="del" id="c1clear" style="padding:9px;font-size:13px">✕ Убрать видео</button>
+    </div>
+    <div id="c1status" class="hint" style="margin-top:6px"></div>
+    <video id="c1prev" style="display:none;width:150px;height:150px;border-radius:50%;object-fit:cover;margin-top:8px" playsinline controls muted></video>
+    <input id="c1video" type="hidden">
+
+    <label style="margin-top:16px">Кружок 2 - «уровень понятен, лови кнопку. Я на перекур, жду фидбэк. Готов?»</label>
     <textarea id="c2text"></textarea>
-    <label>Видео кружка 2 (URL)</label>
-    <input id="c2video" placeholder="https://...mp4">
+    <div class="row" style="margin-top:6px">
+      <button class="add" id="c2upload">📤 Загрузить кружок 2</button>
+      <button class="del" id="c2clear" style="padding:9px;font-size:13px">✕ Убрать видео</button>
+    </div>
+    <div id="c2status" class="hint" style="margin-top:6px"></div>
+    <video id="c2prev" style="display:none;width:150px;height:150px;border-radius:50%;object-fit:cover;margin-top:8px" playsinline controls muted></video>
+    <input id="c2video" type="hidden">
+    <input type="file" id="upFile" accept="video/*" style="display:none">
   </div>
 
   <div class="card">
@@ -140,6 +163,7 @@ function render(){
   $('#c1text').value=C.circles.c1.text||''; $('#c1video').value=C.circles.c1.video||'';
   $('#c2text').value=C.circles.c2.text||''; $('#c2video').value=C.circles.c2.video||'';
   $('#probeNone').value=C.probeNone||'Ничего не понял 🤷';
+  setPrev('c1'); setPrev('c2');
   renderProbes(); renderLocTabs(); renderPhrases(); renderBattle();
 }
 function renderProbes(){
@@ -192,14 +216,41 @@ $('#phraseAdd').onclick=()=>{ const loc=C.locations[locIdx]; loc.levels[lvlKey]=
 function renderBattle(){ phraseRows(C.battle, '#battle', renderBattle); }
 $('#battleAdd').onclick=()=>{C.battle.push({ru:'',en:'',ans:[]});renderBattle();};
 
-$('#saveBtn').onclick=async()=>{
+async function saveContent(msg){
   $('#saveMsg').textContent='Сохраняю…';
   try{
     const r=await fetch(API+'/api/island/content',{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Password':TOKEN},body:JSON.stringify({data:C})});
     if(!r.ok) throw 0;
-    $('#saveMsg').textContent='✅ Сохранено '+new Date().toLocaleTimeString('ru-RU');
+    $('#saveMsg').textContent='✅ '+(msg||'Сохранено')+' '+new Date().toLocaleTimeString('ru-RU');
   }catch(e){ $('#saveMsg').textContent='❌ Ошибка (пароль?)'; }
-};
+}
+$('#saveBtn').onclick=()=>saveContent();
+
+/* ── загрузка кружков (файл из Telegram) ── */
+let upKey=null;
+function setPrev(key){
+  const url=(C.circles[key]&&C.circles[key].video)||'';
+  const v=$('#'+key+'prev'), st=$('#'+key+'status');
+  if(!v||!st) return;
+  if(url){ v.src=url; v.style.display='block'; st.textContent='✅ Видео загружено - в чате играет твой кружок'; }
+  else { v.style.display='none'; v.removeAttribute('src'); st.textContent='Видео не загружено - в чате играет озвучка текста'; }
+}
+['c1','c2'].forEach(k=>{
+  $('#'+k+'upload').onclick=()=>{ upKey=k; $('#upFile').value=''; $('#upFile').click(); };
+  $('#'+k+'clear').onclick=async()=>{ C.circles[k].video=''; setPrev(k); await saveContent('Видео убрано'); };
+});
+$('#upFile').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f||!upKey) return;
+  const k=upKey; const st=$('#'+k+'status');
+  if(f.size>100*1024*1024){ st.textContent='❌ Файл больше 100 МБ - запиши покороче'; return; }
+  st.textContent='⏳ Загружаю '+(Math.round(f.size/1024/1024*10)/10)+' МБ… не закрывай страницу';
+  try{
+    const r=await fetch(API+'/api/island/upload?key='+k,{method:'POST',headers:{'Content-Type':f.type||'video/mp4','X-Admin-Password':TOKEN},body:f});
+    const j=await r.json(); if(!j||!j.url) throw 0;
+    C.circles[k].video=j.url; setPrev(k);
+    await saveContent('Кружок загружен и подключён');
+  }catch(err){ st.textContent='❌ Не загрузилось. Проверь интернет и попробуй ещё раз'; }
+});
 
 if(TOKEN){ boot(); }
 </script>

@@ -1260,6 +1260,24 @@ app.post('/api/island/judge', async (req, res) => {
   }
 });
 
+// ─── ISLAND · MEDIA (кружки Ромы: загрузка из админки, раздача статикой) ───
+const MEDIA_DIR = process.env.MEDIA_DIR || '/data/media';
+try { require('fs').mkdirSync(MEDIA_DIR, { recursive: true }); } catch (e) {}
+app.use('/media', express.static(MEDIA_DIR, { maxAge: '1d' }));
+app.post('/api/island/upload', checkAdmin, express.raw({ type: () => true, limit: '120mb' }), (req, res) => {
+  const buf = req.body;
+  if (!buf || !buf.length) return res.status(400).json({ error: 'empty' });
+  const key = (String(req.query.key || 'file').replace(/[^a-z0-9_-]/gi, '').slice(0, 24)) || 'file';
+  const ct = (req.headers['content-type'] || '').split(';')[0];
+  const ext = ct.includes('webm') ? 'webm' : (ct.includes('quicktime') ? 'mov' : 'mp4');
+  const name = 'circle-' + key + '-' + Date.now() + '.' + ext;
+  try {
+    require('fs').writeFileSync(require('path').join(MEDIA_DIR, name), buf);
+    console.log('[media] uploaded %s (%d bytes)', name, buf.length);
+    res.json({ ok: true, url: 'https://ek-pvp.13-140-178-130.sslip.io/media/' + name });
+  } catch (e) { console.error('[media]', e.message); res.status(500).json({ error: 'write failed' }); }
+});
+
 // ─── ISLAND · CONTENT (контент игры: фразы/уровни/кружки; редактирует Роман через админку) ───
 app.get('/api/island/content', async (_, res) => {
   if (!pgPool) return res.json({ data: null });
