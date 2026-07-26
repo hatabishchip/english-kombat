@@ -85,6 +85,9 @@ const PHRASES=[
   {ru:'Не зли меня', en:'Do not make me angry', ans:['do not make me angry','don\'t make me angry','dont make me angry']},
   {ru:'Победа будет моей', en:'Victory will be mine', ans:['victory will be mine','the victory will be mine','victory is mine']},
 ];
+(async function(){ try{ const r=await fetch(API+'/api/island/content',{cache:'no-store'}); const j=await r.json();
+  if(j&&j.data&&Array.isArray(j.data.battle)&&j.data.battle.length){ PHRASES.length=0; j.data.battle.forEach(p=>PHRASES.push(p)); }
+}catch(e){} })();
 function norm(t){return String(t).toLowerCase().replace(/[.,!?;:'"()\-]/g,'').replace(/\s+/g,' ').trim();}
 function matchPhrase(said,ans){ const n=norm(said); if(!n) return false; return ans.some(a=>{const na=norm(a); return n===na||n.includes(na)||na.includes(n);}); }
 function toast(t){ const el=document.getElementById('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('on'),1900); }
@@ -222,6 +225,7 @@ class Arena extends Phaser.Scene {
     this.input.on('pointerup',p=>{
       if(!this.aiming) return; this.aiming=false; this.ghost.clear();
       const v=this.aimVec(p); if(!v) return;
+      if(this.missKick){ v.vx*=(0.45+Math.random()*0.95); v.vy*=(0.55+Math.random()*0.8); this.missKick=false; toast('🌀 Криво полетел!'); }
       this.charged=false;
       if(CFG.mode==='pvp'){ try{CFG.room.send('shot',{vx:v.vx,vy:v.vy});}catch(e){} this.moveLog={craters:[],drowned:[]}; }
       this.fire(this.myWorm, v.vx, v.vy, true);
@@ -438,9 +442,11 @@ holdRecord(document.getElementById('spMic'), t=>{
   if(matchPhrase(t,curPhrase.ans)){
     h.textContent='✅ «'+t+'» - заряжено!'; h.style.color='#5ef2c9';
     say(curPhrase.en);
-    setTimeout(()=>{ speechHide(); if(SCENE){ SCENE.charged=true; SCENE.ui.hint.setVisible(true); } },600);
-  } else {
-    h.textContent='🔁 «'+t+'» - не то, ещё раз'; h.style.color='#ff8aa0';
+    setTimeout(()=>{ speechHide(); if(SCENE){ SCENE.charged=true; SCENE.missKick=false; SCENE.ui.hint.setVisible(true); } },600);
+  } else { // Рома: неверно сказал - банан всё равно летит, но криво
+    h.textContent='😅 «'+t+'» - не то! Верно: '+curPhrase.en+'. Бросок будет кривой'; h.style.color='#ffd23f';
+    say(curPhrase.en);
+    setTimeout(()=>{ speechHide(); if(SCENE){ SCENE.charged=true; SCENE.missKick=true; SCENE.ui.hint.setVisible(true); SCENE.ui.hint.setText('🌀 Кривой заряд: бросок будет со сбивом!'); } },1200);
   }
 }, st=>{ const h=document.getElementById('spHeard');
   if(st==='rec'){ h.textContent='🔴 Говорю…'; h.style.color='#ffd23f'; }

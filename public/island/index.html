@@ -107,6 +107,16 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .cap{font-size:12.5px;color:var(--ink-soft);margin-top:6px;font-style:italic}
 .cap b{color:var(--teal-d);font-style:normal}
 
+/* замок записи (свайп вверх) */
+#lockBar{position:fixed;left:12px;right:12px;bottom:calc(84px + var(--safe-b));z-index:96;background:rgba(11,31,42,.96);border-radius:16px;padding:10px 12px;display:none;align-items:center;gap:10px;color:#fff;font-weight:800;box-shadow:var(--shadow)}
+#lockBar.on{display:flex}
+#lockBar span{flex:1;font-size:14px}
+#lockBar button{border:0;border-radius:12px;padding:10px 14px;font:800 14px system-ui;cursor:pointer}
+#lockCancel{background:rgba(255,255,255,.15);color:#fff}
+#lockSend{background:linear-gradient(180deg,#3ecf6b,#2ba456);color:#fff}
+.rec-hints{position:fixed;right:78px;bottom:calc(96px + var(--safe-b));z-index:96;background:rgba(11,31,42,.85);color:#fff;border-radius:12px;padding:8px 12px;font:700 12px system-ui;display:none}
+.rec-hints.on{display:block}
+
 /* оверлей записи кружка (Telegram-стиль) */
 .rec-overlay{position:fixed;inset:0;z-index:95;background:rgba(6,20,28,.9);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;pointer-events:none}
 @keyframes recring{0%{box-shadow:0 6px 0 #b32a3b,0 0 0 0 rgba(255,90,110,.5)}70%{box-shadow:0 6px 0 #b32a3b,0 0 0 15px rgba(255,90,110,0)}100%{box-shadow:0 6px 0 #b32a3b,0 0 0 0 rgba(255,90,110,0)}}
@@ -364,8 +374,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
     <div class="quick hidden" id="onbQuick"></div>
     <div class="composer">
       <input class="txt" id="onbInput" placeholder="Текст, или зажми 🎙️/🔴" enterkeyhint="send">
-      <button class="mic" id="onbCircle" aria-label="видео-кружок" style="background:linear-gradient(180deg,#6a2cc9,#9b5cff);box-shadow:0 5px 0 #4a1f8f;font-size:20px">🔴</button>
-      <button class="mic" id="onbMic" aria-label="голосом">🎙️</button>
+      <button class="mic" id="onbRec" aria-label="запись">🎙️</button>
     </div>
   </section>
 
@@ -393,6 +402,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
         <div class="stat">🍌 <span id="stAmmo">0</span></div>
         <div class="stat">⭐ <span id="stXp">0</span></div>
         <div class="stat">🔥 <span id="stStreak">1</span></div>
+        <div class="stat">💪 <span id="stPower">100</span></div>
       </div>
       <button class="stat" id="inviteBtn" style="border:0;background:rgba(255,255,255,.2)">👥</button>
       <button class="stat" id="leagueBtn" style="border:0;background:rgba(255,255,255,.2)">🏆 <span id="stTrophy">0</span></button>
@@ -571,13 +581,14 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
     <div class="quick" id="liveTopics"></div>
     <div class="composer">
       <input class="txt" id="liveInput" placeholder="Текст, или зажми 🎙️/🔴" enterkeyhint="send">
-      <button class="mic circle" id="liveCircle" aria-label="видео-кружок" style="background:linear-gradient(180deg,#6a2cc9,#9b5cff);box-shadow:0 5px 0 #4a1f8f;font-size:20px">🔴</button>
-      <button class="mic" id="liveMic" aria-label="голосом">🎙️</button>
+      <button class="mic" id="liveRec" aria-label="запись">🎙️</button>
     </div>
   </section>
 
 </div>
 
+<!-- замок записи (свайп вверх, как в Telegram) -->
+<div id="lockBar"><span>🔒 Запись…</span><button id="lockCancel">✖️ Отмена</button><button id="lockSend">⏹ Отправить</button></div>
 <!-- запись видео-кружка (Telegram-стиль) -->
 <div class="rec-overlay" id="recOverlay">
   <div class="rec-circle" id="recCircle"><video id="recVideo" autoplay muted playsinline></video><div class="rec-ring"></div></div>
@@ -612,6 +623,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 <div class="toast" id="toast"></div>
 
 <script src="https://unpkg.com/colyseus.js@^0.16.0/dist/colyseus.js"></script>
+<script src="content-defaults.js"></script>
 <script>
 /* =================================================================
    ENGLISH KOMBAT · ОСТРОВ · Фаза 1
@@ -623,24 +635,34 @@ const $$ = s=>[...document.querySelectorAll(s)];
 
 // ---------- состояние ----------
 const S = {
-  name:'Ты', avatar:null, ammo:0, xp:0, coins:0, streak:1,
-  locDone:0, phraseIdx:0, learned:[], guest:false
+  name:'', avatar:null, ammo:0, xp:0, coins:0, streak:1,
+  locIdx:0, locDone:0, phraseIdx:0, learned:[], guest:false, level:'beginner'
 };
 const LS='ek_island_v1';
 function save(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
 function load(){try{Object.assign(S,JSON.parse(localStorage.getItem(LS)||'{}'))}catch(e){}}
 load();
+if(S.locIdx==null) S.locIdx=S.locDone||0; // миграция старых сохранений
 
-// ---------- контент: локация Пляж Чангу ----------
-const SCENE = {
-  title:'Пляж Чангу', emoji:'🏄',
-  phrases:[
-    {ru:'Одну доску, пожалуйста', en:'One board, please', ans:['one board please','one board','a board please']},
-    {ru:'Сколько это стоит?', en:'How much is it?', ans:['how much is it','how much','how much does it cost']},
-    {ru:'Вода тёплая?', en:'Is the water warm?', ans:['is the water warm','the water is warm','is water warm']},
-    {ru:'Мне нравится это место', en:'I like this place', ans:['i like this place','i love this place']},
-  ]
-};
+// ---------- КОНТЕНТ: дефолты из content-defaults.js + серверный контент Ромы поверх ----------
+let CONTENT = (typeof DEFAULT_CONTENT!=='undefined') ? JSON.parse(JSON.stringify(DEFAULT_CONTENT)) : {circles:{},probes:[],locations:[],battle:[]};
+(async function loadContent(){
+  try{
+    const r=await fetch('https://ek-pvp.13-140-178-130.sslip.io/api/island/content',{cache:'no-store'});
+    const j=await r.json();
+    if(j&&j.data){ // мерж: серверные поля поверх дефолтов
+      const d=j.data;
+      if(d.circles) CONTENT.circles=Object.assign({},CONTENT.circles,d.circles);
+      if(Array.isArray(d.probes)&&d.probes.length) CONTENT.probes=d.probes;
+      if(d.probeNone) CONTENT.probeNone=d.probeNone;
+      if(Array.isArray(d.locations)&&d.locations.length) CONTENT.locations=d.locations;
+      if(Array.isArray(d.battle)&&d.battle.length) CONTENT.battle=d.battle;
+    }
+  }catch(e){}
+})();
+// текущая локация и её фразы по уровню игрока
+function curLoc(){ return CONTENT.locations[Math.min(S.locIdx||0, CONTENT.locations.length-1)] || CONTENT.locations[0]; }
+function curPhrases(){ const l=curLoc(); if(!l) return []; const lv=l.levels||{}; return lv[S.level||'beginner']||lv.beginner||[]; }
 
 // ---------- утилиты ----------
 function norm(t){return String(t).toLowerCase().replace(/[.,!?;:'"()\-]/g,'').replace(/\s+/g,' ').trim();}
@@ -665,6 +687,7 @@ function refreshStats(){
     if(!avatarImg||avatarImg._src!==S.avatar){ avatarImg=new Image(); avatarImg._src=S.avatar; avatarImg.src=S.avatar; }
   }
   const tr=$('#stTrophy'); if(tr) tr.textContent=(S.league&&S.league.trophies)||0;
+  const pw=$('#stPower'); if(pw) pw.textContent=100+Math.min(20,(S.streak||0)*2); // скилы бойца растут со стриком
 }
 function addReward(xp,ammo){S.xp+=xp;S.ammo+=ammo;S.coins+=Math.round(xp/2);save();refreshStats();}
 
@@ -769,6 +792,91 @@ function setupCircleBtn(btn, getScroll, lang, onText, onFail){
     onText&&onText(r.text); // текст не выводим - сразу в AI
   });
 }
+/* ── TELEGRAM-ЗАПИСЬ (решение Ромы 26.07: механика 1в1 как в телеге) ──
+   одна кнопка: ТАП = переключить 🎙️/📹, ЗАЖАЛ = запись,
+   свайп ВВЕРХ = замок (пишет без пальца, ⏹/✖️), свайп ВЛЕВО = отмена */
+function setupTgBtn(btn, {getScroll, onVoice, onCircle, onFail}){
+  if(!btn) return;
+  if(!mediaOK){ btn.addEventListener('click',()=>{ btn.classList.add('rec'); webkitListen((said,final)=>{ if(final){ btn.classList.remove('rec'); const t=(said||'').trim(); if(t) onVoice(t); else (onFail?onFail():toast('Не расслышал 🎙️')); } },()=>btn.classList.remove('rec')); }); return; }
+  const mode=()=> S.recMode||'mic';
+  const icon=()=>{ btn.textContent = mode()==='mic'?'🎙️':'📹'; };
+  icon();
+  let ses=null;
+  const lockBar=$('#lockBar');
+  function cleanupUI(){ btn.classList.remove('rec'); lockBar.classList.remove('on'); const ov=$('#recOverlay'); ov&&ov.classList.remove('on'); const vv=$('#recVideo'); if(vv) vv.srcObject=null; }
+  function toggleMode(){ S.recMode = mode()==='mic'?'video':'mic'; save(); icon();
+    toast(mode()==='mic'?'Режим: голосовое 🎙️ Зажми для записи':'Режим: видео-кружок 📹 Зажми для записи'); }
+  async function beginSession(ev){
+    const video = mode()==='video';
+    const s={video, rc:null, released:false, locked:false, cancelled:false, done:false, sx:ev.clientX, sy:ev.clientY, t0:Date.now()};
+    ses=s;
+    btn.classList.add('rec');
+    if(video){ const ov=$('#recOverlay'); ov&&ov.classList.add('on'); }
+    try{
+      const rc=await recordClip({video, maxMs:120000});
+      s.rc=rc;
+      if(s.cancelled||s.done){ rc.stop(); rc.blob.then(()=>{}); cleanupUI(); return; }
+      if(video){ const vv=$('#recVideo'); if(vv) vv.srcObject=rc.stream; }
+      if(s.released && !s.locked){ finish(s); }
+    }catch(e){ ses=null; cleanupUI(); toast(video?'Нет доступа к камере 🎥':'Нет доступа к микрофону 🎙️'); }
+  }
+  function cancel(s){ if(s.done) return; s.done=true; s.cancelled=true; ses=null;
+    if(s.rc){ s.rc.stop(); s.rc.blob.then(()=>{}); }
+    cleanupUI(); toast('Отменено ✖️'); }
+  async function finish(s){
+    if(s.done) return; s.done=true; ses=null;
+    const rc=s.rc; cleanupUI();
+    if(!rc) return;
+    const heldAfter=Date.now()-rc.startTs;
+    if(heldAfter<350){ rc.stop(); rc.blob.then(()=>{}); toast('Зажми и держи, пока говоришь 🎙️'); return; }
+    rc.stop(); const blob=await rc.blob;
+    if(!blob||blob.size<1500){ if(onFail) onFail(); else toast('Запись не получилась, попробуй ещё'); return; }
+    if(s.video){
+      const url=URL.createObjectURL(blob);
+      addCircleBubble(getScroll(),'out',url);
+      const r=await transcribeSafe(blob,'auto');
+      if(!r.text||r.conf<0.45){ if(onFail) onFail(); else toast('Не расслышал 🎥'); return; }
+      onCircle(r.text);
+    } else {
+      const r=await transcribeSafe(blob,'auto');
+      if(!r.text||r.conf<0.45){ if(onFail) onFail(); else toast('Не расслышал 🎙️'); return; }
+      onVoice(r.text);
+    }
+  }
+  btn.style.touchAction='none';
+  btn.addEventListener('contextmenu',e=>e.preventDefault());
+  btn.addEventListener('pointerdown',ev=>{
+    if(ev.cancelable) ev.preventDefault(); if(ses) return;
+    if(btn.classList.contains('voice-gate')){ toast('Сначала посмотри кружок Романа 👆'); return; }
+    if(btn.classList.contains('voice-locked')){ toast('Подожди, Роман говорит 🙉'); return; }
+    try{ btn.setPointerCapture&&btn.setPointerCapture(ev.pointerId); }catch(e){}
+    beginSession(ev);
+  });
+  btn.addEventListener('pointermove',ev=>{
+    const s=ses; if(!s||s.done) return;
+    const dy=ev.clientY-s.sy, dx=ev.clientX-s.sx;
+    if(!s.locked && dy<-70){ // замок
+      s.locked=true; lockBar.classList.add('on');
+      $('#lockSend').onclick=()=>finish(s);
+      $('#lockCancel').onclick=()=>cancel(s);
+    }
+    if(!s.locked && dx<-80){ cancel(s); } // свайп влево = отмена
+  });
+  function end(){
+    const s=ses; if(!s||s.done) return;
+    s.released=true;
+    if(s.locked) return; // замок держит запись
+    const held=Date.now()-s.t0;
+    if(held<300){ // быстрый тап = переключение режима
+      s.cancelled=true; s.done=true; ses=null;
+      if(s.rc){ s.rc.stop(); s.rc.blob.then(()=>{}); }
+      cleanupUI(); toggleMode(); return;
+    }
+    if(s.rc) finish(s); // отпустил после удержания; если rc в полёте - beginSession дожмёт
+  }
+  btn.addEventListener('pointerup',end);
+  btn.addEventListener('pointercancel',end);
+}
 async function transcribeBlob(blob, lang){
   // только базовый тип без параметров: iOS даёт 'video/mp4; codecs=avc1...,mp4a...' с запятой - невалидный заголовок
   const ct=((blob.type||'').split(';')[0].trim())||'application/octet-stream';
@@ -843,30 +951,43 @@ function addMsg(side, html, mini){
 }
 // текст, который «говорит» кружок Романа (интерим-озвучка TTS; заменим на реальный голос Романа)
 // текст первого кружка (полный сценарий: docs/roman-first-circle.md; заменим на реальное видео Романа)
-const ROMAN_CIRCLE_TEXT='Йоу! Это Роман, ты на моём острове. Тут всё просто: английский - это оружие. Сказал фразу вслух - зарядил банан. Кинул банан - выиграл бой. Никакой зубрёжки: только драки, пляжи и живые люди. Через тридцать секунд у тебя первый бой. Но сначала ответь мне голосом или кружком: как тебя зовут?';
-function addVideoCircle(){
+/* ============================================================
+   ОНБОРДИНГ = ВОРОНКА РОМЫ (созвон 26.07): 2-3 касания до игры.
+   кружок1 -> «окей» -> выбор фразы уровня -> кружок2 -> «готов» -> START
+   ============================================================ */
+// кружок Романа из контента: реальное видео (если Рома записал) или TTS-озвучка текста
+function addRomanCircle(key, onWatched){
+  const c=(CONTENT.circles&&CONTENT.circles[key])||{text:'Привет!',who:'Роман',video:''};
   const row=document.createElement('div');row.className='row in';
-  row.innerHTML='<div class="mini">🎬</div><div class="vcircle" id="vc"><div class="pring"></div><div class="ring"></div><div class="face">🧔</div><div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="play"></div><div class="who">Роман</div></div>';
+  if(c.video){ // реальный кружок Ромы
+    row.innerHTML='<div class="mini">🎬</div><div class="vcircle hasvideo" style="width:190px;height:190px"><video src="'+esc(c.video)+'" playsinline preload="metadata"></video><div class="play"></div><div class="who vc-time">'+esc(c.who||'Роман')+'</div></div>';
+    chat.appendChild(row);scrollChat();
+    const vc=row.querySelector('.vcircle'), v=row.querySelector('video'), tm=row.querySelector('.vc-time');
+    let watched=false;
+    v.addEventListener('loadedmetadata',()=>{ tm.textContent=(c.who||'Роман')+' · '+fmtTime(v.duration); try{v.currentTime=0.05;}catch(e){} });
+    v.addEventListener('timeupdate',()=>{ if(vc.classList.contains('playing')) tm.textContent=fmtTime(v.currentTime)+' / '+fmtTime(v.duration); });
+    v.addEventListener('ended',()=>{ vc.classList.remove('playing'); if(!watched){watched=true; onWatched&&onWatched();} });
+    vc.addEventListener('click',()=>{ if(vc.classList.contains('playing')){ v.pause(); vc.classList.remove('playing'); } else { v.muted=false; vc.classList.add('playing'); v.play().catch(()=>{}); if(!watched){watched=true; setTimeout(()=>onWatched&&onWatched(), 1500);} } });
+    return vc;
+  }
+  // TTS-плейсхолдер
+  row.innerHTML='<div class="mini">🎬</div><div class="vcircle"><div class="pring"></div><div class="ring"></div><div class="face">🧔</div><div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="play"></div><div class="who">'+esc(c.who||'Роман')+'</div></div>';
   chat.appendChild(row);scrollChat();
-  const vc=row.querySelector('#vc'); const pring=vc.querySelector('.pring'); const who=vc.querySelector('.who');
+  const vc=row.querySelector('.vcircle'); const pring=vc.querySelector('.pring'); const who=vc.querySelector('.who');
   row.querySelectorAll('.wave i').forEach((b,i)=>b.style.animationDelay=(i*0.08)+'s');
-  const estDur=Math.max(4, Math.round(ROMAN_CIRCLE_TEXT.length/13)); // оценка длительности речи, сек
-  let iv=null;
-  // ГЕЙТ: кнопки записи неактивны, пока не посмотрел кружок Романа
-  ['onbMic','onbCircle'].forEach(id=>{ const b=document.getElementById(id); if(b) b.classList.add('voice-gate'); });
-  function stopTimer(reset){ if(iv){clearInterval(iv);iv=null;} if(reset){ pring.style.setProperty('--p',0); who.textContent='Роман'; } }
+  const estDur=Math.max(4, Math.round((c.text||'').length/13));
+  let iv=null, watched=false;
   function playCircle(){
-    if(vc.classList.contains('playing')){ speechSynthesis.cancel(); return; } // onend снимет playing
-    // посмотрел кружок -> снимаем первичный гейт (во время речи держит speakLock)
-    ['onbMic','onbCircle'].forEach(id=>{ const b=document.getElementById(id); if(b) b.classList.remove('voice-gate'); });
+    if(vc.classList.contains('playing')){ speechSynthesis.cancel(); return; }
     vc.classList.add('playing');
     const t0=Date.now();
-    who.textContent='Роман · 0:00';
-    iv=setInterval(()=>{ const el=(Date.now()-t0)/1000; who.textContent='Роман · '+fmtTime(el); pring.style.setProperty('--p', Math.min(1, el/estDur)); }, 150);
-    sayRu(ROMAN_CIRCLE_TEXT, ()=>{ vc.classList.remove('playing'); pring.style.setProperty('--p',1); stopTimer(false); setTimeout(()=>{ pring.style.setProperty('--p',0); who.textContent='Роман'; },600); });
+    who.textContent=(c.who||'Роман')+' · 0:00';
+    iv=setInterval(()=>{ const el=(Date.now()-t0)/1000; who.textContent=(c.who||'Роман')+' · '+fmtTime(el); pring.style.setProperty('--p', Math.min(1, el/estDur)); }, 150);
+    sayRu(c.text, ()=>{ vc.classList.remove('playing'); pring.style.setProperty('--p',1); if(iv){clearInterval(iv);iv=null;}
+      setTimeout(()=>{ pring.style.setProperty('--p',0); who.textContent=c.who||'Роман'; },600);
+      if(!watched){ watched=true; onWatched&&onWatched(); } });
   }
   vc.addEventListener('click',playCircle);
-  // без автозапуска: звук на iOS работает только по тапу (жест пользователя)
   return vc;
 }
 function typing(){
@@ -876,92 +997,81 @@ function typing(){
 }
 function untype(){const t=$('#typingRow');t&&t.remove();}
 
-// сценарий онбординга
-let step=0;
-const onbFlow=[
-  ()=>{ // onb2 видеокружок + приветствие
-    typing();setTimeout(()=>{untype();
-      addMsg('in','Йо! Это <b>Роман</b> 👋 Ща покажу, как тут всё устроено - жми на кружок 👇');
-      addVideoCircle();
-      setTimeout(()=>{ q(['Привет 👋','Го, показывай']); },700);
-    },1100);
-  },
-  ()=>{ // onb7 voice-first обещание
-    typing();setTimeout(()=>{untype();
-      addMsg('in','Правило острова простое: <b>сказал по-английски - сделал ход.</b> Никакой зубрёжки. За 30 секунд уже подерёшься 🥊🍌');
-      setTimeout(()=>{ addMsg('in','Как тебя звать? Кинь имя или ответь голосом 🎙️'); enableInput('name'); },700);
-    },1000);
-  },
-  ()=>{ // ЦЕЛЬ (фидбек Романа: вести к цели, уклон в переезд/путешествия)
-    typing();setTimeout(()=>{untype();
-      addMsg('in','И сразу по-честному, <b>'+esc(S.name)+'</b> - зачем тебе английский? Это важно 👇');
-      setTimeout(()=>{ onbAwait='goal'; q(['Переехать в другую страну 🌍','Путешествовать по миру ✈️','Работа за границей 💼','Свой вариант']); },700);
-    },1000);
-  },
-  ()=>{ // после цели → предложить фото
-    typing();setTimeout(()=>{untype();
-      addMsg('in','Красавчик, <b>'+esc(S.name)+'</b>! 🤙 Теперь лицо бойца - скинь фотку, поставлю на аватарку.');
-      setTimeout(()=>{ q(['📸 Скинуть фото','Позже']); },600);
-    },1000);
-  },
-];
-function pickGoal(label){
-  onbAwait=null; inputMode=null;
-  S.goal=String(label).slice(0,60); save();
-  const travel=/переехать|путешеств|за границ|страну|мир|relocat|travel|move/i.test(label);
-  typing();setTimeout(()=>{untype();
-    if(travel) addMsg('in','Вот это цель 🔥 Английский - твой билет туда. Каждая страна на карте острова = шаг к ней. Дойдём вместе 💪');
-    else addMsg('in','Уважаю 🔥 Тогда договорились: качаем английский до этой цели. Остров тебя доведёт 💪');
-    setTimeout(()=>nextStep(),950); // → фото
-  },1000);
-}
-function runStep(){ if(step<onbFlow.length) onbFlow[step](); }
-function nextStep(){ step++; runStep(); }
-
 function q(labels){
   const box=$('#onbQuick');box.innerHTML='';box.classList.remove('hidden');
   labels.forEach(l=>{const b=document.createElement('button');b.className='chip';b.textContent=l;
     b.onclick=()=>{box.classList.add('hidden');onQuick(l);};box.appendChild(b);});
 }
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
-let inputMode=null, onbAwait=null;
-function enableInput(mode){inputMode=mode;$('#onbInput').focus();}
-function onQuick(label){
-  if(onbAwait==='goal'){
-    if(/свой вариант/i.test(label)){ addMsg('in','Напиши своими словами - какая у тебя цель? 👇'); onbAwait=null; enableInput('goal'); return; }
-    addMsg('out',esc(label)); pickGoal(label); return;
-  }
-  if(/фото/i.test(label)){ addMsg('out','📸 Скидываю фото'); openAvatarFromChat(); return; }
-  if(/позже/i.test(label)){ addMsg('out','Позже'); goToMapFirstTime(); return; }
+let inputMode=null, onbAwait=null; // onbAwait: 'hello'|'probe'|'ready'
+let step=0; // legacy для совместимости
+
+// ШАГ 1: кружок-приветствие
+function runStep(){
+  onbAwait='hello';
+  ['onbRec'].forEach(id=>{ const b=document.getElementById(id); if(b) b.classList.add('voice-gate'); });
+  typing();setTimeout(()=>{untype();
+    addMsg('in','Йо! Это <b>Роман</b> 👋 Жми на кружок 👇');
+    addRomanCircle('c1', ()=>{ ['onbRec'].forEach(id=>{ const b=document.getElementById(id); if(b) b.classList.remove('voice-gate'); }); });
+    setTimeout(()=>{ q(['Окей 👌','Привет 👋']); },700);
+  },1000);
+}
+// ШАГ 2: выбор фразы уровня (через секунду после «окей», как просил Рома)
+function askProbe(){
+  onbAwait='probe';
+  typing();setTimeout(()=>{untype();
+    addMsg('in','Выбери фразу, которую понимаешь или можешь перевести 👇');
+    const labels=(CONTENT.probes||[]).map(p=>p.en);
+    labels.push(CONTENT.probeNone||'Ничего не понял 🤷');
+    q(labels);
+  },900);
+}
+function pickProbe(label){
+  const probes=CONTENT.probes||[];
+  const hit=probes.find(p=>p.en===label);
+  const level=hit?hit.level:'beginner';
+  S.level=level; S.track=(level==='advanced')?'advanced':'basic'; save();
   addMsg('out',esc(label));
-  if(step===0){nextStep();}
+  // ШАГ 3: кружок2 - настройка + кнопка старта
+  onbAwait='ready';
+  typing();setTimeout(()=>{untype();
+    addRomanCircle('c2', null);
+    setTimeout(()=>{ q(['Готов! 🚀','Окей 👌']); },700);
+  },900);
+}
+// ШАГ 4: кнопка START прямо в чате
+function addStartButton(){
+  onbAwait=null;
+  const row=document.createElement('div');row.className='row in';
+  row.innerHTML='<div class="mini">🎬</div><div><button class="btn sun" id="bigStart" style="font-size:22px;padding:18px 42px">🚀 START</button></div>';
+  chat.appendChild(row);scrollChat();
+  $('#bigStart').addEventListener('click',()=>goToMapFirstTime());
+}
+function onQuick(label){
+  if(onbAwait==='hello'){ addMsg('out',esc(label)); setTimeout(askProbe,300); return; }
+  if(onbAwait==='probe'){ pickProbe(label); return; }
+  if(onbAwait==='ready'){ addMsg('out',esc(label)); setTimeout(addStartButton,400); return; }
+  addMsg('out',esc(label));
 }
 $('#onbInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){submitInput($('#onbInput').value);} });
 function submitInput(v){
   v=v.trim(); if(!v) return; $('#onbInput').value='';
-  if(inputMode==='name'){ S.name=v.slice(0,18); save(); addMsg('out',esc(S.name)); inputMode=null; nextStep(); return; }
-  if(inputMode==='goal'){ addMsg('out',esc(v)); pickGoal(v); return; }
+  // текстовый ответ двигает воронку так же, как кнопка
+  if(onbAwait==='hello'){ addMsg('out',esc(v)); setTimeout(askProbe,300); return; }
+  if(onbAwait==='ready'){ addMsg('out',esc(v)); setTimeout(addStartButton,400); return; }
+  if(onbAwait==='probe'){ onbFreeReply(v,true); return; } // на шаге выбора просим кнопку
   addMsg('out',esc(v));
 }
-// любая голосовая/кружок-реплика в онбординге обрабатывается: имя/цель -> форма, свободная -> Роман отвечает по AI
 function onbHandleVoice(t, echo){
-  if(inputMode==='name'||inputMode==='goal'){ submitInput(t); return; }
-  if(onbAwait==='goal'){ addMsg('out',esc(t)); pickGoal(t); return; } // сказал цель голосом на шаге выбора
-  onbFreeReply(t, echo); // свободная реплика -> живой ответ Романа
+  if(onbAwait==='hello'){ if(echo)addMsg('out',esc(t)); setTimeout(askProbe,300); return; }
+  if(onbAwait==='ready'){ if(echo)addMsg('out',esc(t)); setTimeout(addStartButton,400); return; }
+  onbFreeReply(t, echo);
 }
-// текущий шаг сценария онбординга (для возврата после свободной реплики)
-function onbStep(){
-  if(step===0) return 'watch';       // ещё не нажал «Го, показывай»
-  if(!S.name) return 'name';
-  if(!S.goal) return 'goal';
-  return 'photo';
-}
-// вернуть кнопки текущего шага, чтобы сценарий не терялся
+function onbStep(){ return onbAwait==='hello'?'watch':(onbAwait==='probe'?'probe':(onbAwait==='ready'?'ready':'done')); }
 function onbReshowButtons(){
-  const st=onbStep();
-  if(st==='watch'){ q(['Привет 👋','Го, показывай']); }
-  else if(st==='goal'&&onbAwait==='goal'){ q(['Переехать в другую страну 🌍','Путешествовать по миру ✈️','Работа за границей 💼','Свой вариант']); }
-  else if(st==='photo'){ q(['📸 Скинуть фото','Позже']); }
+  if(onbAwait==='hello'){ q(['Окей 👌','Привет 👋']); }
+  else if(onbAwait==='probe'){ const labels=(CONTENT.probes||[]).map(p=>p.en); labels.push(CONTENT.probeNone||'Ничего не понял 🤷'); q(labels); }
+  else if(onbAwait==='ready'){ q(['Готов! 🚀','Окей 👌']); }
 }
 async function onbFreeReply(text, echo){
   if(echo) addMsg('out',esc(text));
@@ -975,19 +1085,25 @@ async function onbFreeReply(text, echo){
   untype(); addMsg('in',reply,'🎬');
   onbReshowButtons();
 }
-// hold-to-record: микрофон и видео-кружок в онбординге
-setupVoiceBtn($('#onbMic'), {lang:'auto', onFail:()=>addMsg('in',notUnderstoodLine(),'🎬')}, t=>onbHandleVoice(t, true));
-setupCircleBtn($('#onbCircle'), ()=>$('#chatScroll'), 'auto', t=>onbHandleVoice(t, false), ()=>addMsg('in',notUnderstoodLine(),'🎬'));
 
+// telegram-кнопка записи в онбординге (тап=режим, зажал=запись, вверх=замок, влево=отмена)
+setupTgBtn($('#onbRec'), {
+  getScroll:()=>$('#chatScroll'),
+  onVoice:t=>onbHandleVoice(t,true),
+  onCircle:t=>onbHandleVoice(t,false),
+  onFail:()=>addMsg('in',notUnderstoodLine(),'🎬')
+});
+
+let avatarFrom='onb';
 function openAvatarFromChat(){ screen('s-ava'); }
 function goToMapFirstTime(){
   S.guest = S.guest||false;
   screen('s-map'); $('#tabbar').dataset.armed='1'; $('#tabbar').classList.add('on'); selTab('map');
-  refreshStats();
-  setTimeout(()=>toast('🎉 Добро пожаловать на остров, '+S.name+'!'),400);
-  // всплывающий чат поверх игры (habit5)
+  restoreMapPoints(); refreshStats();
+  setTimeout(()=>toast('🎉 Добро пожаловать на остров! Жми на точку и вперёд'),400);
+  setTimeout(()=>toast('📸 Тапни по аватарке слева сверху - поставь своё фото бойцу'),3200);
   setTimeout(()=>{$('#floatChat').dataset.armed='1';if($('#s-map').classList.contains('on'))$('#floatChat').classList.add('on');},1500);
-  checkVsChallenge(); // пришёл по ссылке-вызову друга
+  checkVsChallenge();
 }
 
 /* =====================================================================
@@ -1014,28 +1130,19 @@ $('#avaFile').addEventListener('change',e=>{
   r.readAsDataURL(f);
 });
 async function afterAvatar(hadPhoto){
-  screen('s-onb');
-  if(hadPhoto){
-    // ava2 - живой комплимент от AI за фото
-    typing();
-    let line='🔥 Огонь! Вот это боец. Погнали на остров 🏝️';
-    try{
-      const r=await fetch(API+'/api/island/chat',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({persona:'roman',userName:S.name,messages:[{role:'user',content:'(I just set my profile photo. React with ONE short hyped compliment about my vibe as a fighter, then say lets go to the island. Keep it fun.)'}]})});
-      const j=await r.json(); if(j&&j.reply) line=j.reply;
-    }catch(e){}
-    untype(); addMsg('in',line,'🎬');
-  } else {
-    addMsg('in','Ок, аватарку добьём позже. Погнали на остров 🏝️','🎬');
-  }
-  setTimeout(goToMapFirstTime,1000);
+  // аватар теперь ставится с карты (тап по аватарке) - возвращаемся на карту
+  screen('s-map'); selTab('map'); refreshStats();
+  if(hadPhoto) toast('🔥 Огонь! Вот это боец');
 }
 
 /* =====================================================================
    3 · КАРТА
    ===================================================================== */
-$('#pt0').addEventListener('click',()=>openScene());
-$$('.pt.lock').forEach(p=>p.addEventListener('click',()=>toast('🔒 Сначала пройди Пляж Чангу')));
+['pt0','pt1','pt2','pt3'].forEach((id,i)=>{ const el=$('#'+id); el&&el.addEventListener('click',()=>{
+  if(el.classList.contains('active')){ openScene(); }
+  else if(el.classList.contains('done')){ toast('✅ Уже пройдено!'); }
+  else { const cur=CONTENT.locations[Math.min(S.locDone|0,3)]; toast('🔒 Сначала пройди «'+(cur?cur.title:'предыдущую')+'»'); }
+});});
 $('#countryLock')&&$('#countryLock').addEventListener('click',()=>openWorld());
 
 function selTab(name){
@@ -1056,52 +1163,83 @@ $$('.tab').forEach(t=>t.addEventListener('click',()=>{
 $('#sceneBack').onclick=()=>{screen('s-map');selTab('map');};
 function renderSceneDots(){
   const d=$('#sceneDots');d.innerHTML='';
-  SCENE.phrases.forEach((_,i)=>{const s=document.createElement('i');
+  curPhrases().forEach((_,i)=>{const s=document.createElement('i');
     if(i<S.phraseIdx)s.className='done';else if(i===S.phraseIdx)s.className='cur';d.appendChild(s);});
 }
 function loadPhrase(){
-  if(S.phraseIdx>=SCENE.phrases.length){ sceneComplete(); return; }
-  const p=SCENE.phrases[S.phraseIdx];
-  $('#sceneTitle').textContent=SCENE.title; $('#sceneEmoji').textContent=SCENE.emoji;
+  const ph=curPhrases();
+  if(S.phraseIdx>=ph.length){ sceneComplete(); return; }
+  const p=ph[S.phraseIdx]; const loc=curLoc();
+  $('#sceneTitle').textContent=loc.title; $('#sceneEmoji').textContent=loc.emoji;
   $('#sceneRu').textContent=p.ru; $('#sceneEn').textContent=p.en;
   $('#sceneHint').textContent='Нажми 🎙️ и произнеси вслух';
   $('#sceneHeard').textContent=''; $('#sceneHeard').className='heard';
   $('#sceneMic').innerHTML='🎙️ Держи и говори';
   renderSceneDots(); refreshStats();
 }
-function openScene(){ screen('s-scene'); selTab('scene'); if(S.phraseIdx>=SCENE.phrases.length)S.phraseIdx=0; loadPhrase(); }
+function openScene(){
+  if((S.locIdx|0)>=CONTENT.locations.length){ islandDoneSheet(); return; } // весь остров пройден
+  screen('s-scene'); selTab('scene');
+  if(S.phraseIdx>=curPhrases().length)S.phraseIdx=0;
+  loadPhrase();
+}
 setupVoiceBtn($('#sceneMic'), {lang:'en'}, said=>{
-  const p=SCENE.phrases[S.phraseIdx]; const h=$('#sceneHeard'); const btn=$('#sceneMic');
+  const p=curPhrases()[S.phraseIdx]; if(!p) return; const h=$('#sceneHeard'); const btn=$('#sceneMic');
   if(matchPhrase(said,p.ans)){ h.className='heard ok'; h.textContent='✅ «'+said+'»'; phraseWin(); }
   else { h.className='heard no'; h.textContent='🔁 услышал: «'+said+'» - держи и скажи ещё'; btn.innerHTML='🎙️ Держи и говори'; }
 });
-$('#sceneSay').addEventListener('click',()=>{ const p=SCENE.phrases[S.phraseIdx]; if(p) say(p.en); }); // послушать фразу (для тех кто не шарит)
-$('#sceneReveal').addEventListener('click',()=>{ // learn4 shadowing / lvl5 "не знаю"
-  const p=SCENE.phrases[S.phraseIdx];
+$('#sceneSay').addEventListener('click',()=>{ const p=curPhrases()[S.phraseIdx]; if(p) say(p.en); }); // послушать фразу
+$('#sceneReveal').addEventListener('click',()=>{ // shadowing
+  const p=curPhrases()[S.phraseIdx]; if(!p) return;
   say(p.en);
   $('#sceneHint').textContent='Повтори за мной 👂 (shadowing)';
 });
 function phraseWin(){
-  const p=SCENE.phrases[S.phraseIdx];
+  const p=curPhrases()[S.phraseIdx];
   S.learned.push(p); S.phraseIdx++;
-  addReward(10,1); // rew: XP + банан-боеприпас (rew1)
+  addReward(10,1);
   confetti(); say(p.en);
   toast('+1 🍌  +10 ⭐');
   setTimeout(loadPhrase,900);
 }
 function sceneComplete(){
-  // касание 1 пройдено → зовём в бой (касание 2)
-  sheet({emoji:'🍌', title:'Патроны собраны!', text:'Ты выучил '+SCENE.phrases.length+' фразы на Пляже Чангу. Теперь проверим их в бою!',
-    rewards:[['🍌',S.ammo],['⭐',S.xp]], cta:'В бой 🥊', onCta:()=>{closeSheet();openFight();}});
+  const loc=curLoc(); const done=S.locIdx+1;
   markPointDone();
+  if(done>=CONTENT.locations.length){ // Рома: после 4 локаций - предложение доиграть за подписку
+    S.locIdx=done; S.phraseIdx=0; save();
+    islandDoneSheet();
+    return;
+  }
+  S.locIdx=done; S.phraseIdx=0; save();
+  sheet({emoji:'🍌', title:loc.title+' - пройдено!', text:'Фразы выучены и стали патронами. Проверь их в бою - или иди дальше: открылась локация «'+CONTENT.locations[done].title+'»!',
+    rewards:[['🍌',S.ammo],['⭐',S.xp]], cta:'В бой 🥊', onCta:()=>{closeSheet();openFight();}});
+}
+function islandDoneSheet(){
+  sheet({emoji:'🏝️', title:'Ты прошёл весь Бали!', text:'4 локации, все фразы твои. Дальше - новые страны, безлимитные диалоги и битвы. Это уже в Premium 👑',
+    rewards:[['⭐',S.xp],['🏆',(S.league&&S.league.trophies)||0]], cta:'👑 Открыть Premium', onCta:()=>{closeSheet();showPaywall('country');}});
 }
 function markPointDone(){
-  const pt=$('#pt0'); pt.classList.remove('active');pt.classList.add('done');pt.querySelector('.dot').textContent='✅';
-  // разблокировать кафе
-  const p1=$('#pt1'); p1.classList.remove('lock');p1.classList.add('active');p1.querySelector('.badge')&&p1.querySelector('.badge').remove();
-  S.locDone=Math.max(S.locDone,1);
-  const pct=Math.min(100,25+S.locDone*25); $('#mapBar').style.width=pct+'%'; $('#mapPct').textContent=pct;
+  const i=S.locIdx|0;
+  const pt=$('#pt'+i);
+  if(pt){ pt.classList.remove('active');pt.classList.add('done');pt.querySelector('.dot').textContent='✅'; const b=pt.querySelector('.badge'); b&&b.remove(); }
+  const nx=$('#pt'+(i+1));
+  if(nx){ nx.classList.remove('lock');nx.classList.add('active'); const b=nx.querySelector('.badge'); b&&b.remove(); }
+  S.locDone=Math.max(S.locDone,i+1);
+  const pct=Math.min(100,(i+1)*25); $('#mapBar').style.width=pct+'%'; $('#mapPct').textContent=pct;
   save();
+}
+// восстановление карты по прогрессу (вызывается на boot)
+function restoreMapPoints(){
+  const n=Math.min(S.locDone|0, 4);
+  for(let i=0;i<4;i++){
+    const pt=$('#pt'+i); if(!pt) continue;
+    pt.classList.remove('active','lock','done');
+    const b=pt.querySelector('.badge');
+    if(i<n){ pt.classList.add('done'); pt.querySelector('.dot').textContent='✅'; b&&b.remove(); }
+    else if(i===n){ pt.classList.add('active'); b&&b.remove(); }
+    else { pt.classList.add('lock'); }
+  }
+  const pct=Math.min(100,n*25); $('#mapBar').style.width=pct+'%'; $('#mapPct').textContent=pct;
 }
 
 /* =====================================================================
@@ -1134,7 +1272,7 @@ const LEAGUE=[
 function leagueReward(i){ return i>=LEAGUE.length-1?100:(10+i*5); }
 function openFight(opts){
   screen('s-fight'); selTab('fight'); fitCanvas();
-  const pool = S.learned.length?S.learned:SCENE.phrases;
+  const pool = S.learned.length?S.learned:curPhrases();
   let foe, league=null;
   if(opts&&opts.ghost){ foe={n:opts.ghost.n,e:opts.ghost.e||'🥷'}; league={idx:-1, hp:1, dmg:1, acc:0.5, ghost:true}; }
   else if(opts&&typeof opts.idx==='number'){ const t=LEAGUE[opts.idx]; const p=t.key==='boss'?{n:t.n,e:t.e}:(PERSONAS[t.key]||{n:'Соперник',e:'😈'});
@@ -1162,9 +1300,13 @@ setupVoiceBtn($('#fightMic'), {lang:'en'}, said=>{
   if(F.pvp&&F.pvp.turn!==F.pvp.my){ toast('Сейчас ход соперника ⏳'); return; }
   if(F.charged) return;
   const h=$('#fightHeard'); const btn=$('#fightMic');
-  if(matchPhrase(said,F.phrase.ans)){ h.textContent='✅ заряжено!'; F.charged=true; say(F.phrase.en);
+  if(matchPhrase(said,F.phrase.ans)){ h.textContent='✅ заряжено!'; F.charged=true; F.missKick=false; say(F.phrase.en);
     $('#powerWrap').classList.add('on'); startPower(); $('#aimHint').textContent='Держи силу и жми 🍌 Бросить'; btn.innerHTML='✅ Заряжено'; }
-  else { h.textContent='🔁 «'+said+'» - не то, держи и скажи ещё'; btn.innerHTML='🎙️ Держи и говори'; }
+  else { // решение Ромы: неверно сказал - бросок ВСЁ РАВНО летит, но криво
+    h.textContent='😅 «'+said+'» - не то! Правильно: '+F.phrase.en+'. Бросок будет кривой';
+    say(F.phrase.en);
+    F.charged=true; F.missKick=true;
+    $('#powerWrap').classList.add('on'); startPower(); $('#aimHint').textContent='Бросок пойдёт криво 😅 Жми 🍌'; btn.innerHTML='🌀 Кривой заряд'; }
 });
 function startPower(){
   F.power=0;F.powerDir=1;F.powering=true;
@@ -1181,7 +1323,13 @@ $('#fireBtn').addEventListener('click',()=>{
     return;
   }
   const r=cv.getBoundingClientRect(); const gy=groundY(r.height);
-  F.banana={ x:70, y:gy-44, vx:(3+p*5), vy:-(5+p*5), r:14, done:false };
+  let vx=(3+p*5), vy=-(5+p*5);
+  if(F.missKick){ // неверная фраза: бросок летит криво (сбив вектора)
+    vx*= (0.45+Math.random()*0.95); vy*= (0.5+Math.random()*0.85);
+    toast('🌀 Криво полетел!');
+  }
+  F.banana={ x:70, y:gy-44, vx, vy, r:14, done:false };
+  F.missKick=false;
   $('#powerWrap').classList.remove('on'); $('#aimHint').textContent='';
 });
 function foeShoot(){
@@ -1281,8 +1429,9 @@ function loopFight(){
   };
   tick();
 }
+function streakMul(){ return 1+Math.min(0.2,(S.streak||0)*0.02); } // до +20% урона за стрик
 function hitFoe(){
-  const dmg=F.weapon.dmg; F.foeHp-=Math.round(dmg[0]+Math.random()*(dmg[1]-dmg[0])); if(F.foeHp<0)F.foeHp=0; updateHp(); shake();
+  const dmg=F.weapon.dmg; F.foeHp-=Math.round((dmg[0]+Math.random()*(dmg[1]-dmg[0]))*streakMul()); if(F.foeHp<0)F.foeHp=0; updateHp(); shake();
   toast(F.weapon.em+' Попал!');
   if(F.foeHp<=0){ winFight(); return; }
   setTimeout(()=>{ foeShoot(); setTimeout(nextFightPhrase,600); },700);
@@ -1290,7 +1439,7 @@ function hitFoe(){
 function missShot(){ toast('🌴 Мимо!'); setTimeout(()=>{foeShoot();setTimeout(nextFightPhrase,500);},500); }
 // близкий промах: урон взрывной волной по расстоянию
 function splashFoe(d){
-  const dmg=Math.max(5, Math.round(F.weapon.dmg[0]*(1-d/110)*0.7));
+  const dmg=Math.max(5, Math.round(F.weapon.dmg[0]*(1-d/110)*0.7*streakMul()));
   F.foeHp-=dmg; if(F.foeHp<0)F.foeHp=0; updateHp(); shake();
   toast('💥 Взрывной волной задело! -'+dmg);
   if(F.foeHp<=0){ winFight(); return; }
@@ -1351,7 +1500,7 @@ let romanQ=null;
 function openRomanChat(){
   screen('s-onb'); selTab('chatR'); $('#onbStatus').textContent='закрепляем пройденное';
   $('#onbQuick').classList.add('hidden');
-  const learned = S.learned.length?S.learned:SCENE.phrases;
+  const learned = S.learned.length?S.learned:curPhrases();
   const p=learned[Math.floor(Math.random()*learned.length)];
   typing();setTimeout(()=>{untype();
     addMsg('in','Красава! 🔥 Быстрый чек - как по-английски будет:','🎬');
@@ -1387,7 +1536,7 @@ $('#floatChat').addEventListener('click',()=>{ $('#floatChat').classList.remove(
    ===================================================================== */
 function fmtTime(sec){ sec=Math.max(0,sec||0); return Math.floor(sec/60)+':'+String(Math.floor(sec%60)).padStart(2,'0'); }
 // блокировка кнопок записи, пока звучит TTS (нельзя писать поверх речи Романа)
-const VOICE_BTN_IDS=['onbMic','onbCircle','liveMic','liveCircle','lobbyMic','sceneMic','fightMic','duelMic'];
+const VOICE_BTN_IDS=['onbRec','liveRec','lobbyMic','sceneMic','fightMic','duelMic'];
 let speakingCount=0;
 function voiceLock(on){ VOICE_BTN_IDS.forEach(id=>{ const b=document.getElementById(id); if(b) b.classList.toggle('voice-locked', on); }); }
 function speakLock(d){ speakingCount=Math.max(0, speakingCount+d); voiceLock(speakingCount>0); }
@@ -1524,7 +1673,7 @@ function checkStreak(){
       const diff=(new Date(today)-new Date(last))/86400000;
       if(diff===1){S.streak=(S.streak||0)+1;}
       else if(diff===2 && !S.usedFreeze){S.usedFreeze=true;S.streak=(S.streak||0)+1;toast('🧊 Прощаю 1 пропуск - стрик спасён!');}
-      else {S.streak=1;S.usedFreeze=false; if(S.locDone>0)setTimeout(()=>toast('🛂 Паспорт отозван - стрик сгорел. Начнём заново!'),1200);}
+      else {S.streak=1;S.usedFreeze=false; if(S.locDone>0){setTimeout(()=>toast('🛂 Паспорт отозван - стрик сгорел!'),1200);setTimeout(()=>toast('💪 Скилы бойца упали до 100. Вернись в форму!'),3000);}}
     } else {S.streak=S.streak||1;}
     S.lastDay=today; save();
   }
@@ -1550,19 +1699,18 @@ function boot(){
   proceedBoot();
 }
 function proceedBoot(){
-  if(S.lastDay && S.locDone>0 && S.avatar!==undefined && localStorage.getItem(LS)){
+  if(S.lastDay && S.locDone>0 && localStorage.getItem(LS)){
     // возвращающийся игрок - сразу на карту
-    screen('s-map'); $('#tabbar').dataset.armed='1'; $('#tabbar').classList.add('on'); selTab('map'); refreshStats();
-    // восстановить статус точек
-    if(S.locDone>0){const pt=$('#pt0');pt.classList.remove('active');pt.classList.add('done');pt.querySelector('.dot').textContent='✅';
-      const p1=$('#pt1');p1.classList.remove('lock');p1.classList.add('active');const b=p1.querySelector('.badge');b&&b.remove();
-      const pct=Math.min(100,25+S.locDone*25);$('#mapBar').style.width=pct+'%';$('#mapPct').textContent=pct;}
+    screen('s-map'); $('#tabbar').dataset.armed='1'; $('#tabbar').classList.add('on'); selTab('map');
+    restoreMapPoints(); refreshStats();
     setTimeout(()=>{$('#floatChat').dataset.armed='1';if($('#s-map').classList.contains('on'))$('#floatChat').classList.add('on');},1400);
     checkVsChallenge(); // пришёл по ссылке-вызову друга
   } else {
-    screen('s-onb'); step=0; runStep();
+    screen('s-onb'); runStep();
   }
 }
+// фото бойца - тапом по аватарке на карте (вынесено из онбординга по решению Ромы: минимум касаний)
+$('#mapPfp').addEventListener('click',()=>{ screen('s-ava'); });
 /* =====================================================================
    7 · ЖИВОЕ ОБЩЕНИЕ (AI) - Фаза 2
    ===================================================================== */
@@ -1668,7 +1816,7 @@ async function sendLive(text){
   save(); liveBusy=false;
 }
 $('#liveInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();sendLive($('#liveInput').value);} });
-setupVoiceBtn($('#liveMic'), {lang:'en', onFail:()=>addLiveBubble('in',notUnderstoodLine(),'')}, t=>sendLive(t));
+
 // общий рендер кружка (в любом чате)
 function addCircleBubble(scrollEl, side, url){
   const row=document.createElement('div');row.className='row '+side;
@@ -1689,7 +1837,14 @@ async function liveSendFromVoice(text){
   liveTyping(false);
   h.push({role:'assistant',content:res.reply}); addLiveBubble('in',res.reply,''); addReward(5,0); save();
 }
-setupCircleBtn($('#liveCircle'), ()=>liveScroll, 'auto', t=>liveSendFromVoice(t), ()=>addLiveBubble('in',notUnderstoodLine(),''));
+// telegram-кнопка записи в живом чате
+setupTgBtn($('#liveRec'), {
+  getScroll:()=>liveScroll,
+  onVoice:t=>sendLive(t),
+  onCircle:t=>liveSendFromVoice(t),
+  onFail:()=>addLiveBubble('in',notUnderstoodLine(),'')
+});
+
 $('#liveBack').onclick=()=>{screen('s-map');selTab('map');refreshStats();};
 // talk4 - AI разбирает диалог
 $('#liveAnalyze').onclick=()=>analyzeDialog();
@@ -1868,7 +2023,7 @@ function startPvpFight(st){
   const my=duelRoom.sessionId;
   const otherSid=Object.keys(st.players).find(k=>k!==my);
   screen('s-fight'); selTab('fight'); fitCanvas();
-  const pool=S.learned.length?S.learned:SCENE.phrases;
+  const pool=S.learned.length?S.learned:curPhrases();
   F={ meHp:100,meMax:100,foeHp:100,foeMax:100, charged:false, phrase:null, pool, banana:null, power:0, powering:false, powerDir:1,
       wind:st.wind, weapon:currentWeapon(), foe:{n:(st.players[otherSid]||{}).name||'Соперник', e:'🧑'},
       pvp:{ my, other:otherSid, turn:st.turn, anim:null } };

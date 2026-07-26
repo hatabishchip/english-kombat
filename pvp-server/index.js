@@ -784,7 +784,7 @@ const app = express();
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Token');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Token, X-Admin-Password');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
@@ -1123,7 +1123,9 @@ const ISLAND_PERSONAS = {
 };
 // шаги онбординга: к чему вернуть игрока после свободной реплики
 const ONB_STEPS = {
-  watch: 'предложи нажать на видео-кружок и посмотреть, как тут всё устроено',
+  watch: 'предложи нажать на видео-кружок и посмотреть, как тут всё устроено, и ответить «окей»',
+  probe: 'предложи выбрать кнопкой одну из фраз, которую он понимает - так игра поймёт его уровень',
+  ready: 'скажи, что кнопка старта уже в чате - пусть жмёт и заходит в игру',
   name: 'спроси, как его зовут',
   goal: 'спроси, зачем ему английский (переезд, путешествия, работа)',
   photo: 'предложи скинуть фото для аватарки бойца',
@@ -1256,6 +1258,25 @@ app.post('/api/island/judge', async (req, res) => {
   } catch (e) {
     return res.json({ score: 55, verdict: 'Засчитано! 👊', better: '' });
   }
+});
+
+// ─── ISLAND · CONTENT (контент игры: фразы/уровни/кружки; редактирует Роман через админку) ───
+app.get('/api/island/content', async (_, res) => {
+  if (!pgPool) return res.json({ data: null });
+  try {
+    const { rows } = await pgPool.query("SELECT data, updated_at FROM kv_store WHERE key = 'island-content-v1'");
+    res.json(rows.length ? { data: rows[0].data, updatedAt: rows[0].updated_at } : { data: null });
+  } catch (e) { res.status(500).json({ error: 'db' }); }
+});
+app.post('/api/island/content', checkAdmin, async (req, res) => {
+  if (!pgPool) return res.status(503).json({ error: 'no db' });
+  const data = req.body && req.body.data;
+  if (!data) return res.status(400).json({ error: 'data required' });
+  try {
+    await pgPool.query(`INSERT INTO kv_store (key, data, updated_at) VALUES ('island-content-v1', $1, now())
+      ON CONFLICT (key) DO UPDATE SET data = $1, updated_at = now()`, [JSON.stringify(data)]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'db' }); }
 });
 
 // ─── ISLAND · DIALOG ANALYSIS (talk4 — AI разбирает диалог) ───
