@@ -13,15 +13,17 @@
   .wrap{max-width:760px;margin:0 auto;padding:14px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
   .card h2{font-size:15px;margin:0 0 4px;color:#ffd23f}
-  .card .sub{font-size:12.5px;color:var(--mut);margin:0 0 12px;line-height:1.45}
+  .card .sub{font-size:12.5px;color:var(--mut);margin:0 0 12px;line-height:1.5}
   label{font-size:12px;color:var(--mut);display:block;margin:8px 0 4px}
   input,textarea,select{width:100%;background:#0d2634;border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:10px;font-size:14px;font-family:inherit}
+  input[type=radio]{width:22px;height:22px;padding:0;margin:0;border:0;background:transparent;accent-color:var(--teal)}
   textarea{min-height:70px;resize:vertical}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .prow{display:grid;grid-template-columns:1fr 1fr 1.4fr 34px;gap:6px;margin-bottom:6px}
   .prow input{padding:8px;font-size:13px}
   .del{background:#3a1c24;border:1px solid #6e2a3a;color:#ff8aa0;border-radius:10px;font-size:15px;cursor:pointer}
   .add{background:#123c2e;border:1px solid #1f6a4e;color:#5ef2c9;border-radius:10px;padding:9px;width:100%;font-weight:700;cursor:pointer;font-size:13px}
+  .btn2{background:#0d2634;border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:11px;width:100%;font-weight:700;cursor:pointer;font-size:14px}
   .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
   .tab{padding:8px 12px;border-radius:10px;background:#0d2634;border:1px solid var(--line);color:var(--mut);font-weight:700;font-size:13px;cursor:pointer}
   .tab.on{background:var(--teal);color:#062a26;border-color:var(--teal)}
@@ -33,14 +35,48 @@
   #login input{text-align:center;font-size:16px}
   #login button{margin-top:12px;width:100%;background:var(--teal);border:0;border-radius:14px;color:#062a26;font:800 16px system-ui;padding:14px;cursor:pointer}
   #app{display:none}
-  .hint{font-size:12px;color:var(--mut)}
+  .hint{font-size:12px;color:var(--mut);line-height:1.45}
+
+  /* блоки анкеты и теста */
+  .block{border:1px solid var(--line);border-radius:12px;padding:10px;margin:10px 0;background:#0d2634}
+  .block > .cap{font-size:12.5px;color:#ffd23f;font-weight:700;margin-bottom:6px}
+  .block input,.block textarea{background:#0b1f2a}
+  .qhead{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .qnum{background:var(--teal);color:#062a26;font:800 12px system-ui;border-radius:8px;padding:5px 9px;white-space:nowrap}
+  .qtag{font-size:11.5px;color:var(--mut);flex:1;line-height:1.35}
+  .orow{display:grid;grid-template-columns:26px 1fr 38px;gap:8px;align-items:center;margin-bottom:6px}
+  .orow input[type=text]{padding:9px;font-size:13.5px}
+  .krow{display:grid;grid-template-columns:1fr 38px;gap:8px;align-items:center;margin-bottom:6px}
+  .krow input{padding:9px;font-size:13.5px}
+  .rightnote{font-size:11.5px;color:var(--mut);margin:2px 0 8px}
+
+  /* статистика */
+  .stat{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+  .stat:last-child{border-bottom:0}
+  .stat b{color:#ffd23f;white-space:nowrap}
+  .qstat{padding:8px 0;border-bottom:1px solid var(--line)}
+  .qstat:last-child{border-bottom:0}
+  .qstat .t{display:flex;justify-content:space-between;gap:10px;font-size:13.5px}
+  .qstat .t b{white-space:nowrap;color:#ffd23f}
+  .qstat .en{font-size:11.5px;color:var(--mut);margin-top:2px}
+  .bar{height:8px;background:#0b1f2a;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:5px}
+  .bar i{display:block;height:100%;background:var(--teal)}
+  .bar i.low{background:#ff8a3d}
+  .grp{margin-top:12px}
+  .grp h3{font-size:13px;margin:0 0 4px;color:var(--txt)}
+
+  @media (max-width:480px){
+    .row{grid-template-columns:1fr}
+    .prow{grid-template-columns:1fr 1fr 1fr 34px}
+    .prow input{padding:7px;font-size:12.5px}
+  }
 </style>
 </head>
 <body>
 <div id="login">
   <div style="font-size:56px">🏝️🔑</div>
   <h2>Админка Острова</h2>
-  <p class="hint">Тут ты меняешь все фразы игры: уровни, локации, бой, кружки. Сохранил - у игроков обновилось сразу.</p>
+  <p class="hint">Тут ты меняешь весь текст игры: кружки, анкету знакомства, тест на понимание, фразы локаций и боя. Сохранил - у игроков обновилось сразу.</p>
   <input type="password" id="pwd" placeholder="Пароль" enterkeyhint="go">
   <button id="loginBtn">Войти</button>
   <p class="hint" id="loginErr" style="color:#ff8aa0"></p>
@@ -57,14 +93,16 @@
       2. Сохрани его файлом: в Telegram на компьютере - правая кнопка по кружку → «Сохранить видео как…». С телефона - открой кружок → поделиться → «Сохранить в Файлы/Галерею». Получится обычное видео (.mp4).<br>
       3. Тут ниже нажми <b>«📤 Загрузить кружок»</b> у нужного шага и выбери этот файл.<br>
       4. Всё - кружок сразу появится у игроков в этом шаге чата. Ничего больше делать не надо.<br>
-      Фразы и уровни правишь в карточках ниже, в конце жми «💾 Сохранить всё».
+      Тексты, анкету и тест правишь в карточках ниже, в конце жми «💾 Сохранить всё».
     </p>
   </div>
 
   <div class="card">
-    <h2>🎬 Кружки Романа (онбординг)</h2>
-    <p class="sub">Текст - что говорит кружок, пока не загружено видео (озвучивается синтезом). Загрузишь видео - играет твоё видео.</p>
-    <label>Кружок 1 - приветствие + «настрою игру под тебя. Окей?»</label>
+    <h2>🎬 Кружки Романа (знакомство с игрой)</h2>
+    <p class="sub">Порядок в игре такой: кружок 1 → имя, цель, время в день → кружок 2 → вопрос про опыт в английском → кружок 3 → 6 вопросов теста → маршрут и кнопка START.<br>
+    Текст - что говорит кружок, пока видео не загружено (озвучивается синтезом). Загрузишь видео - играет твоё видео.</p>
+
+    <label>Кружок 1 - знакомство и приветствие. Рассказываешь, кто ты, и что дальше будет знакомство.</label>
     <textarea id="c1text"></textarea>
     <div class="row" style="margin-top:6px">
       <button class="add" id="c1upload">📤 Загрузить кружок 1</button>
@@ -74,7 +112,7 @@
     <video id="c1prev" style="display:none;width:150px;height:150px;border-radius:50%;object-fit:cover;margin-top:8px" playsinline controls muted></video>
     <input id="c1video" type="hidden">
 
-    <label style="margin-top:16px">Кружок 2 - «уровень понятен, лови кнопку. Я на перекур, жду фидбэк. Готов?»</label>
+    <label style="margin-top:18px">Кружок 2 - как всё устроено. У игрока есть персонаж, он получает опыт за уроки и теряет силы, если долго не заходить.</label>
     <textarea id="c2text"></textarea>
     <div class="row" style="margin-top:6px">
       <button class="add" id="c2upload">📤 Загрузить кружок 2</button>
@@ -83,16 +121,93 @@
     <div id="c2status" class="hint" style="margin-top:6px"></div>
     <video id="c2prev" style="display:none;width:150px;height:150px;border-radius:50%;object-fit:cover;margin-top:8px" playsinline controls muted></video>
     <input id="c2video" type="hidden">
+
+    <label style="margin-top:18px">Кружок 3 - объяснение теста перед вопросами. Успокаиваешь: это не экзамен, по ответам подберём маршрут.</label>
+    <textarea id="c3text"></textarea>
+    <div class="row" style="margin-top:6px">
+      <button class="add" id="c3upload">📤 Загрузить кружок 3</button>
+      <button class="del" id="c3clear" style="padding:9px;font-size:13px">✕ Убрать видео</button>
+    </div>
+    <div id="c3status" class="hint" style="margin-top:6px"></div>
+    <video id="c3prev" style="display:none;width:150px;height:150px;border-radius:50%;object-fit:cover;margin-top:8px" playsinline controls muted></video>
+    <input id="c3video" type="hidden">
+
     <input type="file" id="upFile" accept="video/*" style="display:none">
   </div>
 
   <div class="card">
-    <h2>🎯 Определение уровня (выбор из фраз)</h2>
-    <p class="sub">Человек выбирает ОДНУ фразу, которую понимает. По ней игра ставит уровень: beginner (новичок) / mid (средний) / advanced (продвинутый). Кнопка «ничего не понял» всегда ведёт в beginner.</p>
-    <div id="probes"></div>
-    <button class="add" id="probeAdd">+ добавить фразу</button>
-    <label>Текст кнопки «ничего не понял»</label>
-    <input id="probeNone">
+    <h2>🙋 Анкета знакомства</h2>
+    <p class="sub">Четыре вопроса, которые игра задаёт между кружками: имя, цель, время в день, опыт в английском. Ответы сохраняются и попадают в статистику ниже.</p>
+
+    <div class="block">
+      <div class="cap">Вопрос про имя</div>
+      <label>Текст вопроса</label>
+      <input id="svNameAsk">
+      <label>Подсказка внутри поля ввода</label>
+      <input id="svNamePh">
+    </div>
+
+    <div class="block">
+      <div class="cap">Вопрос про цель</div>
+      <label>Текст вопроса</label>
+      <input id="svGoalAsk">
+      <label>Варианты ответа</label>
+      <div id="svGoalOpts"></div>
+      <button class="add" data-add="goal">+ добавить вариант</button>
+    </div>
+
+    <div class="block">
+      <div class="cap">Вопрос про время в день</div>
+      <label>Текст вопроса</label>
+      <input id="svTimeAsk">
+      <label>Варианты ответа</label>
+      <div id="svTimeOpts"></div>
+      <button class="add" data-add="time">+ добавить вариант</button>
+    </div>
+
+    <div class="block">
+      <div class="cap">Вопрос про опыт в английском</div>
+      <label>Текст вопроса</label>
+      <input id="svExpAsk">
+      <label>Варианты ответа</label>
+      <div id="svExpOpts"></div>
+      <button class="add" data-add="exp">+ добавить вариант</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🎯 Тест на понимание (6 вопросов)</h2>
+    <p class="sub">
+      Игрок видит английскую фразу, вопрос по-русски и три варианта ответа. По ответам игра выбирает маршрут:<br>
+      • <b>Advanced</b> - если игрок верно ответил на вопрос <b>№3 и на вопрос №4</b>.<br>
+      • <b>Basic</b> - во всех остальных случаях.<br>
+      • Вопросы <b>№5 и №6</b> на маршрут пока не влияют - они только собирают статистику для будущего третьего уровня.<br>
+      У каждого варианта слева есть кружок. Отметь кружок у того варианта, который считается верным.
+    </p>
+
+    <label>Подсказка над вопросами</label>
+    <input id="quizHint">
+
+    <div id="quizQs" style="margin-top:10px"></div>
+    <button class="add" id="quizAdd">+ добавить вопрос</button>
+
+    <label style="margin-top:16px">Сообщение игроку про маршрут Basic</label>
+    <textarea id="quizResBasic"></textarea>
+    <p class="rightnote">Вместо {name} игра подставит имя игрока.</p>
+
+    <label>Сообщение игроку про маршрут Advanced</label>
+    <textarea id="quizResAdv"></textarea>
+    <p class="rightnote">Вместо {name} игра подставит имя игрока.</p>
+
+    <label>Надпись на кнопке старта игры</label>
+    <input id="quizStartBtn">
+  </div>
+
+  <div class="card">
+    <h2>📊 Статистика теста</h2>
+    <p class="sub">Сколько людей прошло знакомство и тест, какой маршрут им выпал и на каких вопросах чаще ошибаются. Низкий процент верных ответов - вопрос слишком сложный, его стоит упростить.</p>
+    <button class="btn2" id="statsReload">🔄 Обновить</button>
+    <div id="statsBox" style="margin-top:12px"></div>
   </div>
 
   <div class="card">
@@ -117,13 +232,19 @@
 </div></div>
 </div>
 
-<script src="content-defaults.js"></script>
+<script src="/island/content-defaults.js"></script>
 <script>
 const API='https://ek-pvp.13-140-178-130.sslip.io';
 let TOKEN=sessionStorage.getItem('islandAdminToken')||'';
 let C=null; // рабочая копия контента
 let locIdx=0, lvlKey='beginner';
 const LVLS=[['beginner','Новичок'],['mid','Средний'],['advanced','Продвинутый']];
+const CIRCLES=['c1','c2','c3'];
+const SURVEY_FIELDS=[
+  ['goal','#svGoalOpts','#svGoalAsk'],
+  ['time','#svTimeOpts','#svTimeAsk'],
+  ['exp','#svExpOpts','#svExpAsk']
+];
 const $=s=>document.querySelector(s);
 
 async function login(){
@@ -146,47 +267,292 @@ async function boot(){
     const j=await r.json();
     if(j&&j.data){
       const d=j.data;
-      if(d.circles) C.circles=Object.assign({},C.circles,d.circles);
-      if(Array.isArray(d.probes)&&d.probes.length) C.probes=d.probes;
-      if(d.probeNone) C.probeNone=d.probeNone;
+      if(d.circles){
+        CIRCLES.forEach(k=>{ if(d.circles[k]) C.circles[k]=Object.assign({},C.circles[k],d.circles[k]); });
+      }
+      if(d.survey){
+        ['name','goal','time','exp'].forEach(k=>{ if(d.survey[k]) C.survey[k]=Object.assign({},C.survey[k],d.survey[k]); });
+      }
+      if(d.quiz){
+        C.quiz=Object.assign({},C.quiz,d.quiz);
+        if(!Array.isArray(C.quiz.questions)||!C.quiz.questions.length) C.quiz.questions=DEFAULT_CONTENT.quiz.questions.slice();
+      }
       if(Array.isArray(d.locations)&&d.locations.length) C.locations=d.locations;
       if(Array.isArray(d.battle)&&d.battle.length) C.battle=d.battle;
       if(j.updatedAt) $('#updatedAt').textContent='обновлено '+new Date(j.updatedAt).toLocaleString('ru-RU');
     }
   }catch(e){}
+  normalize();
   render();
+  loadStats();
+}
+
+// страховка от пустых блоков в серверном контенте
+function normalize(){
+  C.circles=C.circles||{};
+  CIRCLES.forEach(k=>{ C.circles[k]=Object.assign({who:'Роман',text:'',video:''},C.circles[k]||{}); });
+  C.survey=C.survey||{};
+  C.survey.name=Object.assign({ask:'',placeholder:''},C.survey.name||{});
+  ['goal','time','exp'].forEach(k=>{
+    C.survey[k]=Object.assign({ask:'',options:[]},C.survey[k]||{});
+    if(!Array.isArray(C.survey[k].options)) C.survey[k].options=[];
+  });
+  C.quiz=Object.assign({hint:'',questions:[],resultBasic:'',resultAdvanced:'',startBtn:'🚀 START'},C.quiz||{});
+  if(!Array.isArray(C.quiz.questions)) C.quiz.questions=[];
+  C.quiz.questions.forEach(q=>{
+    q.en=q.en||''; q.ask=q.ask||'';
+    if(!Array.isArray(q.options)) q.options=['','',''];
+    while(q.options.length<2) q.options.push('');
+    if(typeof q.correct!=='number'||q.correct<0||q.correct>=q.options.length) q.correct=0;
+  });
+  C.locations=Array.isArray(C.locations)?C.locations:[];
+  C.battle=Array.isArray(C.battle)?C.battle:[];
 }
 
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
 function render(){
-  $('#c1text').value=C.circles.c1.text||''; $('#c1video').value=C.circles.c1.video||'';
-  $('#c2text').value=C.circles.c2.text||''; $('#c2video').value=C.circles.c2.video||'';
-  $('#probeNone').value=C.probeNone||'Ничего не понял 🤷';
-  setPrev('c1'); setPrev('c2');
-  renderProbes(); renderLocTabs(); renderPhrases(); renderBattle();
+  CIRCLES.forEach(k=>{
+    $('#'+k+'text').value=C.circles[k].text||'';
+    $('#'+k+'video').value=C.circles[k].video||'';
+    setPrev(k);
+  });
+  renderSurvey();
+  renderQuiz();
+  renderLocTabs(); renderPhrases(); renderBattle();
 }
-function renderProbes(){
-  const box=$('#probes'); box.innerHTML='<div class="prow" style="grid-template-columns:1.8fr 1fr 34px"><span class="hint">Фраза (EN)</span><span class="hint">Уровень</span><span></span></div>';
-  C.probes.forEach((p,i)=>{
-    const row=document.createElement('div'); row.className='prow'; row.style.gridTemplateColumns='1.8fr 1fr 34px';
-    row.innerHTML='<input value="'+esc(p.en)+'" data-i="'+i+'" data-f="en">'+
-      '<select data-i="'+i+'">'+LVLS.map(([k,n])=>'<option value="'+k+'"'+(p.level===k?' selected':'')+'>'+n+'</option>').join('')+'</select>'+
-      '<button class="del" data-i="'+i+'">✕</button>';
-    row.querySelector('input').oninput=e=>{C.probes[i].en=e.target.value;};
-    row.querySelector('select').onchange=e=>{C.probes[i].level=e.target.value;};
-    row.querySelector('.del').onclick=()=>{C.probes.splice(i,1);renderProbes();};
+
+/* ───────── кружки ───────── */
+CIRCLES.forEach(k=>{
+  $('#'+k+'text').addEventListener('input',e=>{ C.circles[k].text=e.target.value; });
+  $('#'+k+'video').addEventListener('input',e=>{ C.circles[k].video=e.target.value; });
+});
+
+/* ───────── анкета знакомства ───────── */
+function newOptKey(list){
+  let n=list.length+1, k='opt'+n;
+  const taken=x=>list.some(o=>o&&o.k===x);
+  while(taken(k)){ n++; k='opt'+n; }
+  return k;
+}
+function renderSurvey(){
+  $('#svNameAsk').value=C.survey.name.ask||'';
+  $('#svNamePh').value=C.survey.name.placeholder||'';
+  SURVEY_FIELDS.forEach(([f,boxSel,askSel])=>{
+    $(askSel).value=C.survey[f].ask||'';
+    renderSurveyOptions(f,boxSel);
+  });
+}
+function renderSurveyOptions(field,boxSel){
+  const box=$(boxSel); const list=C.survey[field].options;
+  box.innerHTML='';
+  if(!list.length){
+    const p=document.createElement('p'); p.className='hint'; p.textContent='Вариантов пока нет - добавь хотя бы один.';
+    box.appendChild(p);
+  }
+  list.forEach((o,i)=>{
+    const row=document.createElement('div'); row.className='krow';
+    const inp=document.createElement('input'); inp.type='text'; inp.value=o.label||''; inp.placeholder='Текст варианта';
+    const del=document.createElement('button'); del.className='del'; del.textContent='✕'; del.title='Удалить вариант';
+    inp.oninput=e=>{ o.label=e.target.value; };
+    del.onclick=()=>{ list.splice(i,1); renderSurveyOptions(field,boxSel); };
+    row.appendChild(inp); row.appendChild(del);
     box.appendChild(row);
   });
 }
-$('#probeAdd').onclick=()=>{C.probes.push({en:'',level:'beginner'});renderProbes();};
-$('#probeNone').addEventListener('input',e=>{C.probeNone=e.target.value;});
-['c1text','c1video','c2text','c2video'].forEach(id=>{
-  document.getElementById(id).addEventListener('input',e=>{
-    const key=id.slice(0,2), f=id.slice(2)==='text'?'text':'video';
-    C.circles[key][f]=e.target.value;
-  });
+$('#svNameAsk').addEventListener('input',e=>{ C.survey.name.ask=e.target.value; });
+$('#svNamePh').addEventListener('input',e=>{ C.survey.name.placeholder=e.target.value; });
+SURVEY_FIELDS.forEach(([f,boxSel,askSel])=>{
+  $(askSel).addEventListener('input',e=>{ C.survey[f].ask=e.target.value; });
 });
+document.querySelectorAll('[data-add]').forEach(btn=>{
+  btn.onclick=()=>{
+    const f=btn.getAttribute('data-add');
+    const list=C.survey[f].options;
+    list.push({k:newOptKey(list),label:''});
+    const boxSel=(SURVEY_FIELDS.find(x=>x[0]===f)||[])[1];
+    if(boxSel) renderSurveyOptions(f,boxSel);
+  };
+});
+
+/* ───────── тест на понимание ───────── */
+function quizRoleTag(i){
+  if(i===2||i===3) return 'решает маршрут Advanced';
+  if(i>=4) return 'только для статистики';
+  return 'на маршрут не влияет';
+}
+function renderQuiz(){
+  $('#quizHint').value=C.quiz.hint||'';
+  $('#quizResBasic').value=C.quiz.resultBasic||'';
+  $('#quizResAdv').value=C.quiz.resultAdvanced||'';
+  $('#quizStartBtn').value=C.quiz.startBtn||'';
+
+  const box=$('#quizQs'); box.innerHTML='';
+  if(!C.quiz.questions.length){
+    const p=document.createElement('p'); p.className='hint'; p.textContent='Вопросов пока нет - добавь первый.';
+    box.appendChild(p);
+  }
+  C.quiz.questions.forEach((q,i)=>{
+    const blk=document.createElement('div'); blk.className='block';
+
+    const head=document.createElement('div'); head.className='qhead';
+    const num=document.createElement('span'); num.className='qnum'; num.textContent='№'+(i+1);
+    const tag=document.createElement('span'); tag.className='qtag'; tag.textContent=quizRoleTag(i);
+    const delQ=document.createElement('button'); delQ.className='del'; delQ.textContent='✕'; delQ.title='Удалить вопрос';
+    delQ.style.width='38px'; delQ.style.padding='7px';
+    delQ.onclick=()=>{ C.quiz.questions.splice(i,1); renderQuiz(); };
+    head.appendChild(num); head.appendChild(tag); head.appendChild(delQ);
+    blk.appendChild(head);
+
+    const l1=document.createElement('label'); l1.textContent='Английская фраза';
+    const en=document.createElement('input'); en.type='text'; en.value=q.en||''; en.placeholder='Could I get a bottle of water, please?';
+    en.oninput=e=>{ q.en=e.target.value; };
+
+    const l2=document.createElement('label'); l2.textContent='Вопрос по-русски';
+    const ask=document.createElement('input'); ask.type='text'; ask.value=q.ask||''; ask.placeholder='Что хочет сделать человек?';
+    ask.oninput=e=>{ q.ask=e.target.value; };
+
+    const l3=document.createElement('label'); l3.textContent='Варианты ответа - отметь кружком верный';
+    blk.appendChild(l1); blk.appendChild(en);
+    blk.appendChild(l2); blk.appendChild(ask);
+    blk.appendChild(l3);
+
+    const opts=document.createElement('div');
+    q.options.forEach((opt,j)=>{
+      const row=document.createElement('div'); row.className='orow';
+      const rb=document.createElement('input'); rb.type='radio'; rb.name='qcorrect'+i; rb.checked=(q.correct===j);
+      rb.title='Это верный ответ';
+      rb.onchange=()=>{ q.correct=j; };
+      const inp=document.createElement('input'); inp.type='text'; inp.value=opt||''; inp.placeholder='Вариант '+(j+1);
+      inp.oninput=e=>{ q.options[j]=e.target.value; };
+      const del=document.createElement('button'); del.className='del'; del.textContent='✕'; del.title='Удалить вариант';
+      del.onclick=()=>{
+        if(q.options.length<=2){ alert('В вопросе должно остаться минимум два варианта.'); return; }
+        q.options.splice(j,1);
+        if(q.correct===j) q.correct=0; else if(q.correct>j) q.correct--;
+        renderQuiz();
+      };
+      row.appendChild(rb); row.appendChild(inp); row.appendChild(del);
+      opts.appendChild(row);
+    });
+    blk.appendChild(opts);
+
+    const addOpt=document.createElement('button'); addOpt.className='add'; addOpt.textContent='+ добавить вариант';
+    addOpt.onclick=()=>{ q.options.push(''); renderQuiz(); };
+    blk.appendChild(addOpt);
+
+    box.appendChild(blk);
+  });
+}
+$('#quizAdd').onclick=()=>{ C.quiz.questions.push({en:'',ask:'',options:['','',''],correct:0}); renderQuiz(); };
+$('#quizHint').addEventListener('input',e=>{ C.quiz.hint=e.target.value; });
+$('#quizResBasic').addEventListener('input',e=>{ C.quiz.resultBasic=e.target.value; });
+$('#quizResAdv').addEventListener('input',e=>{ C.quiz.resultAdvanced=e.target.value; });
+$('#quizStartBtn').addEventListener('input',e=>{ C.quiz.startBtn=e.target.value; });
+
+/* ───────── статистика теста ───────── */
+const STATS_EMPTY='<p class="hint">Статистика появится, когда пройдут первые игроки.</p>';
+function optLabel(field,key){
+  const list=(C.survey[field]&&C.survey[field].options)||[];
+  const found=list.find(o=>o&&String(o.k)===String(key));
+  return found?found.label:String(key);
+}
+function pctOf(part,total){ return total>0?Math.round(part/total*100):0; }
+function distHtml(title,obj,field){
+  if(!obj||typeof obj!=='object') return '';
+  const rows=Object.keys(obj).map(k=>[k,Number(obj[k])||0]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+  if(!rows.length) return '';
+  const max=rows[0][1];
+  let h='<div class="grp"><h3>'+esc(title)+'</h3>';
+  rows.forEach(([k,v])=>{
+    h+='<div class="qstat"><div class="t"><span>'+esc(optLabel(field,k))+'</span><b>'+v+'</b></div>'+
+       '<div class="bar"><i style="width:'+pctOf(v,max)+'%"></i></div></div>';
+  });
+  return h+'</div>';
+}
+function recentLine(r){
+  if(!r||typeof r!=='object') return esc(String(r));
+  const parts=[];
+  // сервер отдаёт player и correctCount; старые имена оставлены на всякий случай
+  const who=r.player||r.name;
+  const corr=(typeof r.correctCount==='number')?r.correctCount:r.correct;
+  const route=r.track||r.level;
+  if(who) parts.push(esc(who));
+  if(route) parts.push(route==='advanced'?'🔵 Advanced':'🟢 Basic');
+  if(r.goal) parts.push(esc(optLabel('goal',r.goal)));
+  if(r.time) parts.push(esc(optLabel('time',r.time)));
+  if(typeof corr==='number') parts.push(corr+' верных');
+  let when='';
+  const ts=r.at||r.ts||r.createdAt||r.date;
+  if(ts){ const d=new Date(ts); if(!isNaN(d.getTime())) when=d.toLocaleString('ru-RU'); }
+  if(!parts.length) parts.push('игрок');
+  return '<div class="stat"><span>'+parts.join(' · ')+'</span><b>'+esc(when)+'</b></div>';
+}
+async function loadStats(){
+  const box=$('#statsBox');
+  box.innerHTML='<p class="hint">Загружаю…</p>';
+  let s=null;
+  try{
+    const r=await fetch(API+'/api/island/quiz-stats',{cache:'no-store',headers:{'X-Admin-Password':TOKEN}});
+    if(!r.ok) throw 0;
+    s=await r.json();
+  }catch(e){ box.innerHTML=STATS_EMPTY; return; }
+  if(!s||typeof s!=='object'||!Number(s.total)){ box.innerHTML=STATS_EMPTY; return; }
+
+  const total=Number(s.total)||0;
+  // маршруты лежат в byTrack (basic/advanced). В byLevel - уровень фраз
+  // (beginner/mid/advanced), там значения basic не бывает вовсе.
+  const tr=s.byTrack||{}, lv=s.byLevel||{};
+  const basic=Number(tr.basic)||0, adv=Number(tr.advanced)||0;
+
+  let h='';
+  h+='<div class="stat"><span>Прошли знакомство и тест</span><b>'+total+'</b></div>';
+  h+='<div class="stat"><span>🟢 Маршрут Basic</span><b>'+basic+' ('+pctOf(basic,total)+'%)</b></div>';
+  h+='<div class="stat"><span>🔵 Маршрут Advanced</span><b>'+adv+' ('+pctOf(adv,total)+'%)</b></div>';
+
+  // уровень фраз внутри маршрута: с чего человек реально начинает играть
+  const lvRows=[['beginner','Простые фразы'],['mid','Средние фразы'],['advanced','Сложные фразы']]
+    .map(([k,n])=>[n,Number(lv[k])||0]).filter(([,v])=>v>0);
+  if(lvRows.length){
+    h+='<div class="grp"><h3>Уровень фраз, с которого начинают</h3>';
+    lvRows.forEach(([n,v])=>{ h+='<div class="stat"><span>'+n+'</span><b>'+v+' ('+pctOf(v,total)+'%)</b></div>'; });
+    h+='</div>';
+  }
+
+  const pq=Array.isArray(s.perQuestion)?s.perQuestion:[];
+  if(pq.length){
+    h+='<div class="grp"><h3>Верные ответы по вопросам</h3>';
+    pq.forEach((q,idx)=>{
+      const asked=Number(q.asked)||0, corr=Number(q.correct)||0;
+      const pct=(typeof q.pct==='number')?Math.round(q.pct):pctOf(corr,asked);
+      // номер берём из самой записи: сервер отдаёт только вопросы с данными,
+      // и по позиции в массиве подписи уезжали на соседний вопрос
+      const qi=Number.isInteger(q.i)?q.i:idx;
+      const src=C.quiz.questions[qi];
+      h+='<div class="qstat"><div class="t"><span>№'+(qi+1)+(qi===2||qi===3?' (решает Advanced)':'')+'</span>'+
+         '<b>'+pct+'% верно'+(asked?' · '+corr+' из '+asked:'')+'</b></div>'+
+         (src&&src.en?'<div class="en">'+esc(src.en)+'</div>':'')+
+         '<div class="bar"><i class="'+(pct<40?'low':'')+'" style="width:'+Math.max(0,Math.min(100,pct))+'%"></i></div></div>';
+    });
+    h+='</div>';
+  }
+
+  h+=distHtml('Зачем учат английский',s.byGoal,'goal');
+  h+=distHtml('Сколько времени готовы уделять',s.byTime,'time');
+  h+=distHtml('Опыт в английском',s.byExp,'exp');
+
+  const rec=Array.isArray(s.recent)?s.recent.slice(0,10):[];
+  if(rec.length){
+    h+='<div class="grp"><h3>Последние прохождения</h3>';
+    rec.forEach(r=>{ h+=recentLine(r); });
+    h+='</div>';
+  }
+
+  box.innerHTML=h;
+}
+$('#statsReload').onclick=loadStats;
+
+/* ───────── локации и бой ───────── */
 function renderLocTabs(){
   const lt=$('#locTabs'); lt.innerHTML='';
   C.locations.forEach((l,i)=>{ const b=document.createElement('button'); b.className='tab'+(i===locIdx?' on':''); b.textContent=l.emoji+' '+l.title;
@@ -212,10 +578,11 @@ function renderPhrases(){
   loc.levels=loc.levels||{}; loc.levels[lvlKey]=loc.levels[lvlKey]||[];
   phraseRows(loc.levels[lvlKey], '#phrases', renderPhrases);
 }
-$('#phraseAdd').onclick=()=>{ const loc=C.locations[locIdx]; loc.levels[lvlKey]=loc.levels[lvlKey]||[]; loc.levels[lvlKey].push({ru:'',en:'',ans:[]}); renderPhrases(); };
+$('#phraseAdd').onclick=()=>{ const loc=C.locations[locIdx]; if(!loc) return; loc.levels=loc.levels||{}; loc.levels[lvlKey]=loc.levels[lvlKey]||[]; loc.levels[lvlKey].push({ru:'',en:'',ans:[]}); renderPhrases(); };
 function renderBattle(){ phraseRows(C.battle, '#battle', renderBattle); }
 $('#battleAdd').onclick=()=>{C.battle.push({ru:'',en:'',ans:[]});renderBattle();};
 
+/* ───────── сохранение ───────── */
 async function saveContent(msg){
   $('#saveMsg').textContent='Сохраняю…';
   try{
@@ -226,7 +593,7 @@ async function saveContent(msg){
 }
 $('#saveBtn').onclick=()=>saveContent();
 
-/* ── загрузка кружков (файл из Telegram) ── */
+/* ───────── загрузка кружков (файл из Telegram) ───────── */
 let upKey=null;
 function setPrev(key){
   const url=(C.circles[key]&&C.circles[key].video)||'';
@@ -235,9 +602,9 @@ function setPrev(key){
   if(url){ v.src=url; v.style.display='block'; st.textContent='✅ Видео загружено - в чате играет твой кружок'; }
   else { v.style.display='none'; v.removeAttribute('src'); st.textContent='Видео не загружено - в чате играет озвучка текста'; }
 }
-['c1','c2'].forEach(k=>{
+CIRCLES.forEach(k=>{
   $('#'+k+'upload').onclick=()=>{ upKey=k; $('#upFile').value=''; $('#upFile').click(); };
-  $('#'+k+'clear').onclick=async()=>{ C.circles[k].video=''; setPrev(k); await saveContent('Видео убрано'); };
+  $('#'+k+'clear').onclick=async()=>{ C.circles[k].video=''; $('#'+k+'video').value=''; setPrev(k); await saveContent('Видео убрано'); };
 });
 $('#upFile').addEventListener('change',async e=>{
   const f=e.target.files[0]; if(!f||!upKey) return;
@@ -247,7 +614,7 @@ $('#upFile').addEventListener('change',async e=>{
   try{
     const r=await fetch(API+'/api/island/upload?key='+k,{method:'POST',headers:{'Content-Type':f.type||'video/mp4','X-Admin-Password':TOKEN},body:f});
     const j=await r.json(); if(!j||!j.url) throw 0;
-    C.circles[k].video=j.url; setPrev(k);
+    C.circles[k].video=j.url; $('#'+k+'video').value=j.url; setPrev(k);
     await saveContent('Кружок загружен и подключён');
   }catch(err){ st.textContent='❌ Не загрузилось. Проверь интернет и попробуй ещё раз'; }
 });

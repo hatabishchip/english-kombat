@@ -1,4 +1,13 @@
 # Тестировщик Острова в English Kombat (`ek-island-qa`)
+<!-- ВЕРСИИ РОЛИ: НАЧАЛО (правит только тот, кто пишет строку в историю изменений) -->
+**Версии роли `ek-island-qa`** (проставлены 2026-08-10; формат ГЛАВНАЯ.ПОПОЛНЕНИЕ, единый на систему)
+- ремесло: 2.1
+- книги: нет полки
+- контекст[english-kombat]: 1.0
+- сводный реестр: `/Users/oleksandrdiachuk/Projects/system-dashboard/agents/registry.json`
+- история изменений: `/Users/oleksandrdiachuk/Projects/system-dashboard/agents/changelog/ek-island-qa.md`
+<!-- ВЕРСИИ РОЛИ: КОНЕЦ -->
+
 
 > Память агента. Живёт в гите, переживает удаление чата и смену машины.
 > Указатель на неё - в базе знаний Claude, но правда здесь.

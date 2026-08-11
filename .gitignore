@@ -6,3 +6,6 @@ node_modules/
 *.log
 pvp-server/node_modules/
 .vercel
+qa/.tmp-media/
+qa/last-run*.json
+.playwright-mcp/

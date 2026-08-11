@@ -100,6 +100,24 @@ async function initDb() {
       data JSONB NOT NULL DEFAULT '{}',
       updated_at TIMESTAMPTZ DEFAULT now()
     );
+
+    -- аналитика теста онбординга острова (воронка Ромы: анкета + 6 вопросов + маршрут)
+    CREATE TABLE IF NOT EXISTS island_quiz (
+      id SERIAL PRIMARY KEY,
+      created_at TIMESTAMPTZ DEFAULT now(),
+      player TEXT,
+      goal TEXT,
+      daily_time TEXT,
+      experience TEXT,
+      answers JSONB DEFAULT '[]',
+      correct_count INTEGER,
+      q3_ok BOOLEAN,
+      q4_ok BOOLEAN,
+      level TEXT,
+      track TEXT,
+      user_agent TEXT
+    );
+    CREATE INDEX IF NOT EXISTS island_quiz_created_idx ON island_quiz (created_at DESC);
   `);
   // seed if empty
   const { rows } = await pgPool.query('SELECT COUNT(*)::int AS c FROM phrases');
@@ -897,6 +915,19 @@ app.put('/api/auth/profile', async (req, res) => {
 // ─── ADMIN PHRASES API ───
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme';
 function checkAdmin(req, res, next) {
+  // только заголовок: пароль в адресе утекал бы в логи сервера и историю браузера.
+  // Исключение для выгрузки CSV - ниже, отдельным middleware (там навигация браузера,
+  // заголовок поставить нельзя).
+  const token = req.headers['x-admin-password'];
+  if (token !== ADMIN_PASSWORD) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+  next();
+}
+// выгрузка CSV идёт обычной навигацией браузера, заголовок туда не поставить -
+// только для неё разрешаем пароль в адресе
+function checkAdminUrl(req, res, next) {
   const token = req.headers['x-admin-password'] || req.query.pwd;
   if (token !== ADMIN_PASSWORD) {
     res.status(401).json({ error: 'unauthorized' });
@@ -951,7 +982,7 @@ app.delete('/api/phrases/:id', checkAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 // CSV export — admin-protected
-app.get('/api/phrases/export.csv', checkAdmin, async (_, res) => {
+app.get('/api/phrases/export.csv', checkAdminUrl, async (_, res) => {
   if (!pgPool) return res.status(503).send('no db');
   const { rows } = await pgPool.query('SELECT ru, en, answers, difficulty, theme FROM phrases ORDER BY id');
   const esc = (s) => {
@@ -1121,15 +1152,18 @@ const ISLAND_PERSONAS = {
   nadia:  { name: 'Nadia',  emoji: '🎨', accent: 'neutral', bio: 'художница-кочевник, творческая, вдумчивая' },
   bruno:  { name: 'Bruno',  emoji: '⚽', accent: 'Brazilian', bio: 'тренер по футболу на пляже, громкий, весёлый' },
 };
-// шаги онбординга: к чему вернуть игрока после свободной реплики
+// шаги онбординга (воронка Ромы от 08.08.2026): к чему вернуть игрока после свободной реплики.
+// Порядок: watch -> name -> goal -> time -> watch2 -> exp -> watch3 -> quiz -> done
 const ONB_STEPS = {
-  watch: 'предложи нажать на видео-кружок и посмотреть, как тут всё устроено, и ответить «окей»',
-  probe: 'предложи выбрать кнопкой одну из фраз, которую он понимает - так игра поймёт его уровень',
-  ready: 'скажи, что кнопка старта уже в чате - пусть жмёт и заходит в игру',
-  name: 'спроси, как его зовут',
-  goal: 'спроси, зачем ему английский (переезд, путешествия, работа)',
-  photo: 'предложи скинуть фото для аватарки бойца',
-  done: 'позови его на карту острова начинать первое задание',
+  watch:  'предложи нажать на кружок вверху и посмотреть, что я рассказываю - там пара слов о том, куда он попал',
+  name:   'спроси, как его зовут - можно написать или сказать голосом',
+  goal:   'спроси, для чего ему английский, и подскажи, что можно просто нажать один из вариантов на кнопках',
+  time:   'спроси, сколько минут в день он готов уделять английскому, варианты уже на кнопках',
+  watch2: 'предложи посмотреть второй кружок - там про персонажа, опыт и как всё устроено',
+  exp:    'спроси, изучал ли он английский раньше, и покажи, что ответ можно выбрать кнопкой',
+  watch3: 'предложи посмотреть третий кружок - там я объясняю, зачем маленький тест перед стартом',
+  quiz:   'мягко верни его к тесту: это не экзамен, просто пусть выберет вариант, который кажется правильным',
+  done:   'позови его нажать START и выйти на карту острова к первому заданию',
 };
 function islandSystemPrompt(personaKey, userName, level, goal, mode, step) {
   const p = ISLAND_PERSONAS[personaKey] || ISLAND_PERSONAS.roman;
@@ -1267,6 +1301,7 @@ app.use('/media', express.static(MEDIA_DIR, { maxAge: '1d' }));
 app.post('/api/island/upload', checkAdmin, express.raw({ type: () => true, limit: '120mb' }), (req, res) => {
   const buf = req.body;
   if (!buf || !buf.length) return res.status(400).json({ error: 'empty' });
+  // ключ кружка НЕ захардкожен - любой безопасный слаг, поэтому c1/c2/c3 (и будущие) работают без правок
   const key = (String(req.query.key || 'file').replace(/[^a-z0-9_-]/gi, '').slice(0, 24)) || 'file';
   const ct = (req.headers['content-type'] || '').split(';')[0];
   const ext = ct.includes('webm') ? 'webm' : (ct.includes('quicktime') ? 'mov' : 'mp4');
@@ -1295,6 +1330,116 @@ app.post('/api/island/content', checkAdmin, async (req, res) => {
       ON CONFLICT (key) DO UPDATE SET data = $1, updated_at = now()`, [JSON.stringify(data)]);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: 'db' }); }
+});
+
+// ─── ISLAND · QUIZ ANALYTICS (тест онбординга: 6 вопросов -> маршрут Basic/Advanced) ───
+// Верные ответы дефолтов (public/island/content-defaults.js, поле correct у каждого вопроса).
+const ISLAND_QUIZ_CORRECT = [1, 1, 0, 1, 1, 1];
+// Берём correct из серверного контента (Роман правит его в админке), иначе - дефолты выше.
+async function islandQuizCorrectMap() {
+  if (!pgPool) return ISLAND_QUIZ_CORRECT;
+  try {
+    const { rows } = await pgPool.query("SELECT data FROM kv_store WHERE key = 'island-content-v1'");
+    const qs = rows.length && rows[0].data && rows[0].data.quiz && rows[0].data.quiz.questions;
+    if (Array.isArray(qs) && qs.length) {
+      return qs.map((q, i) => (Number.isInteger(q && q.correct) ? q.correct : ISLAND_QUIZ_CORRECT[i]));
+    }
+  } catch (e) { console.warn('[island:quiz] correct map fallback:', e.message); }
+  return ISLAND_QUIZ_CORRECT;
+}
+app.post('/api/island/quiz-result', async (req, res) => {
+  const b = req.body || {};
+  const raw = Array.isArray(b.answers) ? b.answers.slice(0, 20) : [];
+  const correctMap = await islandQuizCorrectMap();
+  // индексы вопросов ждём с нуля; если клиент прислал нумерацию с единицы - сдвигаем
+  const idx = raw.map(a => parseInt(a && a.i, 10)).filter(n => Number.isInteger(n));
+  const shift = (idx.length && Math.min(...idx) === 1 && Math.max(...idx) === correctMap.length) ? 1 : 0;
+  // ok считаем САМИ по выбранному варианту, клиентскому ok верим только если chosen не пришёл
+  const answers = raw.map((a, pos) => {
+    const n = parseInt(a && a.i, 10);
+    const i = Number.isInteger(n) ? n - shift : pos;
+    const c = parseInt(a && a.chosen, 10);
+    const chosen = Number.isInteger(c) ? c : null;
+    const right = correctMap[i];
+    const ok = (chosen !== null && Number.isInteger(right)) ? chosen === right : !!(a && a.ok);
+    return { i, chosen, ok };
+  });
+  const correctCount = answers.filter(a => a.ok).length;
+  const q3 = answers.find(a => a.i === 2);
+  const q4 = answers.find(a => a.i === 3);
+  const q3Ok = !!(q3 && q3.ok);
+  const q4Ok = !!(q4 && q4.ok);
+  // маршрут: Advanced только если верны вопросы 3 и 4 (план Романа)
+  const track = String(b.track || ((q3Ok && q4Ok) ? 'advanced' : 'basic')).toLowerCase().slice(0, 24);
+  const level = String(b.level || track).toLowerCase().slice(0, 24);
+  const s = (v, n) => (v == null ? null : String(v).slice(0, n));
+  if (!pgPool) { console.warn('[island:quiz] no db, result dropped'); return res.json({ ok: false }); }
+  try {
+    await pgPool.query(
+      `INSERT INTO island_quiz (player, goal, daily_time, experience, answers, correct_count, q3_ok, q4_ok, level, track, user_agent)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [
+        s(b.player, 60), s(b.goal, 40), s(b.time, 20), s(b.exp, 20),
+        JSON.stringify(answers), correctCount, q3Ok, q4Ok, level, track,
+        s(req.headers['user-agent'], 300),
+      ]
+    );
+    res.json({ ok: true, correctCount, q3Ok, q4Ok, track });
+  } catch (e) {
+    // аналитика никогда не должна ронять клиента - отвечаем 200 и логируем
+    console.error('[island:quiz] insert failed:', e.message);
+    res.json({ ok: false });
+  }
+});
+app.get('/api/island/quiz-stats', checkAdmin, async (_, res) => {
+  if (!pgPool) return res.status(503).json({ error: 'no db' });
+  try {
+    const [totalQ, dimsQ, perQ, recentQ] = await Promise.all([
+      pgPool.query('SELECT COUNT(*)::int AS total FROM island_quiz'),
+      pgPool.query(`
+        SELECT 'level' AS dim, lower(coalesce(level, '-')) AS k, COUNT(*)::int AS c FROM island_quiz GROUP BY 2
+        UNION ALL
+        SELECT 'track', lower(coalesce(track, '-')), COUNT(*)::int FROM island_quiz GROUP BY 2
+        UNION ALL
+        SELECT 'goal',  coalesce(goal, '-'),         COUNT(*)::int FROM island_quiz GROUP BY 2
+        UNION ALL
+        SELECT 'time',  coalesce(daily_time, '-'),   COUNT(*)::int FROM island_quiz GROUP BY 2
+        UNION ALL
+        SELECT 'exp',   coalesce(experience, '-'),   COUNT(*)::int FROM island_quiz GROUP BY 2`),
+      pgPool.query(`
+        SELECT (e->>'i')::int AS i,
+               COUNT(*)::int AS asked,
+               (COUNT(*) FILTER (WHERE (e->>'ok')::boolean))::int AS correct
+        FROM island_quiz q, jsonb_array_elements(q.answers) e
+        WHERE jsonb_typeof(q.answers) = 'array' AND (e->>'i') ~ '^[0-9]+$'
+        GROUP BY 1 ORDER BY 1`),
+      pgPool.query(`
+        SELECT created_at, player, level, track, correct_count, goal, daily_time, experience
+        FROM island_quiz ORDER BY id DESC LIMIT 20`),
+    ]);
+    const pick = dim => dimsQ.rows.filter(r => r.dim === dim)
+      .reduce((acc, r) => { acc[r.k] = r.c; return acc; }, {});
+    const byLevel = Object.assign({ basic: 0, advanced: 0 }, pick('level'));
+    res.json({
+      total: totalQ.rows[0].total,
+      byLevel,
+      byTrack: Object.assign({ basic: 0, advanced: 0 }, pick('track')),
+      byGoal: pick('goal'),
+      byTime: pick('time'),
+      byExp: pick('exp'),
+      perQuestion: perQ.rows.map(r => ({
+        i: r.i, asked: r.asked, correct: r.correct,
+        pct: r.asked ? Math.round((r.correct / r.asked) * 100) : 0,
+      })),
+      recent: recentQ.rows.map(r => ({
+        at: r.created_at, player: r.player, level: r.level, track: r.track,
+        correctCount: r.correct_count, goal: r.goal, time: r.daily_time, exp: r.experience,
+      })),
+    });
+  } catch (e) {
+    console.error('[island:quiz-stats]', e.message);
+    res.status(500).json({ error: 'db' });
+  }
 });
 
 // ─── ISLAND · DIALOG ANALYSIS (talk4 — AI разбирает диалог) ───

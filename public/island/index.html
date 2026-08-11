@@ -142,6 +142,16 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .quick{display:flex;gap:7px;flex-wrap:wrap;padding:0 12px 8px;position:relative;z-index:3;background:var(--paper)}
 .chip{padding:9px 13px;border-radius:16px;background:var(--paper2);border:1.5px solid var(--teal);color:var(--teal-d);font-weight:700;font-size:13.5px}
 .chip:active{background:var(--teal);color:#fff}
+/* длинные варианты ответа (анкета, тест) - в столбик на всю ширину */
+.quick.col{flex-direction:column;align-items:stretch;flex-wrap:nowrap}
+.quick.col .chip{text-align:left;font-size:14.5px;padding:12px 14px;line-height:1.35}
+/* карточка вопроса теста */
+.qz-h{font-size:12px;font-weight:800;color:var(--teal-d);opacity:.8;letter-spacing:.3px;margin-bottom:7px}
+.qz-en{font-size:16.5px;font-weight:800;line-height:1.36;margin-bottom:9px}
+.qz-listen{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:14px;background:var(--paper2);
+  border:1.5px solid var(--teal);color:var(--teal-d);font-weight:700;font-size:13px;margin-bottom:9px}
+.qz-listen:active{background:var(--teal);color:#fff}
+.qz-ask{font-size:15px;font-weight:600;opacity:.9}
 
 /* ============ 2 · АВАТАР ============ */
 #s-ava{background:radial-gradient(120% 90% at 50% 0%,#1a4a5c,#0b1f2a);color:#fff;align-items:center;justify-content:center;padding:24px}
@@ -623,7 +633,9 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 <div class="toast" id="toast"></div>
 
 <script src="https://unpkg.com/colyseus.js@^0.16.0/dist/colyseus.js"></script>
-<script src="content-defaults.js"></script>
+<!-- путь абсолютный: адрес /island открывается без завершающего слэша, и относительный
+     путь ушёл бы в корень сайта (404), оставив игру без вопросов онбординга -->
+<script src="/island/content-defaults.js"></script>
 <script>
 /* =================================================================
    ENGLISH KOMBAT · ОСТРОВ · Фаза 1
@@ -645,16 +657,20 @@ load();
 if(S.locIdx==null) S.locIdx=S.locDone||0; // миграция старых сохранений
 
 // ---------- КОНТЕНТ: дефолты из content-defaults.js + серверный контент Ромы поверх ----------
-let CONTENT = (typeof DEFAULT_CONTENT!=='undefined') ? JSON.parse(JSON.stringify(DEFAULT_CONTENT)) : {circles:{},probes:[],locations:[],battle:[]};
-(async function loadContent(){
+let CONTENT = (typeof DEFAULT_CONTENT!=='undefined') ? JSON.parse(JSON.stringify(DEFAULT_CONTENT)) : {circles:{},survey:{},quiz:{},locations:[],battle:[]};
+const CONTENT_READY=(async function loadContent(){
   try{
     const r=await fetch('https://ek-pvp.13-140-178-130.sslip.io/api/island/content',{cache:'no-store'});
     const j=await r.json();
     if(j&&j.data){ // мерж: серверные поля поверх дефолтов
       const d=j.data;
       if(d.circles) CONTENT.circles=Object.assign({},CONTENT.circles,d.circles);
-      if(Array.isArray(d.probes)&&d.probes.length) CONTENT.probes=d.probes;
-      if(d.probeNone) CONTENT.probeNone=d.probeNone;
+      // анкета и тест мержатся поблочно: то, что Роман ещё не трогал, остаётся дефолтным
+      if(d.survey) CONTENT.survey=Object.assign({},CONTENT.survey,d.survey);
+      if(d.quiz){
+        CONTENT.quiz=Object.assign({},CONTENT.quiz,d.quiz);
+        if(!Array.isArray(d.quiz.questions)||!d.quiz.questions.length) CONTENT.quiz.questions=(DEFAULT_CONTENT.quiz||{}).questions||[];
+      }
       if(Array.isArray(d.locations)&&d.locations.length) CONTENT.locations=d.locations;
       if(Array.isArray(d.battle)&&d.battle.length) CONTENT.battle=d.battle;
     }
@@ -997,81 +1013,283 @@ function typing(){
 }
 function untype(){const t=$('#typingRow');t&&t.remove();}
 
-function q(labels){
-  const box=$('#onbQuick');box.innerHTML='';box.classList.remove('hidden');
+// col=true - длинные варианты в столбик (анкета, тест)
+function q(labels, col){
+  const box=$('#onbQuick');box.innerHTML='';box.classList.remove('hidden');box.classList.toggle('col',!!col);
   labels.forEach(l=>{const b=document.createElement('button');b.className='chip';b.textContent=l;
     b.onclick=()=>{box.classList.add('hidden');onQuick(l);};box.appendChild(b);});
 }
-function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
-let inputMode=null, onbAwait=null; // onbAwait: 'hello'|'probe'|'ready'
+function hideQuick(){ const box=$('#onbQuick'); if(box) box.classList.add('hidden'); }
+// экранируем и кавычки: esc() подставляется в т.ч. внутрь атрибутов (src видео из админки)
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+let inputMode=null, onbAwait=null;
+// onbAwait: watch | name | goal | time | watch2 | exp | watch3 | quiz | null(готово)
 let step=0; // legacy для совместимости
+let onbAdvance=null; // «дальше» для шага с кружком
+const QZ={ i:0, answers:[] }; // прогресс теста на понимание
 
-// ШАГ 1: кружок-приветствие
+// шаг воронки храним в сохранении: перезагрузка посреди онбординга не должна
+// отбрасывать человека в начало и переспрашивать уже сказанное
+function setStep(s){
+  onbAwait=s;
+  S.onb = s ? { step:s, qi:QZ.i, answers:QZ.answers.slice() } : null;
+  save();
+}
+function SV(){ return CONTENT.survey||{}; }
+function QUIZ(){ return CONTENT.quiz||{}; }
+function qzList(){ return QUIZ().questions||[]; }
+function gateVoice(on){ ['onbRec'].forEach(id=>{ const b=document.getElementById(id); if(b) b.classList.toggle('voice-gate',!!on); }); }
+
+// кружок Романа + страховка: если его не запустили (нет звука, автоплей заблокирован),
+// через 14 секунд появляется кнопка «Дальше» - воронка никогда не встаёт намертво
+function afterCircle(key, next){
+  let done=false;
+  const go=()=>{ if(done) return; done=true; clearTimeout(tm); onbAdvance=null; hideQuick();
+    try{ speechSynthesis.cancel(); }catch(e){}   // ушли дальше - речь кружка не должна тянуться поверх
+    setTimeout(next,500); };
+  const tm=setTimeout(()=>{ if(!done) q(['Дальше 👉']); },14000);
+  onbAdvance=go;
+  addRomanCircle(key, go);
+}
+
+// ── ШАГ 1: кружок-знакомство ──
 function runStep(){
-  onbAwait='hello';
-  ['onbRec'].forEach(id=>{ const b=document.getElementById(id); if(b) b.classList.add('voice-gate'); });
+  setStep('watch'); gateVoice(true);
   typing();setTimeout(()=>{untype();
-    addMsg('in','Йо! Это <b>Роман</b> 👋 Жми на кружок 👇');
-    addRomanCircle('c1', ()=>{ ['onbRec'].forEach(id=>{ const b=document.getElementById(id); if(b) b.classList.remove('voice-gate'); }); });
-    setTimeout(()=>{ q(['Окей 👌','Привет 👋']); },700);
+    addMsg('in','Привет! Это <b>Роман</b> 👋 Жми на кружок 👇');
+    afterCircle('c1', ()=>{ gateVoice(false); askName(); });
   },1000);
 }
-// ШАГ 2: выбор фразы уровня (через секунду после «окей», как просил Рома)
-function askProbe(){
-  onbAwait='probe';
-  typing();setTimeout(()=>{untype();
-    addMsg('in','Выбери фразу, которую понимаешь или можешь перевести 👇');
-    const labels=(CONTENT.probes||[]).map(p=>p.en);
-    labels.push(CONTENT.probeNone||'Ничего не понял 🤷');
-    q(labels);
-  },900);
+// ── ШАГ 2: имя ──
+function askName(){
+  setStep('name'); gateVoice(false);
+  const sv=SV().name||{};
+  const inp=$('#onbInput'); if(inp) inp.placeholder=sv.placeholder||'Напиши имя, или зажми 🎙️';
+  typing();setTimeout(()=>{untype(); addMsg('in',esc(sv.ask||'Как тебя зовут?')); },800);
 }
-function pickProbe(label){
-  const probes=CONTENT.probes||[];
-  const hit=probes.find(p=>p.en===label);
-  const level=hit?hit.level:'beginner';
-  S.level=level; S.track=(level==='advanced')?'advanced':'basic'; save();
+function setName(v){
+  v=String(v||'').trim().slice(0,24); if(!v) return;
+  S.name=v; save(); addMsg('out',esc(v));
+  const inp=$('#onbInput'); if(inp) inp.placeholder='Текст, или зажми 🎙️/🔴';
+  setTimeout(askGoal,500);
+}
+// ── ШАГ 3: цель ──
+function askGoal(){
+  const sv=SV().goal||{};
+  // Роман мог удалить все варианты в админке - тогда шаг просто пропускаем, а не упираемся в тупик
+  if(!(sv.options||[]).length) return askTime();
+  setStep('goal');
+  typing();setTimeout(()=>{untype();
+    addMsg('in',esc(sv.ask||'Для чего ты хочешь изучать английский?'));
+    q(sv.options.map(o=>o.label), true);
+  },800);
+}
+function pickGoal(label){
+  const o=((SV().goal||{}).options||[]).find(x=>x.label===label);
+  S.goal=label; S.goalKey=o?o.k:''; save();
   addMsg('out',esc(label));
-  // ШАГ 3: кружок2 - настройка + кнопка старта
-  onbAwait='ready';
-  typing();setTimeout(()=>{untype();
-    addRomanCircle('c2', null);
-    setTimeout(()=>{ q(['Готов! 🚀','Окей 👌']); },700);
-  },900);
+  setTimeout(askTime,500);
 }
-// ШАГ 4: кнопка START прямо в чате
+// ── ШАГ 4: сколько минут в день ──
+function askTime(){
+  const sv=SV().time||{};
+  if(!(sv.options||[]).length) return goCircle2();
+  setStep('time');
+  typing();setTimeout(()=>{untype();
+    addMsg('in',esc(sv.ask||'Сколько времени ты готов уделять английскому каждый день?'));
+    q(sv.options.map(o=>o.label), true);
+  },800);
+}
+function pickTime(label){
+  const o=((SV().time||{}).options||[]).find(x=>x.label===label);
+  S.daily=o?o.k:label; save();
+  addMsg('out',esc(label));
+  setTimeout(goCircle2,500);
+}
+// ── ШАГ 5: кружок про персонажа ──
+function goCircle2(){
+  setStep('watch2');
+  typing();setTimeout(()=>{untype(); afterCircle('c2', askExp); },800);
+}
+// ── ШАГ 6: опыт в английском ──
+function askExp(){
+  const sv=SV().exp||{};
+  if(!(sv.options||[]).length) return goCircle3();
+  setStep('exp');
+  typing();setTimeout(()=>{untype();
+    addMsg('in',esc(sv.ask||'Ты уже изучал английский раньше?'));
+    q(sv.options.map(o=>o.label), true);
+  },800);
+}
+function pickExp(label){
+  const o=((SV().exp||{}).options||[]).find(x=>x.label===label);
+  S.exp=label; S.expKey=o?o.k:''; save();
+  addMsg('out',esc(label));
+  setTimeout(goCircle3,500);
+}
+// ── ШАГ 7: кружок про тест ──
+function goCircle3(){
+  setStep('watch3');
+  typing();setTimeout(()=>{untype(); afterCircle('c3', startQuiz); },800);
+}
+// ── ШАГ 8: тест на понимание ──
+function startQuiz(){ QZ.i=0; QZ.answers.length=0; setStep('quiz'); askQuizQ(); }
+function askQuizQ(){
+  const list=qzList(), item=list[QZ.i];
+  // нет вопросов (Роман очистил тест) или вопросы кончились - сразу к маршруту
+  if(!item || !(item.options||[]).length) return finishQuiz();
+  setStep('quiz');
+  typing();setTimeout(()=>{untype();
+    const hint=(QZ.i===0&&QUIZ().hint)?'<div class="qz-ask" style="margin-bottom:9px">'+esc(QUIZ().hint)+'</div>':'';
+    const row=addMsg('in', hint+
+      '<div class="qz-h">Вопрос '+(QZ.i+1)+' из '+list.length+'</div>'+
+      '<div class="qz-en">'+esc(item.en||'')+'</div>'+
+      '<button class="qz-listen" type="button">🔊 Послушать</button>'+
+      '<div class="qz-ask">'+esc(item.ask||'')+'</div>');
+    const lb=row.querySelector('.qz-listen'); if(lb) lb.addEventListener('click',()=>say(item.en||''));
+    q(item.options||[], true);
+  },700);
+}
+function pickQuizOpt(label){
+  const list=qzList(), item=list[QZ.i];
+  if(!item) return;
+  const chosen=(item.options||[]).indexOf(label);
+  QZ.answers.push({ i:QZ.i, chosen:chosen, ok: chosen===item.correct });
+  addMsg('out',esc(label));
+  QZ.i++;
+  // без вердиктов «верно/неверно» - Роман обещал, что это не экзамен
+  if(QZ.i<list.length) setTimeout(askQuizQ,450); else setTimeout(finishQuiz,600);
+}
+// ── ШАГ 9: маршрут ──
+// Advanced = верны вопросы №3 И №4. Иначе Basic; внутри Basic верные №1-2 дают фразы посложнее (mid).
+// Ответы №5-6 идут только в аналитику - основа будущего третьего уровня.
+function finishQuiz(){
+  const ok=i=>!!((QZ.answers.find(a=>a.i===i)||{}).ok);
+  const adv=ok(2)&&ok(3);
+  S.track=adv?'advanced':'basic';
+  S.level=adv?'advanced':((ok(0)&&ok(1))?'mid':'beginner');
+  // Воронка засчитана ЗДЕСЬ, а не по нажатию START: иначе между показом маршрута
+  // и нажатием кнопки сохранение выглядит как «в воронке не был и не прошёл её»,
+  // и перезагрузка в этот момент гонит человека через всю анкету заново.
+  S.onbDone=true; setStep(null);   // setStep сам вызывает save()
+  const tpl=adv?(QUIZ().resultAdvanced||''):(QUIZ().resultBasic||'');
+  // функция-заменитель: иначе имя вида $' или $& интерпретируется как шаблон замены
+  const txt=String(tpl).replace(/\{name\}/g, ()=>esc(S.name||'Друг'));
+  typing();setTimeout(()=>{untype();
+    addMsg('in', txt||'Маршрут подобран, поехали 👍');
+    setTimeout(addStartButton,400);
+  },900);
+  sendQuizResult();
+}
+// Доставка результата в статистику Ромы.
+// Идемпотентность и доставка - разные задачи: `quizSent` ставим ТОЛЬКО по ответу сервера,
+// иначе у игрока с мигающей сетью результат не уйдёт никогда. От повторной отправки
+// в одном сеансе защищает флаг в памяти, а не в сохранении.
+let quizSending=false;
+function sendQuizResult(){
+  if(S.quizSent) return;                       // уже доставлено - второй записи не будет
+  S.quizPending={ player:S.name||'', goal:S.goalKey||S.goal||'', time:S.daily||'', exp:S.expKey||'',
+    answers:QZ.answers.slice(), level:S.level, track:S.track };
+  save();
+  flushQuizResult();
+}
+function flushQuizResult(){
+  if(S.quizSent || quizSending || !S.quizPending) return;
+  quizSending=true;
+  try{
+    fetch(API+'/api/island/quiz-result',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(S.quizPending)})
+      // сервер при недоступной базе отвечает 200 с ok:false и запись теряет -
+      // считаем доставкой только явное подтверждение записи
+      .then(r=>(r&&r.ok)?r.json().catch(()=>({ok:true})):null)
+      .then(j=>{ if(j && j.ok!==false){ S.quizSent=true; S.quizPending=null; save(); } })
+      .catch(()=>{})
+      .finally(()=>{ quizSending=false; });
+  }catch(e){ quizSending=false; }
+}
+// ── ШАГ 10: кнопка START прямо в чате ──
 function addStartButton(){
-  onbAwait=null;
+  setStep(null);
   const row=document.createElement('div');row.className='row in';
-  row.innerHTML='<div class="mini">🎬</div><div><button class="btn sun" id="bigStart" style="font-size:22px;padding:18px 42px">🚀 START</button></div>';
+  row.innerHTML='<div class="mini">🎬</div><div><button class="btn sun" id="bigStart" style="font-size:22px;padding:18px 42px">'+esc(QUIZ().startBtn||'🚀 START')+'</button></div>';
   chat.appendChild(row);scrollChat();
   $('#bigStart').addEventListener('click',()=>goToMapFirstTime());
 }
+
+// возобновление воронки после перезагрузки: продолжаем с сохранённого шага,
+// уже сказанное (имя, цель, ответы теста) не переспрашиваем
+function resumeOnb(){
+  const o=(S.onb&&typeof S.onb==='object')?S.onb:{};
+  // сохранение могло прийти от другой версии или быть испорчено вручную - доверять форме нельзя
+  const ans=Array.isArray(o.answers)
+    ? o.answers.filter(a=>a && typeof a==='object' && Number.isInteger(a.i))
+    : [];
+  QZ.i=(Number.isInteger(o.qi) && o.qi>=0) ? o.qi : ans.length;
+  QZ.answers.length=0; ans.forEach(a=>QZ.answers.push(a));
+  screen('s-onb');
+  addMsg('in','С возвращением! Продолжаем с того места, где остановились 👇');
+  const go={ name:askName, goal:askGoal, time:askTime, exp:askExp,
+             quiz:askQuizQ, watch:runStep, watch2:goCircle2, watch3:goCircle3 }[o.step];
+  setTimeout(go||runStep, 600);
+}
+
+// ── маршрутизация ответов игрока (кнопка / текст / голос) ──
+function stepLabels(){
+  if(onbAwait==='goal') return ((SV().goal||{}).options||[]).map(o=>o.label);
+  if(onbAwait==='time') return ((SV().time||{}).options||[]).map(o=>o.label);
+  if(onbAwait==='exp')  return ((SV().exp||{}).options||[]).map(o=>o.label);
+  if(onbAwait==='quiz'){ const it=qzList()[QZ.i]; return (it&&it.options)||[]; }
+  if(onbAwait&&onbAwait.indexOf('watch')===0) return ['Дальше 👉'];
+  return [];
+}
+// сказанное голосом/текстом сопоставляем с вариантами шага (эмодзи не мешают).
+// Сравниваем ЦЕЛЫМИ словами: иначе «да» попадало внутрь «прода-ётся» и молча
+// засчитывалось как ответ теста, а «5» - как «10 минут».
+function optWords(s){ return norm(String(s).replace(/[^\p{L}\p{N}\s]/gu,' ')).split(' ').filter(Boolean); }
+function matchOption(said){
+  const nw=optWords(said), n=nw.join(' ');
+  if(!n) return null;
+  const labels=stepLabels();
+  // 1) точное совпадение по словам («нет» -> «😅 Нет, почти с нуля», «5» -> «5 минут»)
+  const exact=labels.filter(l=>optWords(l).join(' ')===n);
+  if(exact.length===1) return exact[0];
+  // 2) частичное - только если кандидат ОДИН. Иначе («воды» при трёх вариантах про воду)
+  //    молча выбирался первый и это меняло маршрут: лучше переспросить.
+  const part=labels.filter(l=>{
+    const lw=optWords(l); if(!lw.length) return false;
+    return nw.every(w=>lw.includes(w)) || lw.every(w=>nw.includes(w));
+  });
+  return part.length===1 ? part[0] : null;
+}
 function onQuick(label){
-  if(onbAwait==='hello'){ addMsg('out',esc(label)); setTimeout(askProbe,300); return; }
-  if(onbAwait==='probe'){ pickProbe(label); return; }
-  if(onbAwait==='ready'){ addMsg('out',esc(label)); setTimeout(addStartButton,400); return; }
+  if(onbAwait&&onbAwait.indexOf('watch')===0){ if(onbAdvance) onbAdvance(); return; }
+  if(onbAwait==='name'){ setName(label); return; }
+  if(onbAwait==='goal'){ pickGoal(label); return; }
+  if(onbAwait==='time'){ pickTime(label); return; }
+  if(onbAwait==='exp'){ pickExp(label); return; }
+  if(onbAwait==='quiz'){ pickQuizOpt(label); return; }
   addMsg('out',esc(label));
 }
 $('#onbInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){submitInput($('#onbInput').value);} });
 function submitInput(v){
   v=v.trim(); if(!v) return; $('#onbInput').value='';
-  // текстовый ответ двигает воронку так же, как кнопка
-  if(onbAwait==='hello'){ addMsg('out',esc(v)); setTimeout(askProbe,300); return; }
-  if(onbAwait==='ready'){ addMsg('out',esc(v)); setTimeout(addStartButton,400); return; }
-  if(onbAwait==='probe'){ onbFreeReply(v,true); return; } // на шаге выбора просим кнопку
-  addMsg('out',esc(v));
+  if(onbAwait==='name'){ setName(v); return; }
+  const m=matchOption(v); if(m){ hideQuick(); onQuick(m); return; }
+  onbFreeReply(v,true); // свободная реплика - отвечает живой Роман и возвращает к шагу
 }
 function onbHandleVoice(t, echo){
-  if(onbAwait==='hello'){ if(echo)addMsg('out',esc(t)); setTimeout(askProbe,300); return; }
-  if(onbAwait==='ready'){ if(echo)addMsg('out',esc(t)); setTimeout(addStartButton,400); return; }
+  // чат-закрепление с Романом: голосовой ответ проверяем как фразу, а не как свободную реплику
+  if(inputMode==='roman' && window._submitRoman && window._submitRoman(t)) return;
+  if(onbAwait==='name'){ setName(t); return; }
+  const m=matchOption(t); if(m){ hideQuick(); onQuick(m); return; }
   onbFreeReply(t, echo);
 }
-function onbStep(){ return onbAwait==='hello'?'watch':(onbAwait==='probe'?'probe':(onbAwait==='ready'?'ready':'done')); }
+function onbStep(){ return onbAwait||'done'; }
 function onbReshowButtons(){
-  if(onbAwait==='hello'){ q(['Окей 👌','Привет 👋']); }
-  else if(onbAwait==='probe'){ const labels=(CONTENT.probes||[]).map(p=>p.en); labels.push(CONTENT.probeNone||'Ничего не понял 🤷'); q(labels); }
-  else if(onbAwait==='ready'){ q(['Готов! 🚀','Окей 👌']); }
+  if(!onbAwait || onbAwait==='name') return;              // на шаге имени ждём ввод
+  if(onbAwait.indexOf('watch')===0){ q(['Дальше 👉']); return; }
+  if(onbAwait==='quiz'){ const it=qzList()[QZ.i]; if(it) q(it.options||[], true); return; }
+  const labels=stepLabels(); if(labels.length) q(labels, true);
 }
 async function onbFreeReply(text, echo){
   if(echo) addMsg('out',esc(text));
@@ -1098,6 +1316,7 @@ let avatarFrom='onb';
 function openAvatarFromChat(){ screen('s-ava'); }
 function goToMapFirstTime(){
   S.guest = S.guest||false;
+  S.onbDone=true; S.onb=null; save();   // воронка пройдена - больше её не показываем
   screen('s-map'); $('#tabbar').dataset.armed='1'; $('#tabbar').classList.add('on'); selTab('map');
   restoreMapPoints(); refreshStats();
   setTimeout(()=>toast('🎉 Добро пожаловать на остров! Жми на точку и вперёд'),400);
@@ -1549,7 +1768,9 @@ function sayRu(text, onend){
     let done=false; const fin=()=>{ if(done)return; done=true; speakLock(-1); onend&&onend(); };
     u.onend=fin; u.onerror=fin;
     speakLock(1); speechSynthesis.cancel(); speechSynthesis.speak(u);
-    setTimeout(fin, Math.max(6000, text.length*120)); // страховка: не залипнуть, если onend не придёт
+    // страховка: не залипнуть, если onend не придёт (бывает, когда в системе нет голосов).
+    // Потолок 45с - иначе на длинном кружке игрок ждал бы минуту перед мёртвым экраном.
+    setTimeout(fin, Math.min(45000, Math.max(6000, text.length*120)));
     if(!ruVoice()){ speechSynthesis.onvoiceschanged=()=>{ const v2=ruVoice(); if(v2){ u.voice=v2; } }; }
   }catch(e){ speakLock(-1); onend&&onend(); }
 }
@@ -1699,12 +1920,20 @@ function boot(){
   proceedBoot();
 }
 function proceedBoot(){
-  if(S.lastDay && S.locDone>0 && localStorage.getItem(LS)){
+  try{ flushQuizResult(); }catch(e){}   // прошлая отправка не дошла (сеть) - досылаем
+  // воронка пройдена - человек возвращается на карту, а не проходит онбординг заново.
+  // Раньше признаком был locDone>0, но сразу после онбординга он ещё 0, и вся воронка повторялась.
+  if(S.onbDone || (S.lastDay && S.locDone>0 && localStorage.getItem(LS))){
     // возвращающийся игрок - сразу на карту
     screen('s-map'); $('#tabbar').dataset.armed='1'; $('#tabbar').classList.add('on'); selTab('map');
     restoreMapPoints(); refreshStats();
     setTimeout(()=>{$('#floatChat').dataset.armed='1';if($('#s-map').classList.contains('on'))$('#floatChat').classList.add('on');},1400);
     checkVsChallenge(); // пришёл по ссылке-вызову друга
+  } else if(S.onb && S.onb.step){
+    // испорченное сохранение не должно оставлять игрока перед мёртвым экраном:
+    // не смогли продолжить - начинаем воронку заново, но экран показываем всегда
+    try{ resumeOnb(); }
+    catch(e){ S.onb=null; save(); screen('s-onb'); runStep(); }
   } else {
     screen('s-onb'); runStep();
   }
@@ -1978,7 +2207,7 @@ function renderLeague(){
     row.innerHTML='<div class="lg-ava">'+p.e+'</div><div class="lg-info"><b>'+esc(p.n)+'</b><span>'+
       (st==='done'?'повержен ✅':(st==='cur'?('награда: '+leagueReward(i)+' 🏆 - жми и в бой!'):'сначала пройди предыдущих'))+
       '</span></div><div class="lg-state">'+(st==='done'?'✅':(st==='cur'?'⚔️':'🔒'))+'</div>';
-    row.onclick=()=>{ if(st==='cur'){ openFight({idx:i}); } else if(st==='locked'){ toast('🔒 Сначала победи '+esc((LEAGUE[S.league.tier].key==='boss'?LEAGUE[S.league.tier].n:(PERSONAS[LEAGUE[S.league.tier].key]||{}).n))); } else { toast('✅ Уже повержен!'); } };
+    row.onclick=()=>{ if(st==='cur'){ openFight({idx:i}); } else if(st==='locked'){ toast('🔒 Сначала победи '+(LEAGUE[S.league.tier].key==='boss'?LEAGUE[S.league.tier].n:(PERSONAS[LEAGUE[S.league.tier].key]||{}).n)); } else { toast('✅ Уже повержен!'); } };
     list.appendChild(row);
   });
 }
@@ -2028,9 +2257,9 @@ function startPvpFight(st){
       wind:st.wind, weapon:currentWeapon(), foe:{n:(st.players[otherSid]||{}).name||'Соперник', e:'🧑'},
       pvp:{ my, other:otherSid, turn:st.turn, anim:null } };
   $('#meName').innerHTML='🙂 '+esc((S.name||'ТЫ').toUpperCase());
-  $('#foeName').textContent='🧑 '+esc(F.foe.n.toUpperCase());
+  $('#foeName').textContent='🧑 '+F.foe.n.toUpperCase();
   updateHp(); drawFight(); loopFight();
-  toast('⚡ Живой бой против '+esc(F.foe.n)+'!');
+  toast('⚡ Живой бой против '+F.foe.n+'!');
   pvpApplyTurn();
 }
 function pvpApplyTurn(){
@@ -2039,7 +2268,7 @@ function pvpApplyTurn(){
   F.charged=false; F.powering=false; $('#powerWrap').classList.remove('on');
   if(mine){ nextFightPhrase(); $('#aimHint').textContent='⚡ ТВОЙ ХОД · ветер '+(F.wind>0?'→':'←')+' '+Math.abs(F.wind).toFixed(1); }
   else { $('#fightRu').textContent='Ход соперника'; $('#fightEn').textContent='⏳'; $('#fightHeard').textContent='';
-    $('#fightMic').innerHTML='⏳ Ждём '+esc(F.foe.n); $('#aimHint').textContent=esc(F.foe.n)+' целится…'; }
+    $('#fightMic').innerHTML='⏳ Ждём '+esc(F.foe.n); $('#aimHint').textContent=F.foe.n+' целится…'; }
 }
 function pvpShot(m){
   if(!F||!F.pvp) return;
@@ -2231,7 +2460,8 @@ $('#lobbyInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDe
 setupVoiceBtn($('#lobbyMic'), {lang:'en'}, t=>sendLobby(t));
 $('#lobbyBack').onclick=()=>{ if(lobbyRoom){try{lobbyRoom.leave();}catch(e){} lobbyRoom=null;} screen('s-map');selTab('map');refreshStats(); };
 
-boot();
+// стартуем, когда подъехал контент Ромы (его кружки и фразы), но ждём не дольше 2.5с
+Promise.race([CONTENT_READY, new Promise(r=>setTimeout(r,2500))]).then(boot).catch(boot);
 })();
 </script>
 </body>
