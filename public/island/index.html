@@ -416,6 +416,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
       </div>
       <button class="stat" id="inviteBtn" style="border:0;background:rgba(255,255,255,.2)">👥</button>
       <button class="stat" id="leagueBtn" style="border:0;background:rgba(255,255,255,.2)">🏆 <span id="stTrophy">0</span></button>
+      <button class="stat" id="resetBtn" title="Начать сначала" style="border:0;background:rgba(255,255,255,.2)">🔄</button>
     </div>
     <div class="map-wrap" id="mapWrap">
       <svg class="island-svg" viewBox="0 0 400 640" preserveAspectRatio="xMidYMid slice">
@@ -811,7 +812,7 @@ function setupCircleBtn(btn, getScroll, lang, onText, onFail){
 /* ── TELEGRAM-ЗАПИСЬ (решение Ромы 26.07: механика 1в1 как в телеге) ──
    одна кнопка: ТАП = переключить 🎙️/📹, ЗАЖАЛ = запись,
    свайп ВВЕРХ = замок (пишет без пальца, ⏹/✖️), свайп ВЛЕВО = отмена */
-function setupTgBtn(btn, {getScroll, onVoice, onCircle, onFail}){
+function setupTgBtn(btn, {getScroll, onVoice, onCircle, onFail, lang}){
   if(!btn) return;
   if(!mediaOK){ btn.addEventListener('click',()=>{ btn.classList.add('rec'); webkitListen((said,final)=>{ if(final){ btn.classList.remove('rec'); const t=(said||'').trim(); if(t) onVoice(t); else (onFail?onFail():toast('Не расслышал 🎙️')); } },()=>btn.classList.remove('rec')); }); return; }
   const mode=()=> S.recMode||'mic';
@@ -849,12 +850,15 @@ function setupTgBtn(btn, {getScroll, onVoice, onCircle, onFail}){
     if(!blob||blob.size<1500){ if(onFail) onFail(); else toast('Запись не получилась, попробуй ещё'); return; }
     if(s.video){
       const url=URL.createObjectURL(blob);
-      addCircleBubble(getScroll(),'out',url);
-      const r=await transcribeSafe(blob,'auto');
+      const bubble=addCircleBubble(getScroll(),'out',url);
+      const r=await transcribeSafe(blob, lang||'auto');
       if(!r.text||r.conf<0.45){ if(onFail) onFail(); else toast('Не расслышал 🎥'); return; }
+      // показываем распознанное под кружком: раньше ошибка распознавания была
+      // невидимой, и человек не понимал, почему собеседник отвечает не по теме
+      showHeard(bubble, r.text);
       onCircle(r.text);
     } else {
-      const r=await transcribeSafe(blob,'auto');
+      const r=await transcribeSafe(blob, lang||'auto');
       if(!r.text||r.conf<0.45){ if(onFail) onFail(); else toast('Не расслышал 🎙️'); return; }
       onVoice(r.text);
     }
@@ -1306,6 +1310,10 @@ async function onbFreeReply(text, echo){
 
 // telegram-кнопка записи в онбординге (тап=режим, зажал=запись, вверх=замок, влево=отмена)
 setupTgBtn($('#onbRec'), {
+  // Знакомство с Романом идёт по-русски. Определение языка на коротком клипе
+  // ошибалось и превращало сказанное имя в английскую бессмыслицу
+  // (у Романа имя стало «That's mine», и персонаж потом так к нему и обращался).
+  lang:'ru',
   getScroll:()=>$('#chatScroll'),
   onVoice:t=>onbHandleVoice(t,true),
   onCircle:t=>onbHandleVoice(t,false),
@@ -1775,12 +1783,15 @@ function sayRu(text, onend){
   }catch(e){ speakLock(-1); onend&&onend(); }
 }
 
-function sheet({emoji,title,text,rewards,cta,onCta}){
+function sheet({emoji,title,text,rewards,cta,onCta,cancel}){
   const s=$('#sheet');
   s.innerHTML='<div class="big">'+emoji+'</div><h3>'+title+'</h3><p>'+text+'</p>'+
     (rewards&&rewards.length?'<div class="reward-row">'+rewards.map(([i,v])=>'<div class="reward">'+i+' '+v+'</div>').join('')+'</div>':'')+
-    '<button class="btn sun wide" id="sheetCta">'+cta+'</button>';
+    '<button class="btn sun wide" id="sheetCta">'+cta+'</button>'+
+    // окно без отмены - ловушка там, где действие необратимо
+    (cancel?'<button class="btn ghost wide sm" id="sheetCancel" style="margin-top:8px">'+esc(cancel)+'</button>':'');
   $('#overlay').classList.add('on'); $('#sheetCta').onclick=onCta;
+  const c=$('#sheetCancel'); if(c) c.onclick=closeSheet;
 }
 function closeSheet(){$('#overlay').classList.remove('on');}
 // ── ВИРАЛЬНОСТЬ (viral1-4,6) ──
@@ -2047,6 +2058,17 @@ async function sendLive(text){
 $('#liveInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();sendLive($('#liveInput').value);} });
 
 // общий рендер кружка (в любом чате)
+// подпись «что услышали» под кружком - делает ошибку распознавания видимой
+function showHeard(row, text){
+  if(!row||!text) return;
+  const box=row.querySelector('.vcircle') && row.querySelector('.vcircle').parentNode;
+  if(!box) return;
+  const c=document.createElement('div');
+  c.className='heard';
+  c.style.cssText='max-width:150px;margin-top:5px;font-size:11.5px;line-height:1.35;opacity:.75;text-align:right';
+  c.textContent='услышал: '+text;
+  box.appendChild(c);
+}
 function addCircleBubble(scrollEl, side, url){
   const row=document.createElement('div');row.className='row '+side;
   const mini=side==='in'?'<div class="mini">🎬</div>':'';
@@ -2184,6 +2206,18 @@ function endDuel(){
 $('#duelBack').onclick=()=>{ if(D){D.running=false;clearInterval(D._t);} screen('s-map');selTab('map');refreshStats(); };
 $('#floatDuel').addEventListener('click',()=>startDuel());
 $('#inviteBtn')&&$('#inviteBtn').addEventListener('click',()=>showInvite(false));
+// «Начать сначала»: полный сброс игрока. Нужен и Роману для показов, и живому
+// человеку, который хочет пройти знакомство заново - раньше выхода не было вообще.
+function resetPlayer(){
+  try{ localStorage.removeItem(LS); }catch(e){}
+  try{ speechSynthesis.cancel(); }catch(e){}
+  location.reload();
+}
+$('#resetBtn')&&$('#resetBtn').addEventListener('click',()=>{
+  sheet({ emoji:'🔄', title:'Начать сначала?',
+    text:'Прогресс, имя и уровень сотрутся, и знакомство с Романом пойдёт с самого начала. Это нельзя отменить.',
+    cta:'Да, начать сначала', onCta:()=>{ closeSheet(); resetPlayer(); }, cancel:'Отмена' });
+});
 
 /* =====================================================================
    12 · ЛИГА ОСТРОВА: лестница 1на1 + вызов друга (завлекающая часть боёв)

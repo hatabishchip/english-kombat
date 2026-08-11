@@ -276,6 +276,54 @@ async function walkFunnelToQuiz(page, name) {
 }
 
 /* ═══ MTX · все 16 комбинаций ответов на вопросы №1-4 ══════════════════════ */
+/* ═══ RST · выход из профиля и старт заново (фидбек Романа 10.08) ═══════════ */
+async function runReset(browser) {
+  scenario('Кнопка «начать сначала»');
+
+  const page = await newPage(browser);
+  await openIsland(page, PORT);
+  await walkFunnel(page, { name: 'Сбросыч', picks: pickFor([1, 1, 1, 1, 1, 1]) });
+  await page.click('#bigStart');
+  await page.waitForSelector('#s-map.on', { timeout: 12000 });
+
+  const hasBtn = await page.$('#resetBtn').then(e => !!e);
+  check('RST-01', 'На карте есть кнопка «начать сначала»', hasBtn,
+    'человеку неоткуда выйти из профиля - именно на это пожаловался Роман');
+
+  if (hasBtn) {
+    await page.click('#resetBtn');
+    await page.waitForSelector('#overlay.on', { timeout: 5000 }).catch(() => {});
+    const txt = await page.evaluate(() => document.querySelector('#sheet')?.innerText || '');
+    check('RST-02', 'Сброс просит подтверждения, а не стирает молча',
+      /сначала|сотр/i.test(txt), txt.slice(0, 80));
+    const hasCancel = await page.$('#sheetCancel').then(e => !!e);
+    check('RST-03', 'У подтверждения есть отмена', hasCancel,
+      'окно без отмены - ловушка на необратимом действии');
+
+    // отмена не должна ничего стирать
+    if (hasCancel) {
+      await page.click('#sheetCancel');
+      await page.waitForTimeout(400);
+      const kept = await state(page);
+      check('RST-04', 'Отмена сохраняет прогресс', kept && kept.name === 'Сбросыч',
+        `S.name=${kept && kept.name}`);
+    }
+
+    // а подтверждение - стирает и возвращает в начало
+    await page.click('#resetBtn');
+    await page.waitForSelector('#sheetCta', { timeout: 5000 });
+    await page.click('#sheetCta');
+    await page.waitForSelector('#s-perm.on, #s-onb.on', { timeout: 12000 }).catch(() => {});
+    await page.click('#permSkip').catch(() => {});
+    const backToOnb = await page.waitForSelector('#s-onb.on', { timeout: 10000 })
+      .then(() => true).catch(() => false);
+    check('RST-05', 'После подтверждения знакомство идёт с начала', backToOnb);
+    const after = await state(page);
+    check('RST-06', 'Прогресс и имя стёрты', !after || !after.name, `S.name=${after && after.name}`);
+  }
+  await page.ctx.close();
+}
+
 async function runMatrix(browser) {
   scenario('Матрица маршрута: все 16 комбинаций вопросов №1-4');
   let n = 0;
@@ -441,6 +489,7 @@ async function runBadContent(browser) {
     if (want('EVIL')) await runEvil(browser);
     if (want('MTX')) await runMatrix(browser);
     if (want('BAD')) await runBadContent(browser);
+    if (want('RST')) await runReset(browser);
   } catch (e) {
     check('RUN-00', 'Стенд отработал без падений', false, String(e && e.stack || e));
   } finally {
