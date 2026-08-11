@@ -118,6 +118,17 @@ async function initDb() {
       user_agent TEXT
     );
     CREATE INDEX IF NOT EXISTS island_quiz_created_idx ON island_quiz (created_at DESC);
+
+    -- Шаги знакомства: без этого видно только дошедших до конца, а где человек
+    -- ушёл - неизвестно. Одна строка = один человек на одном шаге (повтор не пишем).
+    CREATE TABLE IF NOT EXISTS island_step (
+      id SERIAL PRIMARY KEY,
+      created_at TIMESTAMPTZ DEFAULT now(),
+      session_id TEXT NOT NULL,
+      step TEXT NOT NULL,
+      UNIQUE (session_id, step)
+    );
+    CREATE INDEX IF NOT EXISTS island_step_created_idx ON island_step (created_at DESC);
   `);
   // seed if empty
   const { rows } = await pgPool.query('SELECT COUNT(*)::int AS c FROM phrases');
@@ -800,7 +811,17 @@ class FightRoom extends Room {
 // ─── BOOT ───
 const app = express();
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  // sendBeacon всегда шлёт запрос «с учётными данными», а на такой запрос браузер
+  // не принимает звёздочку в разрешении - отметки телеметрии молча блокировались.
+  // Поэтому отражаем origin запроса и разрешаем credentials.
+  const origin = req.headers.origin;
+  if (origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Token, X-Admin-Password');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -1391,6 +1412,45 @@ app.post('/api/island/quiz-result', async (req, res) => {
     res.json({ ok: false });
   }
 });
+// Отметка шага знакомства. Публичный и намеренно «мягкий»: телеметрия никогда
+// не должна мешать игроку, поэтому любые сбои гасим и всегда отвечаем 200.
+const ISLAND_STEPS = ['open', 'watch', 'name', 'goal', 'time', 'watch2', 'exp', 'watch3',
+  'quiz1', 'quiz2', 'quiz3', 'quiz4', 'quiz5', 'quiz6', 'route', 'map'];
+app.post('/api/island/step', async (req, res) => {
+  const b = req.body || {};
+  const sid = String(b.sid || '').slice(0, 64);
+  const step = String(b.step || '').slice(0, 32);
+  if (!sid || !ISLAND_STEPS.includes(step)) return res.json({ ok: false });
+  if (!pgPool) return res.json({ ok: false });
+  try {
+    await pgPool.query(
+      'INSERT INTO island_step (session_id, step) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [sid, step]);
+    res.json({ ok: true });
+  } catch (e) { console.error('[island:step]', e.message); res.json({ ok: false }); }
+});
+
+// Воронка: сколько человек дошло до каждого шага и где обрыв.
+app.get('/api/island/funnel-stats', checkAdmin, async (_, res) => {
+  if (!pgPool) return res.json({ steps: [], total: 0 });
+  try {
+    const { rows } = await pgPool.query(
+      'SELECT step, COUNT(DISTINCT session_id)::int AS c FROM island_step GROUP BY 1');
+    const by = Object.fromEntries(rows.map(r => [r.step, r.c]));
+    const first = by.open || 0;
+    let prev = first;
+    const steps = ISLAND_STEPS.map(s => {
+      const c = by[s] || 0;
+      const lost = Math.max(0, prev - c);
+      const row = { step: s, count: c, lostFromPrev: lost,
+        pctOfStart: first ? Math.round((c / first) * 100) : 0 };
+      prev = c;
+      return row;
+    });
+    res.json({ total: first, steps });
+  } catch (e) { console.error('[island:funnel]', e.message); res.status(500).json({ error: 'stats failed' }); }
+});
+
 app.get('/api/island/quiz-stats', checkAdmin, async (_, res) => {
   if (!pgPool) return res.status(503).json({ error: 'no db' });
   try {

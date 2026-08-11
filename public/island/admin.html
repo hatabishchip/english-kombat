@@ -204,6 +204,13 @@
   </div>
 
   <div class="card">
+    <h2>🚪 Где люди уходят</h2>
+    <p class="sub">Сколько человек дошло до каждого шага знакомства. Строка, где резко падает число, - место, на котором люди бросают. Его и надо чинить в первую очередь.</p>
+    <button class="btn2" id="funnelReload">🔄 Обновить</button>
+    <div id="funnelBox" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card">
     <h2>📊 Статистика теста</h2>
     <p class="sub">Сколько людей прошло знакомство и тест, какой маршрут им выпал и на каких вопросах чаще ошибаются. Низкий процент верных ответов - вопрос слишком сложный, его стоит упростить.</p>
     <button class="btn2" id="statsReload">🔄 Обновить</button>
@@ -285,6 +292,7 @@ async function boot(){
   normalize();
   render();
   loadStats();
+  loadFunnel();
 }
 
 // страховка от пустых блоков в серверном контенте
@@ -551,6 +559,39 @@ async function loadStats(){
   box.innerHTML=h;
 }
 $('#statsReload').onclick=loadStats;
+
+/* ── воронка: где люди уходят ── */
+const STEP_NAMES={ open:'Открыл игру', watch:'Кружок 1 (приветствие)', name:'Спросили имя',
+  goal:'Спросили цель', time:'Спросили про время', watch2:'Кружок 2 (персонаж)',
+  exp:'Спросили про опыт', watch3:'Кружок 3 (перед тестом)',
+  quiz1:'Вопрос 1', quiz2:'Вопрос 2', quiz3:'Вопрос 3', quiz4:'Вопрос 4',
+  quiz5:'Вопрос 5', quiz6:'Вопрос 6', route:'Увидел свой маршрут', map:'Дошёл до игры' };
+async function loadFunnel(){
+  const box=$('#funnelBox');
+  box.innerHTML='<p class="hint">Загружаю…</p>';
+  let s=null;
+  try{
+    const r=await fetch(API+'/api/island/funnel-stats',{cache:'no-store',headers:{'X-Admin-Password':TOKEN}});
+    if(!r.ok) throw 0;
+    s=await r.json();
+  }catch(e){ box.innerHTML='<p class="hint">Пока нет данных. Появятся, как только кто-то откроет игру.</p>'; return; }
+  const steps=Array.isArray(s&&s.steps)?s.steps:[];
+  const total=Number(s&&s.total)||0;
+  if(!total||!steps.length){ box.innerHTML='<p class="hint">Пока нет данных. Появятся, как только кто-то откроет игру.</p>'; return; }
+  // самый большой обрыв подсвечиваем - это место, которое надо чинить первым
+  let worst=0; steps.forEach(x=>{ if((Number(x.lostFromPrev)||0)>worst) worst=Number(x.lostFromPrev)||0; });
+  let h='<div class="stat"><span>Всего открыли игру</span><b>'+total+'</b></div><div class="grp">';
+  steps.forEach(x=>{
+    const c=Number(x.count)||0, lost=Number(x.lostFromPrev)||0, pct=Number(x.pctOfStart)||0;
+    const bad=(worst>0&&lost===worst&&lost>0);
+    h+='<div class="qstat"><div class="t"><span>'+esc(STEP_NAMES[x.step]||x.step)+
+       (bad?' <b style="color:#ff8aa0">- здесь уходят чаще всего</b>':'')+'</span>'+
+       '<b>'+c+' ('+pct+'%)'+(lost?' · ушло '+lost:'')+'</b></div>'+
+       '<div class="bar"><i class="'+(pct<40?'low':'')+'" style="width:'+Math.max(0,Math.min(100,pct))+'%"></i></div></div>';
+  });
+  box.innerHTML=h+'</div>';
+}
+$('#funnelReload').onclick=loadFunnel;
 
 /* ───────── локации и бой ───────── */
 function renderLocTabs(){

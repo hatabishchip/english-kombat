@@ -100,9 +100,9 @@ export function report(file) {
 
 /* ── страница с заглушенным боевым API ─────────────────────────────────────── */
 export async function newPage(browser, opts = {}) {
-  const { content = null, slow = false, statsBody = null, storage = null } = opts;
+  const { content = null, slow = false, statsBody = null, storage = null, blockStep = false } = opts;
   const ctx = await browser.newContext({ viewport: opts.viewport || { width: 390, height: 844 }, deviceScaleFactor: 2 });
-  const captured = { quizResults: [], chatCalls: [], consoleErrors: [], pageErrors: [], statsCalls: 0 };
+  const captured = { quizResults: [], chatCalls: [], consoleErrors: [], pageErrors: [], statsCalls: 0, steps: [] };
 
   if (!slow) {
     await ctx.addInitScript(() => {
@@ -132,12 +132,32 @@ export async function newPage(browser, opts = {}) {
       try { captured.quizResults.push(JSON.parse(req.postData() || '{}')); } catch { captured.quizResults.push(null); }
       return json({ ok: true });
     }
+    if (url.includes('/api/island/step')) {
+      try { captured.steps.push(JSON.parse(req.postData() || '{}')); } catch {}
+      // blockStep: сервер отметок недоступен - телеметрия не должна мешать игроку
+      if (blockStep) return route.abort('failed');
+      return json({ ok: true });
+    }
     if (url.includes('/api/island/chat')) {
       try { captured.chatCalls.push(JSON.parse(req.postData() || '{}')); } catch {}
       return json({ reply: 'Понял тебя. Возвращаемся к шагу.' });
     }
     if (url.includes('/api/admin/login')) return json({ ok: true });
     return json({ ok: true });
+  });
+
+  // sendBeacon мимо route(): подменяем его и складываем отметки в то же место
+  await ctx.addInitScript(() => {
+    const orig = navigator.sendBeacon && navigator.sendBeacon.bind(navigator);
+    Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: (url, data) => {
+      try {
+        window.__beacons = window.__beacons || [];
+        if (data && data.text) { data.text().then(t => window.__beacons.push({ url, body: t })); }
+        else window.__beacons.push({ url, body: String(data || '') });
+      } catch (e) {}
+      return true;
+    }});
+    void orig;
   });
 
   const page = await ctx.newPage();

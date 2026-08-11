@@ -1034,10 +1034,33 @@ const QZ={ i:0, answers:[] }; // прогресс теста на пониман
 
 // шаг воронки храним в сохранении: перезагрузка посреди онбординга не должна
 // отбрасывать человека в начало и переспрашивать уже сказанное
+// Телеметрия знакомства: без неё видно только дошедших до конца, а место, где
+// человек ушёл, не видно вообще. Отметка «мягкая» - молчит при любой ошибке и
+// никогда не задерживает игрока.
+function sid(){ if(!S.sid){ S.sid=Math.random().toString(36).slice(2)+Date.now().toString(36); save(); } return S.sid; }
+function trackStep(step){
+  if(!step) return;
+  S.steps=S.steps||{};
+  if(S.steps[step]) return;            // один человек - одна отметка на шаг
+  S.steps[step]=1; save();
+  const body=JSON.stringify({sid:sid(), step});
+  try{
+    // sendBeacon переживает закрытие вкладки: именно ушедшего на середине человека
+    // и надо посчитать, а обычный запрос при уходе со страницы обрывается
+    if(navigator.sendBeacon){
+      navigator.sendBeacon(API+'/api/island/step', new Blob([body],{type:'application/json'}));
+      return;
+    }
+    fetch(API+'/api/island/step',{method:'POST',headers:{'Content-Type':'application/json'},
+      keepalive:true, body}).catch(()=>{});
+  }catch(e){}
+}
 function setStep(s){
   onbAwait=s;
   S.onb = s ? { step:s, qi:QZ.i, answers:QZ.answers.slice() } : null;
   save();
+  // шаг теста отмечаем с номером вопроса: важно видеть, на каком именно уходят
+  trackStep(s==='quiz' ? ('quiz'+Math.min(6,(QZ.i|0)+1)) : s);
 }
 function SV(){ return CONTENT.survey||{}; }
 function QUIZ(){ return CONTENT.quiz||{}; }
@@ -1176,6 +1199,7 @@ function finishQuiz(){
   // и нажатием кнопки сохранение выглядит как «в воронке не был и не прошёл её»,
   // и перезагрузка в этот момент гонит человека через всю анкету заново.
   S.onbDone=true; setStep(null);   // setStep сам вызывает save()
+  trackStep('route');              // дошёл до маршрута
   const tpl=adv?(QUIZ().resultAdvanced||''):(QUIZ().resultBasic||'');
   // функция-заменитель: иначе имя вида $' или $& интерпретируется как шаблон замены
   const txt=String(tpl).replace(/\{name\}/g, ()=>esc(S.name||'Друг'));
@@ -1325,6 +1349,7 @@ function openAvatarFromChat(){ screen('s-ava'); }
 function goToMapFirstTime(){
   S.guest = S.guest||false;
   S.onbDone=true; S.onb=null; save();   // воронка пройдена - больше её не показываем
+  trackStep('map');                     // дошёл до игры
   screen('s-map'); $('#tabbar').dataset.armed='1'; $('#tabbar').classList.add('on'); selTab('map');
   restoreMapPoints(); refreshStats();
   setTimeout(()=>toast('🎉 Добро пожаловать на остров! Жми на точку и вперёд'),400);
@@ -1932,6 +1957,7 @@ function boot(){
 }
 function proceedBoot(){
   try{ flushQuizResult(); }catch(e){}   // прошлая отправка не дошла (сеть) - досылаем
+  try{ trackStep('open'); }catch(e){}   // точка отсчёта воронки: игру открыли
   // воронка пройдена - человек возвращается на карту, а не проходит онбординг заново.
   // Раньше признаком был locDone>0, но сразу после онбординга он ещё 0, и вся воронка повторялась.
   if(S.onbDone || (S.lastDay && S.locDone>0 && localStorage.getItem(LS))){

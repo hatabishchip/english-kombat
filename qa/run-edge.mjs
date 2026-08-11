@@ -324,6 +324,68 @@ async function runReset(browser) {
   await page.ctx.close();
 }
 
+async function beaconSteps(page){
+  const b = await page.evaluate(() => (window.__beacons || []).map(x => x.body));
+  return b.map(x => { try { return JSON.parse(x); } catch (e) { return null; } }).filter(Boolean);
+}
+/* ═══ TLM · телеметрия воронки: видно ли, где человек ушёл ═════════════════ */
+async function runTelemetry(browser) {
+  scenario('Телеметрия знакомства');
+
+  // 1. Полный проход: отметки идут по порядку и без повторов
+  {
+    const page = await newPage(browser);
+    await openIsland(page, PORT);
+    await walkFunnel(page, { name: 'Метрикыч', picks: pickFor([1, 1, 1, 1, 1, 1]) });
+    await page.click('#bigStart');
+    await page.waitForSelector('#s-map.on', { timeout: 12000 }).catch(() => {});
+    await page.waitForTimeout(600);
+    const ev = await beaconSteps(page);
+    const steps = ev.map(x => x.step);
+    check('TLM-01', 'Отмечен вход в игру', steps.includes('open'), steps.join(','));
+    check('TLM-02', 'Отмечены шаги анкеты', ['name','goal','time','exp'].every(x => steps.includes(x)), steps.join(','));
+    check('TLM-03', 'Отмечены вопросы теста по номерам',
+      ['quiz1','quiz3','quiz6'].every(x => steps.includes(x)), steps.join(','));
+    check('TLM-04', 'Отмечен показ маршрута и выход на карту',
+      steps.includes('route') && steps.includes('map'), steps.join(','));
+    check('TLM-05', 'Один человек - одна отметка на шаг',
+      new Set(steps).size === steps.length, steps.join(','));
+    const sids = new Set(ev.map(x => x.sid));
+    check('TLM-06', 'Все отметки одного человека с одним ключом', sids.size === 1, [...sids].join(','));
+    await page.ctx.close();
+  }
+
+  // 2. Ушёл на середине: видно, ГДЕ именно, и дальше отметок нет
+  {
+    const page = await newPage(browser);
+    await openIsland(page, PORT);
+    await passCircle(page);
+    await waitBubble(page, /Как тебя зовут/i);
+    await page.fill('#onbInput', 'Ушёл');
+    await page.press('#onbInput', 'Enter');
+    await waitBubble(page, /Для чего ты хочешь/i);
+    await page.waitForTimeout(400);
+    const steps = (await beaconSteps(page)).map(x => x.step);
+    check('TLM-07', 'Дошедшие шаги отмечены', steps.includes('name') && steps.includes('goal'), steps.join(','));
+    check('TLM-08', 'Шаги, до которых не дошёл, НЕ отмечены',
+      !steps.includes('quiz1') && !steps.includes('route') && !steps.includes('map'), steps.join(','));
+    await page.ctx.close();
+  }
+
+  // 3. Телеметрия не мешает игроку: сервер отметок лежит - воронка всё равно проходится
+  {
+    const page = await newPage(browser, { blockStep: true });
+    await openIsland(page, PORT);
+    await walkFunnel(page, { name: 'Безсети', picks: pickFor([0, 0, 0, 0, 0, 0]) });
+    const gotStart = await page.$('#bigStart').then(e => !!e);
+    check('TLM-09', 'Упавшая телеметрия не ломает знакомство', gotStart,
+      'воронка не дошла до конца при недоступном сервере отметок');
+    check('TLM-10', 'Упавшая телеметрия не роняет игру исключением',
+      page.captured.pageErrors.length === 0, page.captured.pageErrors.slice(0, 2).join(' | '));
+    await page.ctx.close();
+  }
+}
+
 async function runMatrix(browser) {
   scenario('Матрица маршрута: все 16 комбинаций вопросов №1-4');
   let n = 0;
@@ -490,6 +552,7 @@ async function runBadContent(browser) {
     if (want('MTX')) await runMatrix(browser);
     if (want('BAD')) await runBadContent(browser);
     if (want('RST')) await runReset(browser);
+    if (want('TLM')) await runTelemetry(browser);
   } catch (e) {
     check('RUN-00', 'Стенд отработал без падений', false, String(e && e.stack || e));
   } finally {
