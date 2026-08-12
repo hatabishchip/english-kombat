@@ -1676,7 +1676,7 @@ async function listenMyTurn(retry){
   const spoke=speaking;
   const durMs=Math.max(0, lastLoud-300);
   if(!spoke || !blob || blob.size<1500){ return silentTurn(); }
-  fightStatus('Слушаю…');
+  fightStatus('Слушаю…'); windUp('me', 1500);
   const r=await transcribeSafe(blob,'en');
   if(!F || F.turn!=='me') return;
   resolveSpeech(r.text||'', r.conf||0, durMs);
@@ -1748,12 +1748,36 @@ function tapFallback(why){
   card.addEventListener('click',go);
 }
 
+// Замах бойца: 0..1 и обратно. Занимает паузу, пока идёт распознавание.
+function windUp(who, ms){
+  const key = who==='me' ? 'windup' : 'foeWindup';
+  const t0=Date.now();
+  (function step(){
+    if(!F) return;
+    const k=Math.min(1,(Date.now()-t0)/ms);
+    F[key]=Math.sin(k*Math.PI);
+    if(k<1) requestAnimationFrame(step); else F[key]=0;
+  })();
+}
+// короткий сигнал «твой ход» - без него начало хода не чувствуется
+function turnBeep(){
+  try{
+    const ac=new (window.AudioContext||window.webkitAudioContext)();
+    const o=ac.createOscillator(), g=ac.createGain();
+    o.type='sine'; o.frequency.value=880; g.gain.value=0.07;
+    o.connect(g); g.connect(ac.destination); o.start();
+    o.frequency.exponentialRampToValueAtTime(1320, ac.currentTime+0.09);
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+0.22);
+    o.stop(ac.currentTime+0.24); setTimeout(()=>{try{ac.close();}catch(e){}},400);
+  }catch(e){}
+}
+
 /* ── переключение ходов ── */
 function beginMyTurn(){
   if(!F) return;
   F.turn='me'; F.retry={heard:0,again:0,cut:0};
   const cta=$('#fightCta'); if(cta) cta.classList.remove('foe');
-  measureFightCta(); drawFight();
+  measureFightCta(); drawFight(); turnBeep();
   setTimeout(()=>listenMyTurn(false), 450);   // дать панели выехать
 }
 function passToFoe(){
@@ -1762,7 +1786,10 @@ function passToFoe(){
   const cta=$('#fightCta'); if(cta) cta.classList.add('foe');
   const nm=$('#foeTurnName'); if(nm) nm.textContent='Ход '+((F.foe&&F.foe.n)||'соперника');
   measureFightCta(); drawFight();
-  setTimeout(()=>{ if(F&&F.turn==='foe'){ foeShoot(); setTimeout(nextFightPhrase,900); } }, 900);
+  const say=(F.pool&&F.pool.length)?F.pool[Math.floor(Math.random()*F.pool.length)]:null;
+  if(say){ const nm=$('#foeTurnName'); if(nm) nm.textContent=((F.foe&&F.foe.n)||'Соперник')+': «'+say.en+'»'; }
+  windUp('foe', 1400);
+  setTimeout(()=>{ if(F&&F.turn==='foe'){ foeShoot(); setTimeout(nextFightPhrase,900); } }, 1400);
 }
 function foeShoot(){
   const r=cv.getBoundingClientRect(); const gy=groundY(r.height);
@@ -1820,6 +1847,10 @@ function drawFight(){
 }
 function drawWorm(x,y,me){
   ctx.save();
+  // Замах: пока сервер разбирает речь, боец отводит руку - ожидание выглядит как движение,
+  // а не как застывший экран.
+  const wind = me ? (F&&F.windup||0) : (F&&F.foeWindup||0);
+  if(wind>0){ ctx.translate(x,y); ctx.rotate((me?-1:1)*0.30*Math.sin(wind*Math.PI)); ctx.translate(-x,-y); }
   ctx.fillStyle=me?'#3ecf6b':'#ff5a6e';
   ctx.beginPath();ctx.ellipse(x,y+18,26,20,0,0,7);ctx.fill();
   // голова: у игрока - его ФОТО (аватар), у соперника - лицо персонажа
