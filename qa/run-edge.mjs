@@ -282,6 +282,14 @@ async function runReset(browser) {
 
   const page = await newPage(browser);
   await openIsland(page, PORT);
+  // выход нужен и в знакомстве: именно там человек застревает и просит «начать сначала»
+  const inOnb = await page.evaluate(() => {
+    const b = document.querySelector('#onbReset');
+    if (!b) return { ok: false, why: 'кнопки нет в знакомстве' };
+    const r = b.getBoundingClientRect();
+    return { ok: r.width > 0 && r.right <= window.innerWidth + 1, why: `right=${Math.round(r.right)}` };
+  });
+  check('RST-09', 'Выход доступен и из знакомства, не только с карты', inOnb.ok, inOnb.why);
   await walkFunnel(page, { name: 'Сбросыч', picks: pickFor([1, 1, 1, 1, 1, 1]) });
   await page.click('#bigStart');
   await page.waitForSelector('#s-map.on', { timeout: 12000 });
@@ -339,6 +347,15 @@ async function runReset(browser) {
                why: `right=${Math.round(r.right)} при ширине ${window.innerWidth}` };
     });
     check('RST-07', 'Кнопка «начать сначала» помещается на узком экране', fit.ok, fit.why);
+
+    // Урок L-33: существование кнопки не равно её находимости. Партнёр не нашёл
+    // выход, потому что значок без слова читается как «обновить страницу».
+    const label = await page.evaluate(() => {
+      const b = document.querySelector('#resetBtn');
+      return b ? (b.textContent || '').trim() : '';
+    });
+    check('RST-08', 'У выхода есть подпись словом, а не только значок',
+      /[а-яa-z]{4,}/i.test(label), `на кнопке "${label}"`);
 
     // Найдено на iPhone: карточка с боевой фразой выросла и накрыла бойцов.
     // Верхняя половина экрана обязана оставаться свободной под них.

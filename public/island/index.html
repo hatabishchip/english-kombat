@@ -396,6 +396,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
       <div class="ava">🏝️</div>
       <div class="who"><b>English Kombat</b><span id="onbStatus">Роман и Саня на смене</span></div>
       <div class="online-pill" id="onlinePill">🟢 онлайн: 1 240</div>
+      <button class="online-pill" id="onbReset" title="Начать сначала" style="border:0;cursor:pointer">🔄</button>
     </div>
     <div class="chat-scroll" id="chatScroll"></div>
     <div class="quick hidden" id="onbQuick"></div>
@@ -433,7 +434,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
       </div>
       <button class="stat" id="inviteBtn" style="border:0;background:rgba(255,255,255,.2)">👥</button>
       <button class="stat" id="leagueBtn" style="border:0;background:rgba(255,255,255,.2)">🏆 <span id="stTrophy">0</span></button>
-      <button class="stat" id="resetBtn" title="Начать сначала" style="border:0;background:rgba(255,255,255,.2)">🔄</button>
+      <button class="stat" id="resetBtn" title="Начать сначала" style="border:0;background:rgba(255,255,255,.2)">🔄 Сначала</button>
     </div>
     <div class="map-wrap" id="mapWrap">
       <svg class="island-svg" viewBox="0 0 400 640" preserveAspectRatio="xMidYMid slice">
@@ -2502,11 +2503,13 @@ function resetPlayer(){
   try{ speechSynthesis.cancel(); }catch(e){}
   location.reload();
 }
-$('#resetBtn')&&$('#resetBtn').addEventListener('click',()=>{
+function askReset(){
   sheet({ emoji:'🔄', title:'Начать сначала?',
     text:'Прогресс, имя и уровень сотрутся, и знакомство с Романом пойдёт с самого начала. Это нельзя отменить.',
     cta:'Да, начать сначала', onCta:()=>{ closeSheet(); resetPlayer(); }, cancel:'Отмена' });
-});
+}
+$('#resetBtn')&&$('#resetBtn').addEventListener('click',askReset);
+$('#onbReset')&&$('#onbReset').addEventListener('click',askReset);   // выход есть и из знакомства
 
 /* =====================================================================
    12 · ЛИГА ОСТРОВА: лестница 1на1 + вызов друга (завлекающая часть боёв)
