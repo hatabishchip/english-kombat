@@ -1206,8 +1206,18 @@ function islandSystemPrompt(personaKey, userName, level, goal, mode, step) {
   const lvl = level === 'advanced'
     ? 'Reply in natural English at B2 level with richer vocabulary and idioms, still 1 to 2 sentences.'
     : ['The learner is a BEGINNER who barely knows English. Reply mostly in RUSSIAN (1-2 short sentences),',
-       'and naturally include exactly ONE very simple English phrase (3-6 words) with its Russian translation in parentheses,',
-       'then invite them to say or answer it in English. Example style: "Кстати, смотри: I love the ocean (я люблю океан). А ты? Скажи по-английски!"'].join(' ');
+       'and include exactly ONE very simple English phrase (3-6 words) with its Russian translation in parentheses,',
+       'then invite them to say it in English.',
+       'CRITICAL: the English phrase must be ABOUT WHAT THE LEARNER JUST SAID, built from their own words.',
+       'If they mention surfing, give them a surfing phrase; if they mention being tired or upset, give a phrase that fits that feeling.',
+       'Never offer a cheerful phrase like "I am happy" to someone who just said something sad or frustrating - first react to their feeling in Russian, then give a phrase that matches it.',
+       'Also VARY your sentence structure every message: do not start with the same connector twice in a row',
+       '(avoid always repeating "Кстати, смотри:"), and never repeat an English phrase you already used in this conversation.',
+       'The learner must feel heard, not fed a template.',
+       'STRICT LANGUAGE RULE: the Russian part must be 100% correct Russian with NO English words mixed inside it.',
+       'The ONLY English in your whole reply is that one short phrase. Never write hybrids like "выглядISH" or "Что happened на работе".',
+       'The Russian translation in parentheses must be simple and literal: "I am sad" is "мне грустно", not "я скорблю".',
+       'Write any foreign name in ONE alphabet consistently (write "наси горенг" fully in Cyrillic, never half-Latin like "нasi").'].join(' ');
   const goalLine = goal ? `The learner's real goal is: "${goal}". Now and then, naturally connect the chat to this goal to keep them motivated (do not force it every message).` : '';
   return [
     `You are ${p.name} ${p.emoji}, a character on a tropical English-learning island game called "English Kombat".`,
@@ -1252,13 +1262,36 @@ async function callGemini(system, history) {
   return j.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 function parseChatJson(raw, personaKey) {
+  const clean = v => String(v || '').replace(/[—–]/g, '-').trim();
+  const take = j => (j && typeof j.reply === 'string')
+    ? { reply: clean(j.reply), correction: clean(j.correction) } : null;
   try {
-    const j = JSON.parse(raw);
-    if (j && typeof j.reply === 'string') return { reply: j.reply.replace(/[—–]/g, '-'), correction: (j.correction || '').replace(/[—–]/g, '-') };
+    const hit = take(JSON.parse(raw));
+    if (hit) return hit;
   } catch (e) {}
-  // модель вернула просто текст — обернём
-  const txt = String(raw || '').trim().replace(/[—–]/g, '-');
+  // Модель иногда оборачивает ответ пояснением ("Here is the JSON requested: {...}").
+  // Раньше вся эта служебная фраза уходила игроку как реплика персонажа.
+  const m = String(raw || '').match(/\{[\s\S]*\}/);
+  if (m) {
+    try {
+      const hit = take(JSON.parse(m[0]));
+      if (hit) return hit;
+    } catch (e) {}
+  }
+  let txt = clean(raw);
+  // остатки служебных фраз в начале - не текст персонажа
+  txt = txt.replace(/^(here (is|are) the [^\n:]{0,40}:?|```json|```)\s*/i, '').trim();
+  if (!txt || /^here (is|are) the/i.test(txt)) txt = '';
   return { reply: txt || 'Nice! Tell me more 🙂', correction: '' };
+}
+// Слово, в котором смешаны кириллица и латиница ("Убude", "выглядISH"), - всегда
+// брак генерации: человек видит нечитаемую кашу. Промпт снижает частоту, но не
+// убирает совсем, поэтому такой ответ переспрашиваем один раз.
+function hasMixedAlphabetWord(text) {
+  return String(text || '').split(/\s+/).some(w => {
+    const core = w.replace(/[^\p{L}]/gu, '');
+    return core.length > 2 && /[\u0400-\u04FF]/.test(core) && /[A-Za-z]/.test(core);
+  });
 }
 app.post('/api/island/chat', async (req, res) => {
   const { messages, persona, userName, level, goal, mode, step } = req.body || {};
@@ -1276,7 +1309,16 @@ app.post('/api/island/chat', async (req, res) => {
       return res.json({ reply: `Hey! I'm a bit busy catching waves 🌊 Say that again? (${p.name})`, correction: '', via: 'fallback' });
     }
   }
-  const out = parseChatJson(raw, persona);
+  let out = parseChatJson(raw, persona);
+  // одна повторная попытка, если в ответе слипись алфавиты
+  if (hasMixedAlphabetWord(out.reply)) {
+    console.log('[island:chat] mixed alphabet, retry: %s', String(out.reply).slice(0, 80));
+    try {
+      const again = await callGroq(system + '\nIMPORTANT: your previous answer mixed Cyrillic and Latin letters inside one word. Write every word in a single alphabet.', history);
+      const out2 = parseChatJson(again, persona);
+      if (out2.reply && !hasMixedAlphabetWord(out2.reply)) out = out2;
+    } catch (e) { /* оставляем первый ответ - лучше он, чем ничего */ }
+  }
   res.json({ ...out, via });
 });
 
