@@ -1506,7 +1506,7 @@ function restoreMapPoints(){
 const cv=$('#fightCanvas'); const ctx=cv.getContext('2d');
 let F=null; // состояние боя
 function fitCanvas(){const r=cv.getBoundingClientRect();cv.width=r.width*devicePixelRatio;cv.height=r.height*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);}
-window.addEventListener('resize',()=>{if($('#s-fight').classList.contains('on')){fitCanvas();drawFight();}});
+window.addEventListener('resize',()=>{if($('#s-fight').classList.contains('on')){measureFightCta();fitCanvas();drawFight();}});
 
 // оружие за прогресс (fight3)
 const WEAPONS=[
@@ -1529,7 +1529,7 @@ const LEAGUE=[
 ];
 function leagueReward(i){ return i>=LEAGUE.length-1?100:(10+i*5); }
 function openFight(opts){
-  screen('s-fight'); selTab('fight'); fitCanvas();
+  screen('s-fight'); selTab('fight'); fitCanvas(); measureFightCta();
   const pool = S.learned.length?S.learned:curPhrases();
   let foe, league=null;
   if(opts&&opts.ghost){ foe={n:opts.ghost.n,e:opts.ghost.e||'🥷'}; league={idx:-1, hp:1, dmg:1, acc:0.5, ghost:true}; }
@@ -1552,6 +1552,8 @@ function nextFightPhrase(){
   F.phrase=F.pool[Math.floor(Math.random()*F.pool.length)];
   $('#fightRu').textContent=F.phrase.ru;$('#fightEn').textContent=F.phrase.en;$('#fightHeard').textContent='';
   F.charged=false; $('#fightMic').innerHTML='🎙️ Держи и говори'; $('#powerWrap').classList.remove('on');
+  // длина фразы меняет высоту карточки, а от неё зависит линия земли
+  requestAnimationFrame(()=>{ measureFightCta(); if($('#s-fight').classList.contains('on')) drawFight(); });
 }
 $('#fightSay').addEventListener('click',()=>{ if(F&&F.phrase) say(F.phrase.en); }); // послушать боевую фразу
 setupVoiceBtn($('#fightMic'), {lang:'en'}, said=>{
@@ -1598,7 +1600,20 @@ function foeShoot(){
   const px=6+Math.random()*1.6,  py=7.6+Math.random()*1.6;    // почти гарантированное попадание
   F.foeBanana={ x:r.width-70, y:gy-40, vx:-(rx+(px-rx)*acc), vy:-(ry+(py-ry)*acc), r:13 };
 }
-function groundY(H){return Math.round(H*0.58);}
+// Линия земли раньше была жёстко на 58% высоты, а карточка с фразой снизу выросла
+// и накрывала бойцов. Теперь земля поднимается ровно настолько, чтобы бойцы всегда
+// стояли ВЫШЕ карточки - на любом экране и при любой длине фразы.
+let fightCtaH = 0;
+function measureFightCta(){
+  const el = document.querySelector('.fight-cta');
+  fightCtaH = el ? el.getBoundingClientRect().height : 0;
+}
+function groundY(H){
+  const FIGHTER = 64;                     // рост бойца с головой над линией земли
+  const top = H - 84 - fightCtaH - 12;    // верх карточки (её отступ снизу 84px)
+  const limit = top - FIGHTER;            // земля не ниже, чем позволяет карточка
+  return Math.round(Math.max(H*0.30, Math.min(H*0.58, limit)));
+}
 function drawFight(){
   const r=cv.getBoundingClientRect(),W=r.width,H=r.height,gy=groundY(H);
   ctx.clearRect(0,0,W,H);

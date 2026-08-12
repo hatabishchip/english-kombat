@@ -339,6 +339,23 @@ async function runReset(browser) {
                why: `right=${Math.round(r.right)} при ширине ${window.innerWidth}` };
     });
     check('RST-07', 'Кнопка «начать сначала» помещается на узком экране', fit.ok, fit.why);
+
+    // Найдено на iPhone: карточка с боевой фразой выросла и накрыла бойцов.
+    // Верхняя половина экрана обязана оставаться свободной под них.
+    await page.click('#tabbar .tab:nth-child(3)').catch(() => {});
+    const okFight = await page.waitForSelector('#s-fight.on', { timeout: 8000 }).then(() => true).catch(() => false);
+    if (okFight) {
+      await page.waitForTimeout(600);
+      const room = await page.evaluate(() => {
+        const cta = document.querySelector('.fight-cta');
+        const cv = document.querySelector('#fightCanvas');
+        if (!cta || !cv) return { ok: false, why: 'экран боя не отрисован' };
+        const c = cta.getBoundingClientRect(), v = cv.getBoundingClientRect();
+        return { ok: c.top >= v.top + v.height * 0.5,
+                 why: `верх карточки ${Math.round(c.top - v.top)} при высоте поля ${Math.round(v.height)}` };
+      });
+      check('FGT-01', 'Карточка боя не залезает в верхнюю половину - бойцам есть место', room.ok, room.why);
+    }
   }
   await page.ctx.close();
 }
