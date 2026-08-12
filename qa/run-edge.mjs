@@ -322,6 +322,25 @@ async function runReset(browser) {
     check('RST-06', 'Прогресс и имя стёрты', !after || !after.name, `S.name=${after && after.name}`);
   }
   await page.ctx.close();
+
+  // Найдено на iPhone: верхняя панель не переносилась, и кнопка сброса уезжала
+  // за правый край - человек её не видел вовсе.
+  {
+    const page = await newPage(browser, { width: 390, height: 844 });
+    await openIsland(page, PORT);
+    await walkFunnel(page, { name: 'Узкий', picks: pickFor([1, 1, 1, 1, 1, 1]) });
+    await page.click('#bigStart');
+    await page.waitForSelector('#s-map.on', { timeout: 12000 });
+    const fit = await page.evaluate(() => {
+      const b = document.querySelector('#resetBtn');
+      if (!b) return { ok: false, why: 'кнопки нет' };
+      const r = b.getBoundingClientRect();
+      return { ok: r.right <= window.innerWidth + 1 && r.left >= -1 && r.width > 0,
+               why: `right=${Math.round(r.right)} при ширине ${window.innerWidth}` };
+    });
+    check('RST-07', 'Кнопка «начать сначала» помещается на узком экране', fit.ok, fit.why);
+  }
+  await page.ctx.close();
 }
 
 async function beaconSteps(page){
