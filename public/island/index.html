@@ -231,6 +231,19 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 #fightCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:1;touch-action:none}
 .fight-cta{position:absolute;left:0;right:0;bottom:calc(84px + var(--safe-b));z-index:6;padding:0 16px;text-align:center}
 .fight-phrase{background:rgba(11,31,42,.9);color:#fff;border-radius:18px;padding:13px 16px;margin-bottom:10px;box-shadow:var(--shadow)}
+/* Живая шкала голоса вместо кнопки «держи и говори»: столбики дышат от микрофона. */
+.eq{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:44px;margin:10px 0 4px}
+.eq i{width:5px;border-radius:3px;background:var(--teal);height:4px;transition:height .07s linear}
+.eq.idle i{background:#41626f;height:4px}
+.eq.done i{background:#8fb3c0;height:4px}
+.eq.bad i{background:var(--sun)}
+/* Ход соперника: карточка прячется целиком, арена вырастает. */
+.foe-turn{display:none;align-items:center;justify-content:center;gap:7px;background:rgba(11,31,42,.9);color:#fff;border-radius:16px;padding:15px 16px;box-shadow:var(--shadow)}
+.foe-turn b{font-size:15px}
+.foe-turn i{width:6px;height:6px;border-radius:50%;background:#8fb3c0;animation:tp 1s infinite}
+.foe-turn i:nth-child(3){animation-delay:.15s}.foe-turn i:nth-child(4){animation-delay:.3s}
+.fight-cta.foe .fight-phrase{display:none}
+.fight-cta.foe .foe-turn{display:flex}
 .fight-phrase .ru{font-size:13px;color:#bcd3db}
 .fight-phrase .en{font-size:22px;font-weight:900;color:var(--banana)}
 .fight-heard{min-height:18px;font-size:13px;font-weight:700;color:#fff;margin-top:4px}
@@ -489,18 +502,14 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
       <div class="hpbar me"><div class="lab"><span id="meName">🙂 ТЫ</span><span><span id="meHp">100</span></span></div><div class="track"><i id="meHpBar" style="width:100%"></i></div></div>
       <div class="hpbar foe"><div class="lab"><span id="foeName">СОПЕРНИК 😈</span><span><span id="foeHp">100</span></span></div><div class="track"><i id="foeHpBar" style="width:100%"></i></div></div>
     </div>
-    <div class="fight-cta">
+    <div class="fight-cta" id="fightCta">
       <div class="fight-phrase">
         <div class="ru" id="fightRu">Скажи фразу - зарядишь банан</div>
         <div class="en" id="fightEn"></div>
-        <button class="say-chip" id="fightSay" style="background:rgba(255,255,255,.15);color:#fff">🔊 Послушать</button>
+        <div class="eq idle" id="fightEq"></div>
         <div class="fight-heard" id="fightHeard"></div>
       </div>
-      <button class="btn sun wide" id="fightMic">🎙️ Держи и говори</button>
-      <div class="power-wrap" id="powerWrap">
-        <div class="power-track"><i id="powerBar"></i></div>
-        <button class="btn dark sm" id="fireBtn">🍌 Бросить</button>
-      </div>
+      <div class="foe-turn" id="foeTurn"><b id="foeTurnName">Ход соперника</b><i></i><i></i><i></i></div>
       <div class="aim-hint" id="aimHint"></div>
     </div>
   </section>
@@ -1542,7 +1551,6 @@ function openFight(opts){
   $('#foeName').textContent=F.foe.e+' '+F.foe.n.toUpperCase();
   updateHp(); nextFightPhrase(); drawFight(); loopFight();
   $('#aimHint').textContent='Оружие: '+F.weapon.em+' '+F.weapon.name+' · против тебя '+F.foe.n+'!';
-  $('#powerWrap').classList.remove('on');
 }
 function updateHp(){
   $('#meHp').textContent=Math.max(0,F.meHp|0);$('#foeHp').textContent=Math.max(0,F.foeHp|0);
@@ -1551,47 +1559,211 @@ function updateHp(){
 function nextFightPhrase(){
   F.phrase=F.pool[Math.floor(Math.random()*F.pool.length)];
   $('#fightRu').textContent=F.phrase.ru;$('#fightEn').textContent=F.phrase.en;$('#fightHeard').textContent='';
-  F.charged=false; $('#fightMic').innerHTML='🎙️ Держи и говори'; $('#powerWrap').classList.remove('on');
+  F.charged=false;
   // длина фразы меняет высоту карточки, а от неё зависит линия земли
   requestAnimationFrame(()=>{ measureFightCta(); if($('#s-fight').classList.contains('on')) drawFight(); });
+  beginMyTurn();
 }
-$('#fightSay').addEventListener('click',()=>{ if(F&&F.phrase) say(F.phrase.en); }); // послушать боевую фразу
-setupVoiceBtn($('#fightMic'), {lang:'en'}, said=>{
-  if(F.pvp&&F.pvp.turn!==F.pvp.my){ toast('Сейчас ход соперника ⏳'); return; }
-  if(F.charged) return;
-  const h=$('#fightHeard'); const btn=$('#fightMic');
-  if(matchPhrase(said,F.phrase.ans)){ h.textContent='✅ заряжено!'; F.charged=true; F.missKick=false; say(F.phrase.en);
-    $('#powerWrap').classList.add('on'); startPower(); $('#aimHint').textContent='Держи силу и жми 🍌 Бросить'; btn.innerHTML='✅ Заряжено'; }
-  else { // решение Ромы: неверно сказал - бросок ВСЁ РАВНО летит, но криво
-    h.textContent='😅 «'+said+'» - не то! Правильно: '+F.phrase.en+'. Бросок будет кривой';
-    say(F.phrase.en);
-    F.charged=true; F.missKick=true;
-    $('#powerWrap').classList.add('on'); startPower(); $('#aimHint').textContent='Бросок пойдёт криво 😅 Жми 🍌'; btn.innerHTML='🌀 Кривой заряд'; }
-});
-function startPower(){
-  F.power=0;F.powerDir=1;F.powering=true;
-  (function osc(){ if(!F.powering)return; F.power+=F.powerDir*1.3; if(F.power>=100){F.power=100;F.powerDir=-1;} if(F.power<=0){F.power=0;F.powerDir=1;}
-    $('#powerBar').style.width=F.power+'%'; drawFight(); requestAnimationFrame(osc); })();
+/* ============================================================
+   БОЙ БЕЗ КНОПОК (метапромт 12.08).
+   Ход игрока: запись открывается САМА, вместо кнопки - живая шкала голоса.
+   Договорил - банан летит сам, сила зависит от того, как чисто сказал.
+   ВАЖНО: автостоп по тишине уже проваливался в июле - резал людей на полуслове.
+   Защита: обрыв НАЧАЛА фразы считается недоговорённостью, а не ошибкой,
+   и даёт бесплатный повтор.
+   ============================================================ */
+const EQ_BARS=28;
+(function buildEq(){ const box=$('#fightEq'); if(!box) return;
+  for(let i=0;i<EQ_BARS;i++) box.appendChild(document.createElement('i')); })();
+function eqSet(cls){ const b=$('#fightEq'); if(b) b.className='eq'+(cls?' '+cls:''); }
+function eqDraw(level){ // level 0..1
+  const box=$('#fightEq'); if(!box) return;
+  const bars=box.children;
+  for(let i=0;i<bars.length;i++){
+    const mid=1-Math.abs(i-(bars.length-1)/2)/((bars.length-1)/2);   // в центре выше
+    const h=4+level*40*(0.35+0.65*mid)*(0.7+Math.random()*0.6);
+    bars[i].style.height=Math.min(44,h)+'px';
+  }
 }
-$('#fireBtn').addEventListener('click',()=>{
-  if(!F.charged||!F.powering||F.banana) return; F.powering=false;
-  const p=F.power/100; // 0..1
-  if(F.pvp){ // живой бой: бросок считает сервер
-    if(F.pvp.turn!==F.pvp.my){ toast('Сейчас ход соперника ⏳'); return; }
+function eqReset(){ const box=$('#fightEq'); if(!box) return;
+  for(const b of box.children) b.style.height='4px'; }
+function fightStatus(t){ const h=$('#fightHeard'); if(h) h.textContent=t||''; }
+
+// доля слов эталона, которые человек действительно произнёс (лучший вариант из списка)
+function accuracyOf(said, ans){
+  const sw=norm(said).split(' ').filter(Boolean); if(!sw.length) return 0;
+  let best=0;
+  for(const a of (ans||[])){
+    const aw=norm(a).split(' ').filter(Boolean); if(!aw.length) continue;
+    const pool=sw.slice(); let hit=0;
+    for(const w of aw){ const k=pool.indexOf(w); if(k>=0){ hit++; pool.splice(k,1); } }
+    best=Math.max(best, hit/aw.length);
+  }
+  return best;
+}
+// человек начал верно, но не договорил (обрыв), а не сказал не то
+function looksCut(said, ans){
+  const sw=norm(said).split(' ').filter(Boolean); if(!sw.length) return false;
+  for(const a of (ans||[])){
+    const aw=norm(a).split(' ').filter(Boolean);
+    if(aw.length>=3 && sw.length<aw.length && sw[0]===aw[0]) return true;
+  }
+  return false;
+}
+// сила броска: главное - верные слова, чистота и темп лишь оттеняют
+function powerFrom(said, conf, durMs, phrase){
+  const acc=accuracyOf(said, phrase.ans);
+  const words=norm(phrase.en).split(' ').filter(Boolean).length||1;
+  const expected=0.45*words, dur=Math.max(0.3,durMs/1000);
+  const tempo=Math.max(0, Math.min(1, 1-Math.abs(Math.log(dur/expected))*0.7));
+  let p=100*(0.60*acc + 0.25*(conf||0) + 0.15*tempo);
+  if(acc>=0.999) p=Math.max(p,75);   // сказал всё верно - акцент не должен унижать бросок
+  return { power:Math.round(Math.max(0,Math.min(100,p))), acc, tempo };
+}
+
+/* ── слушаем ход игрока: без единого касания ── */
+let turnListening=false;
+async function listenMyTurn(retry){
+  if(!F || F.turn!=='me' || turnListening) return;
+  if(!mediaOK){ return tapFallback('Микрофон недоступен'); }
+  turnListening=true;
+  F.retry=retry||F.retry||{heard:0,again:0,cut:0};
+  fightStatus(retry?'Ещё раз!':'Говори фразу вслух');
+  eqSet(); eqReset();
+  let clip=null;
+  try{ clip=await recordClip({maxMs:12000}); }
+  catch(e){ turnListening=false; return tapFallback('Нет доступа к микрофону'); }
+
+  // живая громкость + автостоп по тишине
+  let ac=null, an=null, data=null, raf=0;
+  const t0=Date.now();
+  let floor=0, floorN=0, speaking=false, loud=0, lastLoud=0;
+  const words=norm(F.phrase.en).split(' ').filter(Boolean).length||1;
+  const SIL=words>5?1200:900;                       // в длинных фразах люди думают между словами
+  const CAP=Math.min(10000, 450*words*2.5+2000);
+  try{
+    ac=new (window.AudioContext||window.webkitAudioContext)();
+    an=ac.createAnalyser(); an.fftSize=512;
+    ac.createMediaStreamSource(clip.stream).connect(an);
+    data=new Uint8Array(an.fftSize);
+  }catch(e){}
+  const finish=()=>{ if(raf) cancelAnimationFrame(raf); try{ac&&ac.close();}catch(e){} };
+  const tick=()=>{
+    if(!turnListening){ finish(); return; }
+    const el=Date.now()-t0;
+    let rms=0;
+    if(an){ an.getByteTimeDomainData(data);
+      let sum=0; for(let i=0;i<data.length;i++){ const v=(data[i]-128)/128; sum+=v*v; }
+      rms=Math.sqrt(sum/data.length);
+    }
+    if(el<300){ floor=(floor*floorN+rms)/(++floorN); }      // калибровка фона
+    else {
+      const th=Math.max(0.012, floor*2.5);
+      if(rms>th){ loud++; lastLoud=el; if(loud>=3) speaking=true; }
+      else { loud=0; if(!speaking) floor=floor*0.95+rms*0.05; }
+      eqDraw(Math.min(1, rms/Math.max(0.06, th*3)));
+      if(speaking && el-lastLoud>SIL) { clip.stop(); turnListening=false; }
+      else if(el>CAP){ clip.stop(); turnListening=false; }
+      else if(!speaking && el>6000){ clip.stop(); turnListening=false; }  // молчит вовсе - не ждём вечно
+    }
+    raf=requestAnimationFrame(tick);
+  };
+  raf=requestAnimationFrame(tick);
+
+  const blob=await clip.blob;
+  turnListening=false; finish(); eqSet('done'); eqReset();
+  if(!F || F.turn!=='me') return;
+  const spoke=speaking;
+  const durMs=Math.max(0, lastLoud-300);
+  if(!spoke || !blob || blob.size<1500){ return silentTurn(); }
+  fightStatus('Слушаю…');
+  const r=await transcribeSafe(blob,'en');
+  if(!F || F.turn!=='me') return;
+  resolveSpeech(r.text||'', r.conf||0, durMs);
+}
+
+function silentTurn(){
+  const R=F.retry||(F.retry={heard:0,again:0,cut:0});
+  if(R.heard<1){ R.heard++; fightStatus('Не расслышал, повтори'); setTimeout(()=>listenMyTurn(true),500); return; }
+  fightStatus('Банан выпал из рук 🍌');
+  toast('🍌 Банан выпал - ход соперника');
+  passToFoe();
+}
+
+function resolveSpeech(said, conf, durMs){
+  const R=F.retry||(F.retry={heard:0,again:0,cut:0});
+  const acc=accuracyOf(said, F.phrase.ans);
+  if(!said || (conf<0.35 && acc<0.6)){                       // не расслышали - это не ошибка игрока
+    if(R.heard<1){ R.heard++; eqSet('bad'); fightStatus('Не расслышал, повтори'); setTimeout(()=>listenMyTurn(true),600); return; }
+    return weakShot(acc, said);
+  }
+  if(acc<0.6){
+    if(looksCut(said,F.phrase.ans) && R.cut<1){              // начал верно, но не договорил
+      R.cut++; fightStatus('Договори! «'+said+'»'); setTimeout(()=>listenMyTurn(true),500); return;
+    }
+    if(R.again<1){ R.again++; eqSet('bad'); fightStatus('Услышал: «'+said+'» - ещё раз!'); setTimeout(()=>listenMyTurn(true),700); return; }
+    return weakShot(acc, said);
+  }
+  const p=powerFrom(said, conf, durMs, F.phrase);
+  fightStatus('Услышал: «'+said+'» · сила '+p.power);
+  showShotStats(p, conf);
+  throwBanana(p.power/100, false);
+}
+
+function weakShot(acc, said){
+  const p=Math.round(25+20*(acc||0));
+  fightStatus(said?('Услышал: «'+said+'» - осечка'):'Осечка');
+  toast('🌀 Криво полетел!');
+  throwBanana(p/100, true);
+}
+
+// плитки «слова / чистота / темп» - видно, что именно просело
+function showShotStats(p, conf){
+  const el=$('#aimHint'); if(!el) return;
+  el.textContent='слова '+Math.round(p.acc*100)+'% · чистота '+Math.round((conf||0)*100)+'% · темп '+Math.round(p.tempo*100)+'%';
+  setTimeout(()=>{ if($('#aimHint')) $('#aimHint').textContent=''; },2200);
+}
+
+function throwBanana(p, crooked){
+  if(F.pvp){
+    if(F.pvp.turn!==F.pvp.my) return;
     try{ duelRoom&&duelRoom.send('throw',{power:p}); }catch(e){}
-    $('#powerWrap').classList.remove('on'); $('#aimHint').textContent='Бросок!'; F.charged=false;
+    F.turn='wait';
     return;
   }
   const r=cv.getBoundingClientRect(); const gy=groundY(r.height);
   let vx=(3+p*5), vy=-(5+p*5);
-  if(F.missKick){ // неверная фраза: бросок летит криво (сбив вектора)
-    vx*= (0.45+Math.random()*0.95); vy*= (0.5+Math.random()*0.85);
-    toast('🌀 Криво полетел!');
-  }
+  if(crooked){ vx*=(0.55+Math.random()*0.8); vy*=(0.6+Math.random()*0.7); }
   F.banana={ x:70, y:gy-44, vx, vy, r:14, done:false };
-  F.missKick=false;
-  $('#powerWrap').classList.remove('on'); $('#aimHint').textContent='';
-});
+  F.turn='fly';
+}
+
+// Запасной путь: без микрофона голосом играть нельзя, но бой не должен вставать.
+// Тап по карточке = бросок средней силы, чтобы человек хотя бы доиграл.
+function tapFallback(why){
+  eqSet('done'); eqReset();
+  fightStatus(why+' - тапни по фразе, чтобы бросить');
+  const card=document.querySelector('#fightCta .fight-phrase'); if(!card) return;
+  const go=()=>{ card.removeEventListener('click',go); if(F&&F.turn==='me') throwBanana(0.6,false); };
+  card.addEventListener('click',go);
+}
+
+/* ── переключение ходов ── */
+function beginMyTurn(){
+  if(!F) return;
+  F.turn='me'; F.retry={heard:0,again:0,cut:0};
+  const cta=$('#fightCta'); if(cta) cta.classList.remove('foe');
+  measureFightCta(); drawFight();
+  setTimeout(()=>listenMyTurn(false), 450);   // дать панели выехать
+}
+function passToFoe(){
+  if(!F) return;
+  F.turn='foe'; turnListening=false;
+  const cta=$('#fightCta'); if(cta) cta.classList.add('foe');
+  const nm=$('#foeTurnName'); if(nm) nm.textContent='Ход '+((F.foe&&F.foe.n)||'соперника');
+  measureFightCta(); drawFight();
+  setTimeout(()=>{ if(F&&F.turn==='foe'){ foeShoot(); setTimeout(nextFightPhrase,900); } }, 900);
+}
 function foeShoot(){
   const r=cv.getBoundingClientRect(); const gy=groundY(r.height);
   // точность соперника растёт с уровнем лиги: рандомный бросок тянется к «идеальному»
@@ -1707,16 +1879,16 @@ function hitFoe(){
   const dmg=F.weapon.dmg; F.foeHp-=Math.round((dmg[0]+Math.random()*(dmg[1]-dmg[0]))*streakMul()); if(F.foeHp<0)F.foeHp=0; updateHp(); shake();
   toast(F.weapon.em+' Попал!');
   if(F.foeHp<=0){ winFight(); return; }
-  setTimeout(()=>{ foeShoot(); setTimeout(nextFightPhrase,600); },700);
+  setTimeout(passToFoe,700);
 }
-function missShot(){ toast('🌴 Мимо!'); setTimeout(()=>{foeShoot();setTimeout(nextFightPhrase,500);},500); }
+function missShot(){ toast('🌴 Мимо!'); setTimeout(passToFoe,500); }
 // близкий промах: урон взрывной волной по расстоянию
 function splashFoe(d){
   const dmg=Math.max(5, Math.round(F.weapon.dmg[0]*(1-d/110)*0.7*streakMul()));
   F.foeHp-=dmg; if(F.foeHp<0)F.foeHp=0; updateHp(); shake();
   toast('💥 Взрывной волной задело! -'+dmg);
   if(F.foeHp<=0){ winFight(); return; }
-  setTimeout(()=>{ foeShoot(); setTimeout(nextFightPhrase,600); },700);
+  setTimeout(passToFoe,700);
 }
 function hitMe(){ const mul=(F.league&&F.league.dmg)||1; F.meHp-=Math.round((14+Math.random()*8)*mul); if(F.meHp<0)F.meHp=0; updateHp(); shake();
   if(F.meHp<=0){ loseFight(); } }
@@ -1809,7 +1981,7 @@ $('#floatChat').addEventListener('click',()=>{ $('#floatChat').classList.remove(
    ===================================================================== */
 function fmtTime(sec){ sec=Math.max(0,sec||0); return Math.floor(sec/60)+':'+String(Math.floor(sec%60)).padStart(2,'0'); }
 // блокировка кнопок записи, пока звучит TTS (нельзя писать поверх речи Романа)
-const VOICE_BTN_IDS=['onbRec','liveRec','lobbyMic','sceneMic','fightMic','duelMic'];
+const VOICE_BTN_IDS=['onbRec','liveRec','lobbyMic','sceneMic','duelMic'];
 let speakingCount=0;
 function voiceLock(on){ VOICE_BTN_IDS.forEach(id=>{ const b=document.getElementById(id); if(b) b.classList.toggle('voice-locked', on); }); }
 function speakLock(d){ speakingCount=Math.max(0, speakingCount+d); voiceLock(speakingCount>0); }
@@ -2348,10 +2520,14 @@ function startPvpFight(st){
 function pvpApplyTurn(){
   if(!F||!F.pvp) return;
   const mine=F.pvp.turn===F.pvp.my;
-  F.charged=false; F.powering=false; $('#powerWrap').classList.remove('on');
+  F.charged=false; turnListening=false;
   if(mine){ nextFightPhrase(); $('#aimHint').textContent='⚡ ТВОЙ ХОД · ветер '+(F.wind>0?'→':'←')+' '+Math.abs(F.wind).toFixed(1); }
-  else { $('#fightRu').textContent='Ход соперника'; $('#fightEn').textContent='⏳'; $('#fightHeard').textContent='';
-    $('#fightMic').innerHTML='⏳ Ждём '+esc(F.foe.n); $('#aimHint').textContent=F.foe.n+' целится…'; }
+  else { // ход соперника: карточка прячется целиком, арена вырастает
+    F.turn='foe';
+    const cta=$('#fightCta'); if(cta) cta.classList.add('foe');
+    const nm=$('#foeTurnName'); if(nm) nm.textContent='Ход '+((F.foe&&F.foe.n)||'соперника');
+    $('#aimHint').textContent=F.foe.n+' целится…';
+    measureFightCta(); drawFight(); }
 }
 function pvpShot(m){
   if(!F||!F.pvp) return;

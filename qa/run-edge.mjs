@@ -355,6 +355,33 @@ async function runReset(browser) {
                  why: `верх карточки ${Math.round(c.top - v.top)} при высоте поля ${Math.round(v.height)}` };
       });
       check('FGT-01', 'Карточка боя не залезает в верхнюю половину - бойцам есть место', room.ok, room.why);
+
+      // бой без кнопок: ни «Послушать», ни «Держи и говори», ни «Бросить»
+      const ui = await page.evaluate(() => ({
+        say: !!document.querySelector('#fightSay'),
+        mic: !!document.querySelector('#fightMic'),
+        fire: !!document.querySelector('#fireBtn'),
+        power: !!document.querySelector('#powerWrap'),
+        eq: document.querySelectorAll('#fightEq i').length,
+        foeStrip: !!document.querySelector('#foeTurn'),
+      }));
+      check('FGT-02', 'Кнопки «Послушать», «Держи и говори» и «Бросить» убраны',
+        !ui.say && !ui.mic && !ui.fire && !ui.power, JSON.stringify(ui));
+      check('FGT-03', 'Есть живая шкала голоса и полоска хода соперника',
+        ui.eq > 10 && ui.foeStrip, `столбиков ${ui.eq}`);
+
+      // Человек молчит (в стенде микрофон пустой): ход обязан пойти дальше сам,
+      // а не зависнуть навсегда. Ждём переход хода к сопернику или запасной путь.
+      const moved = await page.waitForFunction(() => {
+        const st = (document.querySelector('#fightHeard')||{}).textContent || '';
+        const foe = document.querySelector('#fightCta')?.classList.contains('foe');
+        return foe || /тапни|микрофон|выпал|повтори/i.test(st);
+      }, null, { timeout: 20000 }).then(() => true).catch(() => false);
+      const st = await page.evaluate(() => ({
+        s: (document.querySelector('#fightHeard')||{}).textContent || '',
+        foe: !!document.querySelector('#fightCta')?.classList.contains('foe') }));
+      check('FGT-04', 'Молчание не вешает бой: ход идёт дальше сам',
+        moved, `статус "${st.s}", ход соперника: ${st.foe}`);
     }
   }
   await page.ctx.close();
