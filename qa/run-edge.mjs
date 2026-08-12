@@ -383,6 +383,23 @@ async function runReset(browser) {
       check('FGT-04', 'Молчание не вешает бой: ход идёт дальше сам',
         moved, `статус "${st.s}", ход соперника: ${st.foe}`);
     }
+
+    // Локация обязана работать в том же ритме, что и бой: без кнопок, со шкалой голоса.
+    await page.click('#tabbar .tab:nth-child(2)').catch(() => {});
+    const okScene = await page.waitForSelector('#s-scene.on', { timeout: 8000 }).then(() => true).catch(() => false);
+    if (okScene) {
+      await page.waitForTimeout(800);
+      const sc = await page.evaluate(() => ({
+        say: !!document.querySelector('#sceneSay'),
+        mic: !!document.querySelector('#sceneMic'),
+        eq: document.querySelectorAll('#sceneEq i').length,
+        hint: (document.querySelector('#sceneHint') || {}).textContent || '',
+      }));
+      check('SCN-01', 'В локации нет «Послушать» и «Держи и говори»', !sc.say && !sc.mic, JSON.stringify(sc));
+      check('SCN-02', 'В локации есть живая шкала голоса', sc.eq > 10, `столбиков ${sc.eq}`);
+      check('SCN-03', 'Локация сама зовёт говорить, а не ждёт нажатия',
+        /говори|слушаю|повтори|микрофон|тапни/i.test(sc.hint), `подсказка "${sc.hint}"`);
+    }
   }
   await page.ctx.close();
 }

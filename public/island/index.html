@@ -235,6 +235,8 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .eq{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:44px;margin:10px 0 4px}
 .eq i{width:5px;border-radius:3px;background:var(--teal);height:4px;transition:height .07s linear}
 .eq.idle i{background:#41626f;height:4px}
+.task-card .eq i{background:var(--teal-d)}
+.task-card .eq.idle i{background:#c9dbe2}
 .eq.done i{background:#8fb3c0;height:4px}
 .eq.bad i{background:var(--sun)}
 /* Ход соперника: карточка прячется целиком, арена вырастает. */
@@ -485,11 +487,9 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
       <div class="task-card">
         <div class="ru" id="sceneRu">Скажи это вслух</div>
         <div class="en" id="sceneEn"></div>
-        <button class="say-chip" id="sceneSay">🔊 Послушать</button>
-        <div class="hint" id="sceneHint">Нажми 🎙️ и произнеси фразу</div>
+        <div class="eq idle" id="sceneEq"></div>
+        <div class="hint" id="sceneHint">Говори фразу вслух</div>
         <div class="heard" id="sceneHeard"></div>
-        <button class="btn sun wide" id="sceneMic">🎙️ Держи и говори</button>
-        <div style="height:8px"></div>
         <button class="btn ghost wide sm" id="sceneReveal">Не знаю, покажи ответ</button>
       </div>
     </div>
@@ -1439,10 +1439,10 @@ function loadPhrase(){
   const p=ph[S.phraseIdx]; const loc=curLoc();
   $('#sceneTitle').textContent=loc.title; $('#sceneEmoji').textContent=loc.emoji;
   $('#sceneRu').textContent=p.ru; $('#sceneEn').textContent=p.en;
-  $('#sceneHint').textContent='Нажми 🎙️ и произнеси вслух';
   $('#sceneHeard').textContent=''; $('#sceneHeard').className='heard';
-  $('#sceneMic').innerHTML='🎙️ Держи и говори';
+  eqSetOn($('#sceneEq')); eqResetOn($('#sceneEq'));
   renderSceneDots(); refreshStats();
+  setTimeout(()=>listenScene(false), 450);   // слушаем сами, как в бою
 }
 function openScene(){
   if((S.locIdx|0)>=CONTENT.locations.length){ islandDoneSheet(); return; } // весь остров пройден
@@ -1450,12 +1450,42 @@ function openScene(){
   if(S.phraseIdx>=curPhrases().length)S.phraseIdx=0;
   loadPhrase();
 }
-setupVoiceBtn($('#sceneMic'), {lang:'en'}, said=>{
-  const p=curPhrases()[S.phraseIdx]; if(!p) return; const h=$('#sceneHeard'); const btn=$('#sceneMic');
-  if(matchPhrase(said,p.ans)){ h.className='heard ok'; h.textContent='✅ «'+said+'»'; phraseWin(); }
-  else { h.className='heard no'; h.textContent='🔁 услышал: «'+said+'» - держи и скажи ещё'; btn.innerHTML='🎙️ Держи и говори'; }
-});
-$('#sceneSay').addEventListener('click',()=>{ const p=curPhrases()[S.phraseIdx]; if(p) say(p.en); }); // послушать фразу
+/* Локация в том же ритме, что и бой: ничего не держим, шкала голоса вместо кнопки. */
+let sceneListening=false, sceneTry={heard:0,again:0,cut:0};
+function sceneStatus(t){ const h=$('#sceneHint'); if(h) h.textContent=t||''; }
+function sceneAlive(){ return $('#s-scene').classList.contains('on'); }
+async function listenScene(retry){
+  const p=curPhrases()[S.phraseIdx];
+  if(!p || sceneListening || !sceneAlive()) return;
+  sceneListening=true;
+  if(!retry) sceneTry={heard:0,again:0,cut:0};
+  sceneStatus(retry?'Ещё раз!':'Говори фразу вслух');
+  const words=norm(p.en).split(' ').filter(Boolean).length||1;
+  const r=await autoListen({ eqBox:$('#sceneEq'), status:sceneStatus, words, alive:sceneAlive });
+  sceneListening=false;
+  if(!sceneAlive()) return;
+  if(r.fail){ sceneStatus('Микрофон недоступен - тапни по фразе, чтобы зачесть'); sceneTapFallback(); return; }
+  if(!r.spoke){
+    if(sceneTry.heard<1){ sceneTry.heard++; sceneStatus('Не расслышал, повтори'); setTimeout(()=>listenScene(true),500); return; }
+    sceneStatus('Скажи фразу вслух 🎙️'); setTimeout(()=>listenScene(true),1200); return;   // локация не наказывает - просто ждём
+  }
+  const h=$('#sceneHeard');
+  if(matchPhrase(r.text,p.ans)){ h.className='heard ok'; h.textContent='✅ «'+r.text+'»'; phraseWin(); return; }
+  const acc=accuracyOf(r.text,p.ans);
+  if(looksCut(r.text,p.ans) && sceneTry.cut<1){
+    sceneTry.cut++; h.className='heard'; h.textContent='«'+r.text+'»'; sceneStatus('Договори!');
+    setTimeout(()=>listenScene(true),500); return;
+  }
+  h.className='heard no'; h.textContent='🔁 услышал: «'+r.text+'»';
+  if(sceneTry.again<1){ sceneTry.again++; sceneStatus('Ещё раз!'); setTimeout(()=>listenScene(true),700); return; }
+  sceneTry.again=0; say(p.en); sceneStatus('Слушай и повтори за мной 👂');   // не наказываем, а учим
+  setTimeout(()=>listenScene(true),1600);
+}
+function sceneTapFallback(){
+  const card=document.querySelector('#s-scene .task-card'); if(!card) return;
+  const go=()=>{ card.removeEventListener('click',go); if(sceneAlive()) phraseWin(); };
+  card.addEventListener('click',go);
+}
 $('#sceneReveal').addEventListener('click',()=>{ // shadowing
   const p=curPhrases()[S.phraseIdx]; if(!p) return;
   say(p.en);
@@ -1573,20 +1603,71 @@ function nextFightPhrase(){
    и даёт бесплатный повтор.
    ============================================================ */
 const EQ_BARS=28;
-(function buildEq(){ const box=$('#fightEq'); if(!box) return;
-  for(let i=0;i<EQ_BARS;i++) box.appendChild(document.createElement('i')); })();
-function eqSet(cls){ const b=$('#fightEq'); if(b) b.className='eq'+(cls?' '+cls:''); }
-function eqDraw(level){ // level 0..1
-  const box=$('#fightEq'); if(!box) return;
-  const bars=box.children;
+function eqBuild(box){ if(!box||box.children.length) return;
+  for(let i=0;i<EQ_BARS;i++) box.appendChild(document.createElement('i')); }
+function eqSetOn(box,cls){ if(box) box.className='eq'+(cls?' '+cls:''); }
+function eqDrawOn(box,level){
+  if(!box) return; const bars=box.children;
   for(let i=0;i<bars.length;i++){
     const mid=1-Math.abs(i-(bars.length-1)/2)/((bars.length-1)/2);   // в центре выше
     const h=4+level*40*(0.35+0.65*mid)*(0.7+Math.random()*0.6);
     bars[i].style.height=Math.min(44,h)+'px';
   }
 }
-function eqReset(){ const box=$('#fightEq'); if(!box) return;
-  for(const b of box.children) b.style.height='4px'; }
+function eqResetOn(box){ if(!box) return; for(const b of box.children) b.style.height='4px'; }
+// бой (оставлены короткие имена для его кода)
+function eqSet(cls){ eqSetOn($('#fightEq'),cls); }
+function eqDraw(l){ eqDrawOn($('#fightEq'),l); }
+function eqReset(){ eqResetOn($('#fightEq')); }
+(function(){ eqBuild($('#fightEq')); eqBuild($('#sceneEq')); })();
+
+/* Общее автослушание: запись открывается сама, шкала дышит, стоп по тишине.
+   Одно ядро на бой и локации - чтобы игра ощущалась одинаково везде. */
+async function autoListen({eqBox, status, words, alive}){
+  if(!mediaOK) return {fail:'nomic'};
+  let clip=null;
+  try{ clip=await recordClip({maxMs:12000}); }catch(e){ return {fail:'denied'}; }
+  eqSetOn(eqBox); eqResetOn(eqBox);
+  let ac=null,an=null,data=null,raf=0,stopped=false;
+  const t0=Date.now();
+  let floor=0,floorN=0,speaking=false,loud=0,lastLoud=0;
+  const w=words||3;
+  const SIL=w>5?1200:900;                       // в длинных фразах люди думают между словами
+  const CAP=Math.min(10000, 450*w*2.5+2000);
+  try{
+    ac=new (window.AudioContext||window.webkitAudioContext)();
+    an=ac.createAnalyser(); an.fftSize=512;
+    ac.createMediaStreamSource(clip.stream).connect(an);
+    data=new Uint8Array(an.fftSize);
+  }catch(e){}
+  const done=()=>{ if(raf) cancelAnimationFrame(raf); try{ac&&ac.close();}catch(e){} };
+  const halt=()=>{ if(stopped) return; stopped=true; clip.stop(); };
+  const tick=()=>{
+    if(alive && !alive()){ halt(); done(); return; }
+    const el=Date.now()-t0; let rms=0;
+    if(an){ an.getByteTimeDomainData(data);
+      let sum=0; for(let i=0;i<data.length;i++){ const v=(data[i]-128)/128; sum+=v*v; }
+      rms=Math.sqrt(sum/data.length); }
+    if(el<300){ floor=(floor*floorN+rms)/(++floorN); }      // калибровка фона
+    else{
+      const th=Math.max(0.012, floor*2.5);
+      if(rms>th){ loud++; lastLoud=el; if(loud>=3) speaking=true; }
+      else { loud=0; if(!speaking) floor=floor*0.95+rms*0.05; }
+      eqDrawOn(eqBox, Math.min(1, rms/Math.max(0.06, th*3)));
+      if(speaking && el-lastLoud>SIL) halt();
+      else if(el>CAP) halt();
+      else if(!speaking && el>6000) halt();                 // молчит вовсе - не ждём вечно
+    }
+    if(!stopped) raf=requestAnimationFrame(tick);
+  };
+  raf=requestAnimationFrame(tick);
+  const blob=await clip.blob;
+  done(); eqSetOn(eqBox,'done'); eqResetOn(eqBox);
+  if(!speaking || !blob || blob.size<1500) return {spoke:false};
+  if(status) status('Слушаю…');
+  const r=await transcribeSafe(blob,'en');
+  return {spoke:true, text:(r.text||''), conf:(r.conf||0), durMs:Math.max(0,lastLoud-300)};
+}
 function fightStatus(t){ const h=$('#fightHeard'); if(h) h.textContent=t||''; }
 
 // доля слов эталона, которые человек действительно произнёс (лучший вариант из списка)
@@ -1625,61 +1706,17 @@ function powerFrom(said, conf, durMs, phrase){
 let turnListening=false;
 async function listenMyTurn(retry){
   if(!F || F.turn!=='me' || turnListening) return;
-  if(!mediaOK){ return tapFallback('Микрофон недоступен'); }
   turnListening=true;
   F.retry=retry||F.retry||{heard:0,again:0,cut:0};
   fightStatus(retry?'Ещё раз!':'Говори фразу вслух');
-  eqSet(); eqReset();
-  let clip=null;
-  try{ clip=await recordClip({maxMs:12000}); }
-  catch(e){ turnListening=false; return tapFallback('Нет доступа к микрофону'); }
-
-  // живая громкость + автостоп по тишине
-  let ac=null, an=null, data=null, raf=0;
-  const t0=Date.now();
-  let floor=0, floorN=0, speaking=false, loud=0, lastLoud=0;
   const words=norm(F.phrase.en).split(' ').filter(Boolean).length||1;
-  const SIL=words>5?1200:900;                       // в длинных фразах люди думают между словами
-  const CAP=Math.min(10000, 450*words*2.5+2000);
-  try{
-    ac=new (window.AudioContext||window.webkitAudioContext)();
-    an=ac.createAnalyser(); an.fftSize=512;
-    ac.createMediaStreamSource(clip.stream).connect(an);
-    data=new Uint8Array(an.fftSize);
-  }catch(e){}
-  const finish=()=>{ if(raf) cancelAnimationFrame(raf); try{ac&&ac.close();}catch(e){} };
-  const tick=()=>{
-    if(!turnListening){ finish(); return; }
-    const el=Date.now()-t0;
-    let rms=0;
-    if(an){ an.getByteTimeDomainData(data);
-      let sum=0; for(let i=0;i<data.length;i++){ const v=(data[i]-128)/128; sum+=v*v; }
-      rms=Math.sqrt(sum/data.length);
-    }
-    if(el<300){ floor=(floor*floorN+rms)/(++floorN); }      // калибровка фона
-    else {
-      const th=Math.max(0.012, floor*2.5);
-      if(rms>th){ loud++; lastLoud=el; if(loud>=3) speaking=true; }
-      else { loud=0; if(!speaking) floor=floor*0.95+rms*0.05; }
-      eqDraw(Math.min(1, rms/Math.max(0.06, th*3)));
-      if(speaking && el-lastLoud>SIL) { clip.stop(); turnListening=false; }
-      else if(el>CAP){ clip.stop(); turnListening=false; }
-      else if(!speaking && el>6000){ clip.stop(); turnListening=false; }  // молчит вовсе - не ждём вечно
-    }
-    raf=requestAnimationFrame(tick);
-  };
-  raf=requestAnimationFrame(tick);
-
-  const blob=await clip.blob;
-  turnListening=false; finish(); eqSet('done'); eqReset();
+  const r=await autoListen({ eqBox:$('#fightEq'), status:fightStatus, words,
+                             alive:()=>!!F && F.turn==='me' });
+  turnListening=false;
   if(!F || F.turn!=='me') return;
-  const spoke=speaking;
-  const durMs=Math.max(0, lastLoud-300);
-  if(!spoke || !blob || blob.size<1500){ return silentTurn(); }
-  fightStatus('Слушаю…'); windUp('me', 1500);
-  const r=await transcribeSafe(blob,'en');
-  if(!F || F.turn!=='me') return;
-  resolveSpeech(r.text||'', r.conf||0, durMs);
+  if(r.fail) return tapFallback(r.fail==='nomic'?'Микрофон недоступен':'Нет доступа к микрофону');
+  if(!r.spoke) return silentTurn();
+  resolveSpeech(r.text, r.conf, r.durMs);
 }
 
 function silentTurn(){
@@ -2012,7 +2049,7 @@ $('#floatChat').addEventListener('click',()=>{ $('#floatChat').classList.remove(
    ===================================================================== */
 function fmtTime(sec){ sec=Math.max(0,sec||0); return Math.floor(sec/60)+':'+String(Math.floor(sec%60)).padStart(2,'0'); }
 // блокировка кнопок записи, пока звучит TTS (нельзя писать поверх речи Романа)
-const VOICE_BTN_IDS=['onbRec','liveRec','lobbyMic','sceneMic','duelMic'];
+const VOICE_BTN_IDS=['onbRec','liveRec','lobbyMic','duelMic'];
 let speakingCount=0;
 function voiceLock(on){ VOICE_BTN_IDS.forEach(id=>{ const b=document.getElementById(id); if(b) b.classList.toggle('voice-locked', on); }); }
 function speakLock(d){ speakingCount=Math.max(0, speakingCount+d); voiceLock(speakingCount>0); }
