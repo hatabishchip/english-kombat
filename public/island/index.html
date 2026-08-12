@@ -43,6 +43,8 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .btn.sun{background:linear-gradient(180deg,var(--sun),var(--sun-d));box-shadow:0 6px 0 var(--sun-d),var(--shadow)}
 .btn.sun:active{box-shadow:0 2px 0 var(--sun-d)}
 .btn.ghost{background:rgba(255,255,255,.14);box-shadow:none;color:#fff;font-weight:700}
+/* ghost задуман для тёмного фона. Внутри светлых карточек он давал белый текст по белому - подсказка в сцене была невидима. Правило чинит все такие места разом. */
+.task-card .btn.ghost,.sheet .btn.ghost,#sheet .btn.ghost{background:#eef3f5;color:#2a4a56;border:1px solid #cfdde2}
 .btn.dark{background:rgba(10,30,42,.9);box-shadow:0 6px 0 #061722,var(--shadow)}
 .btn.wide{width:100%}
 .btn.sm{padding:10px 15px;font-size:14px;border-radius:12px;box-shadow:none}
@@ -475,7 +477,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
         <div class="heard" id="sceneHeard"></div>
         <button class="btn sun wide" id="sceneMic">🎙️ Держи и говори</button>
         <div style="height:8px"></div>
-        <button class="btn ghost wide sm" id="sceneReveal">Не знаю - покажи ответ</button>
+        <button class="btn ghost wide sm" id="sceneReveal">Не знаю, покажи ответ</button>
       </div>
     </div>
   </section>
