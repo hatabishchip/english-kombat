@@ -1203,21 +1203,14 @@ function islandSystemPrompt(personaKey, userName, level, goal, mode, step) {
       `Верни СТРОГО JSON: {"reply": "<твоё сообщение по-русски>", "correction": ""}`,
     ].join('\n');
   }
+  // Промпт держим КОРОТКИМ: раздутый список правил ломал Groq - он переставал
+  // выдавать корректный JSON (ошибка 400), и игрок видел аварийную заглушку.
   const lvl = level === 'advanced'
     ? 'Reply in natural English at B2 level with richer vocabulary and idioms, still 1 to 2 sentences.'
-    : ['The learner is a BEGINNER who barely knows English. Reply mostly in RUSSIAN (1-2 short sentences),',
-       'and include exactly ONE very simple English phrase (3-6 words) with its Russian translation in parentheses,',
-       'then invite them to say it in English.',
-       'CRITICAL: the English phrase must be ABOUT WHAT THE LEARNER JUST SAID, built from their own words.',
-       'If they mention surfing, give them a surfing phrase; if they mention being tired or upset, give a phrase that fits that feeling.',
-       'Never offer a cheerful phrase like "I am happy" to someone who just said something sad or frustrating - first react to their feeling in Russian, then give a phrase that matches it.',
-       'Also VARY your sentence structure every message: do not start with the same connector twice in a row',
-       '(avoid always repeating "Кстати, смотри:"), and never repeat an English phrase you already used in this conversation.',
-       'The learner must feel heard, not fed a template.',
-       'STRICT LANGUAGE RULE: the Russian part must be 100% correct Russian with NO English words mixed inside it.',
-       'The ONLY English in your whole reply is that one short phrase. Never write hybrids like "выглядISH" or "Что happened на работе".',
-       'The Russian translation in parentheses must be simple and literal: "I am sad" is "мне грустно", not "я скорблю".',
-       'Write any foreign name in ONE alphabet consistently (write "наси горенг" fully in Cyrillic, never half-Latin like "нasi").'].join(' ');
+    : ['Learner is a BEGINNER. Reply in RUSSIAN (1-2 short sentences) plus exactly ONE simple English phrase',
+       '(3-6 words) with Russian translation in brackets, then invite them to say it.',
+       'The phrase must fit what they just said and their mood. Vary your opening every time.',
+       'Russian part: pure Russian, no English words inside it, no half-Latin words.'].join(' ');
   const goalLine = goal ? `The learner's real goal is: "${goal}". Now and then, naturally connect the chat to this goal to keep them motivated (do not force it every message).` : '';
   return [
     `You are ${p.name} ${p.emoji}, a character on a tropical English-learning island game called "English Kombat".`,
@@ -1233,7 +1226,7 @@ function islandSystemPrompt(personaKey, userName, level, goal, mode, step) {
     `Return STRICT JSON only: {"reply": "<your message>", "correction": "<corrected version of the learner's last English phrase, or empty string if it was fine or not English>"}`,
   ].join('\n');
 }
-async function callGroq(system, history) {
+async function callGroq(system, history, opts) {
   const key = process.env.GROQ_API_KEY;
   if (!key) throw new Error('no groq key');
   const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
@@ -1241,7 +1234,8 @@ async function callGroq(system, history) {
   const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, messages, temperature: 0.8, max_tokens: 220, response_format: { type: 'json_object' } }),
+    body: JSON.stringify(Object.assign({ model, messages, temperature: 0.8, max_tokens: 220 },
+      (opts && opts.loose) ? {} : { response_format: { type: 'json_object' } })),
   });
   if (!r.ok) throw new Error('groq ' + r.status + ' ' + (await r.text()).slice(0, 120));
   const j = await r.json();
@@ -1261,8 +1255,21 @@ async function callGemini(system, history) {
   const j = await r.json();
   return j.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
+// Модель упорно начинает ответ одной и той же связкой, и в живом чате это читается
+// как робот: «Кстати, смотри: ...» в каждом сообщении подряд. Промпт просьбами не
+// лечится, поэтому связку подменяем сами - разную каждый раз.
+const LEAD_INS = ['Смотри:', 'Держи фразу:', 'Попробуй сказать:', 'Вот как это по-английски:',
+                  'Скажи так:', 'Лови:', 'А теперь ты:'];
+function varyLeadIn(text) {
+  const t = String(text || '');
+  const re = /(^|[.!?]\s+)Кстати,\s*смотри[:,]?\s*/gi;
+  if (!re.test(t)) return t;
+  let n = 0;
+  return t.replace(/(^|[.!?]\s+)Кстати,\s*смотри[:,]?\s*/gi,
+    (m, p1) => p1 + LEAD_INS[(Math.floor(Math.random() * LEAD_INS.length) + n++) % LEAD_INS.length] + ' ');
+}
 function parseChatJson(raw, personaKey) {
-  const clean = v => String(v || '').replace(/[—–]/g, '-').trim();
+  const clean = v => varyLeadIn(String(v || '').replace(/[—–]/g, '-')).trim();
   const take = j => (j && typeof j.reply === 'string')
     ? { reply: clean(j.reply), correction: clean(j.correction) } : null;
   try {
@@ -1302,11 +1309,16 @@ app.post('/api/island/chat', async (req, res) => {
   let raw = '', via = '';
   try { raw = await callGroq(system, history); via = 'groq'; }
   catch (e1) {
+    // Groq иногда не может выдать строгий JSON. Это не повод показывать заглушку -
+    // просим тот же ответ обычным текстом и заворачиваем сами.
+    try { raw = await callGroq(system, history, { loose: true }); via = 'groq-loose'; }
+    catch (e15) {
     try { raw = await callGemini(system, history); via = 'gemini'; }
     catch (e2) {
       console.error('[island:chat] both failed', e1.message, e2.message);
       const p = ISLAND_PERSONAS[persona] || ISLAND_PERSONAS.roman;
       return res.json({ reply: `Hey! I'm a bit busy catching waves 🌊 Say that again? (${p.name})`, correction: '', via: 'fallback' });
+    }
     }
   }
   let out = parseChatJson(raw, persona);

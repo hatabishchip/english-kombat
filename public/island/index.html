@@ -434,7 +434,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
       </div>
       <button class="stat" id="inviteBtn" style="border:0;background:rgba(255,255,255,.2)">👥</button>
       <button class="stat" id="leagueBtn" style="border:0;background:rgba(255,255,255,.2)">🏆 <span id="stTrophy">0</span></button>
-      <button class="stat" id="resetBtn" title="Начать сначала" style="border:0;background:rgba(255,255,255,.2)">🔄 Сначала</button>
+      <button class="stat" id="resetBtn" title="Начать сначала" style="background:var(--coral);color:#fff;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.25)">🔄 Сначала</button>
     </div>
     <div class="map-wrap" id="mapWrap">
       <svg class="island-svg" viewBox="0 0 400 640" preserveAspectRatio="xMidYMid slice">
@@ -599,6 +599,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
       <div class="who"><b id="liveName">Роман</b><span id="liveStatus">на острове</span></div>
       <button class="btn ghost sm" id="liveAnalyze" style="padding:8px 10px">📊</button>
       <button class="btn ghost sm" id="livePick" style="padding:8px 10px">👥</button>
+      <button class="btn ghost sm" id="liveReset" title="Начать сначала" style="padding:8px 10px">🔄</button>
     </div>
     <div class="chat-scroll" id="liveScroll"></div>
     <div class="quick" id="liveTopics"></div>
@@ -2510,6 +2511,7 @@ function askReset(){
 }
 $('#resetBtn')&&$('#resetBtn').addEventListener('click',askReset);
 $('#onbReset')&&$('#onbReset').addEventListener('click',askReset);   // выход есть и из знакомства
+$('#liveReset')&&$('#liveReset').addEventListener('click',askReset); // и из чата с Романом
 
 /* =====================================================================
    12 · ЛИГА ОСТРОВА: лестница 1на1 + вызов друга (завлекающая часть боёв)
