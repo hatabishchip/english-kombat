@@ -305,6 +305,23 @@
       padding:12px 16px 16px;
       background:linear-gradient(180deg,#0e0a06 0%,#050302 100%);
       border-top:2px solid #2a1c08;
+      overflow-x:hidden;overflow-y:auto;scrollbar-width:none;
+    }
+    .bot::-webkit-scrollbar{display:none;}
+    /* блоки панели не сжимаются ниже своего содержимого: иначе строки наезжают друг на друга
+       (26.11.2026: подсказка поверх статуса на окне 766x600) */
+    .bot > *{flex-shrink:0;}
+    /* низкое окно: уменьшаем картинку фразы и шкалу, чтобы всё уместилось без прокрутки */
+    @media (max-height:600px){
+      #phrase-pic{font-size:30px!important;min-height:32px!important;}
+      #audio-meter{height:56px;padding:6px 14px;}
+      .card-opt{min-height:48px;font-size:15px;}
+      .phrase-card.result-ok,.phrase-card.result-bad{padding:8px 12px;}
+      .phrase-ru.result-ok,.phrase-ru.result-bad{font-size:22px;}
+      .cards-row{gap:6px;}
+    }
+    @media (max-height:480px){
+      #phrase-pic{display:none;}
     }
 
     .phrase-card{
@@ -328,7 +345,7 @@
       font-family:'Georgia','Times New Roman',serif;
       font-size:24px;font-weight:normal;letter-spacing:.5px;
       color:#f0e8d0;text-align:center;text-shadow:0 1px 2px rgba(0,0,0,.8);
-      transition:color .15s ease,font-size .15s ease;
+      transition:color .15s ease;   /* размер без перехода: раскладка меряет высоту сразу */
     }
     .phrase-sub{font-family:sans-serif;font-size:11px;color:#7a7060;letter-spacing:.5px;
       transition:color .15s ease;}
@@ -415,8 +432,7 @@
       color:#ffe8b0;
       cursor:pointer;
       text-align:center;line-height:1.15;
-      aspect-ratio:1.4 / 1;
-      min-height:88px;
+      min-height:58px;padding-top:6px;padding-bottom:6px;
       display:flex;align-items:center;justify-content:center;
       text-shadow:0 2px 3px rgba(0,0,0,.85);
       transition:transform .08s ease,border-color .15s ease,box-shadow .15s ease;
@@ -424,10 +440,10 @@
     }
     @media (max-width:480px){
       .cards-grid{gap:8px;padding:0 4px;}
-      .card-opt{font-size:17px;min-height:78px;border-radius:8px;}
+      .card-opt{font-size:16px;min-height:56px;border-radius:8px;}
     }
     @media (max-width:380px){
-      .card-opt{font-size:15px;min-height:70px;}
+      .card-opt{font-size:15px;min-height:52px;}
     }
     .card-opt:active:not(:disabled){transform:scale(.97);}
     .card-opt:hover:not(:disabled){border-color:#ffd100;}
@@ -488,10 +504,12 @@
     }
     #heard-txt{
       font-family:sans-serif;font-size:14px;color:#c8a868;
-      min-height:20px;text-align:center;font-style:italic;
-      max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+      min-height:20px;text-align:center;font-style:italic;line-height:1.25;
+      max-width:min(300px,92%);overflow-wrap:anywhere;
     }
     #heard-txt.final{color:#40d840;font-style:normal;font-weight:bold;}
+    #to-cards{background:none;border:none;padding:2px 8px;font-family:sans-serif;font-size:11px;
+      color:#8a8060;text-decoration:underline;cursor:pointer;}
 
     /* diff badge */
     .diff-badge{
@@ -514,8 +532,8 @@
     .ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:200;pointer-events:none;}
     .ov.on{display:flex;}
     /* мик-гейт принимает тапы (в отличие от ov-tutor, который dismiss-on-tap) */
-    #ov-mic-gate{pointer-events:auto;}
-    #ov-mic-gate .tutor-card{pointer-events:auto;}
+    #ov-mic-gate{pointer-events:auto;overflow-y:auto;align-items:flex-start;padding:10px 0;}
+    #ov-mic-gate .tutor-card{pointer-events:auto;margin:auto;}
     /* result overlay — clickable to dismiss early */
     #ov-result.on{pointer-events:auto;cursor:pointer;}
     #ov-result.on::after{
@@ -2101,6 +2119,8 @@
         <div class="abar"></div><div class="abar"></div>
       </div>
       <div id="heard-txt"></div>
+      <!-- выход для случая, когда браузер слушает, но не распознаёт: ошибки нет, а удара тоже -->
+      <button id="to-cards" type="button" onclick="switchToCards('')">не слышит? играть карточками</button>
     </div>
 
     <!-- card-matching mode UI — hidden by default -->
@@ -2198,11 +2218,11 @@
 </div>
 <!-- ── МИКРОФОН-ГЕЙТ (блокирует бой пока нет permission) ── -->
 <div id="ov-mic-gate" class="ov" style="background:rgba(8,5,2,.94);z-index:200">
-  <div class="tutor-card" style="max-width:360px;padding:24px 22px">
-    <div style="font-size:80px;line-height:1;margin-bottom:6px;text-align:center">🎤</div>
+  <div class="tutor-card" style="max-width:360px;padding:16px 22px">
+    <div style="font-size:52px;line-height:1.2;margin-bottom:4px;text-align:center">🎤</div>
     <div class="tutor-title" style="font-size:26px;margin-bottom:8px">НУЖЕН МИКРОФОН</div>
-    <div class="tutor-text" style="margin-bottom:18px;line-height:1.45">
-      В этой игре ты говоришь английские фразы вслух — без микрофона нельзя пройти уровень.
+    <div class="tutor-text" style="margin-bottom:12px;line-height:1.4">
+      В этой игре ты говоришь английские фразы вслух. Микрофона нет или он заблокирован? Играй карточками: выбирай перевод из четырёх.
     </div>
     <button id="mic-gate-allow" class="btn btn-gold" style="font-size:17px;padding:16px;width:100%" onclick="micGateAllow()">🎙 РАЗРЕШИТЬ МИКРОФОН</button>
     <div id="mic-gate-help" style="display:none;margin-top:14px;padding:12px;background:rgba(40,30,15,.7);border:1.5px solid #6a4818;border-radius:6px;font-family:sans-serif;font-size:12px;color:#c8a868;line-height:1.5;text-align:left">
@@ -2210,6 +2230,7 @@
       <div id="mic-gate-help-text">Открой настройки сайта и разреши микрофон.</div>
       <button class="btn btn-dark" style="margin-top:8px;font-size:12px;padding:8px" onclick="micGateRetry()">🔁 Я РАЗРЕШИЛ — ПРОВЕРИТЬ</button>
     </div>
+    <button id="mic-gate-cards" class="btn btn-dark" style="margin-top:12px;font-size:15px;letter-spacing:1px;padding:13px;width:100%;color:#ffd100;border:1.5px solid #c89538" onclick="micGatePlayCards()">🃏 ИГРАТЬ БЕЗ МИКРОФОНА</button>
   </div>
 </div>
 
@@ -4318,6 +4339,8 @@ const state = {
 function show(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
   document.getElementById(id).classList.add('on');
+  // бой показан любым путём (локация, район, онлайн) - раскладку считаем по видимому экрану
+  if (id === 's-battle') layoutArena();
 }
 function showOv(id, ms, clickToDismiss) {
   const el = document.getElementById(id);
@@ -4692,7 +4715,8 @@ function arriveAtMapLocation(id) {
 
 function goBattle(mode) {
   endWalkScene();
-  state.battleMode = 'voice';   // только голос: сказал — ударил
+  // голос по умолчанию; карточки - запасной путь, если голос в этом браузере не работает
+  state.battleMode = _cardsFallback ? 'cards' : 'voice';
   const currentScreen = document.querySelector('.screen.on')?.id;
   const fromWalkOrTrain = currentScreen === 's-walk' || currentScreen === 's-train' || currentScreen === 's-map';
   const launch = () => {
@@ -4710,6 +4734,9 @@ function goBattle(mode) {
     const cards = document.getElementById('cards-row');
     if (meter) meter.style.display = state.battleMode === 'cards' ? 'none' : '';
     if (cards) cards.style.display = state.battleMode === 'cards' ? '' : 'none';
+    document.getElementById('no-voice').textContent = '';
+    document.getElementById('to-cards').style.display = '';
+    layoutArena();   // место под панель меряем по её содержимому, когда экран уже виден
     state.phase = 'countdown';
     // микрофон-гейт ПЕРЕД любым countdown'ом — иначе ничего не имеет смысла
     requireMicThen(() => {
@@ -5185,8 +5212,8 @@ function presentPhrase() {
   setHeard('');
 
   if (state.battleMode === 'cards') {
-    document.getElementById('phrase-sub').textContent = '🃏 Выбери перевод — бей врага';
-    setStatus('⚔ ГОВОРИ ПО-АНГЛИЙСКИ — БЕЙ!', 'mine');
+    document.getElementById('phrase-sub').textContent = '🃏 Выбери перевод - бей врага';
+    setStatus('⚔ ВЫБЕРИ ПЕРЕВОД - БЕЙ!', 'mine');
     renderCardOptions();
   } else {
     document.getElementById('phrase-sub').textContent = '🎤 Скажи фразу ПО-АНГЛИЙСКИ — и бей';
@@ -5196,6 +5223,7 @@ function presentPhrase() {
       if (state.acceptingAnswer && HAS_SR && !listening) startListen();
     }, 300);
   }
+  fitBattlePanel();
   scheduleBotAttack();           // single source of truth — re-armed on every fresh phrase
 }
 
@@ -5280,6 +5308,7 @@ function submitMyAnswer(alts) {
     doPunch('left', 'right');                     // I punch BOT
     setTimeout(() => spawnStunBirds('right', 800), 560);
     showResult(true, spoken, state.currentPhrase.en, true);
+    if (state.battleMode === 'cards') speakEN(state.currentPhrase.en);   // слышишь, как звучит верный ответ
     if (state.botHP <= 0) { setTimeout(() => endGame(true), 600); return; }
     // next phrase after the punch resolves
     setTimeout(() => { if (state.phase !== 'game_over') presentPhrase(); }, 1400);
@@ -5288,7 +5317,11 @@ function submitMyAnswer(alts) {
     playMiss();
     setHeard(`✗ "${spoken || '—'}" — ещё раз`);
     if (state.battleMode === 'cards') {
-      renderCardOptions();
+      // красную карточку надо успеть увидеть - новые варианты через паузу
+      const ph = state.currentPhrase;
+      setTimeout(() => {
+        if (state.acceptingAnswer && state.battleMode === 'cards' && state.currentPhrase === ph) renderCardOptions();
+      }, 650);
     } else {
       setTimeout(() => {
         if (state.acceptingAnswer && HAS_SR && !listening) startListen();
@@ -5488,7 +5521,7 @@ function renderWorldPlayers() {
     node.className = 'world-node';
     node.style.cssText = `position:absolute;left:${p.x}%;top:${p.y}%;transform:translate(-50%,-50%);text-align:center;cursor:pointer;z-index:5`;
     node.innerHTML = `
-      <div style="width:54px;height:54px;margin:0 auto;border:2.5px solid #c89538;border-radius:50%;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;background:radial-gradient(circle at 35% 30%,rgba(255,209,0,.2),transparent 70%);box-shadow:0 0 16px rgba(255,209,0,.35)">
+      <div style="width:54px;height:54px;margin:0 auto;border:2.5px solid #c89538;border-radius:50%;overflow:hidden;display:flex;align-items:flex-start;justify-content:center;background:radial-gradient(circle at 35% 30%,rgba(255,209,0,.2),transparent 70%);box-shadow:0 0 16px rgba(255,209,0,.35)">
         ${makeFighterSVG(p.char, 40, 1)}
       </div>
       <div style="font-family:'Impact',sans-serif;font-size:11px;color:#ffd100;letter-spacing:1px;margin-top:4px;text-shadow:0 1px 2px #000">🌐 ${p.name.toUpperCase()}</div>
@@ -5685,6 +5718,7 @@ function showResult(correct, spoken, expected, wasMine) {
     subEl.className    = 'phrase-sub result-bad';
     subEl.textContent  = wasMine ? '✗ ОШИБКА' : '🤖 БОТ ПРОМАХНУЛСЯ';
   }
+  fitBattlePanel();
 }
 
 // ═════════════════════════════════════════════════════════════════
@@ -6190,9 +6224,13 @@ function playVictoryFanfare() {
 //  AUDIO METER (mic level visualizer)
 // ═════════════════════════════════════════════════════════════════
 let audioCtx = null, analyser = null, audioStream = null, animId = null;
+let _meterToken = 0;   // каждая остановка обесценивает запуск, который ещё ждёт доступ
 async function startMeter() {
+  const my = ++_meterToken;
   try {
-    audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    if (my !== _meterToken) { stream.getTracks().forEach(t => t.stop()); return; }
+    audioStream = stream;
     audioCtx    = new (window.AudioContext || window.webkitAudioContext)();
     analyser    = audioCtx.createAnalyser();
     analyser.fftSize = 128;
@@ -6219,6 +6257,7 @@ async function startMeter() {
   } catch(e) { console.warn('meter:', e); }
 }
 function stopMeter() {
+  _meterToken++;
   if (animId)      { cancelAnimationFrame(animId); animId = null; }
   if (audioStream) { audioStream.getTracks().forEach(t => t.stop()); audioStream = null; }
   if (audioCtx)    { try { audioCtx.close(); } catch {} audioCtx = null; }
@@ -6255,6 +6294,9 @@ function browserHelpText() {
 }
 function showMicGate(showHelp = false) {
   document.getElementById('ov-mic-gate').classList.add('on');
+  // в онлайне ответ судит сервер по голосу - карточек там нет
+  const cardsBtn = document.getElementById('mic-gate-cards');
+  if (cardsBtn) cardsBtn.style.display = state.isPvP ? 'none' : '';
   // на каждое появление возвращаем кнопку в видимое состояние (могла быть скрыта no-SR-ветка)
   const allowBtn = document.getElementById('mic-gate-allow');
   if (allowBtn) allowBtn.style.display = '';
@@ -6279,12 +6321,13 @@ async function micPermissionState() {
 }
 // гейт перед боем: если permission уже granted — сразу cb(); иначе показываем оверлей и паузим
 async function requireMicThen(cb) {
-  if (!HAS_SR) {
+  if (state.battleMode === 'cards') { cb(); return; }   // запасной путь микрофона не требует
+  if (!HAS_SR || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     // браузер совсем не поддерживает — показываем gate с пояснением
     _micResume = cb;
     showMicGate(true);
     document.getElementById('mic-gate-help-text').textContent =
-      'Этот браузер не умеет распознавать речь. Открой игру в Chrome или Safari.';
+      'Этот браузер не умеет распознавать речь. Открой игру в Chrome или Safari - или играй карточками.';
     document.getElementById('mic-gate-allow').style.display = 'none';
     pauseBattleForMic();
     return;
@@ -6337,7 +6380,76 @@ function onMicGranted() {
   _micResume = null;
   if (typeof cb === 'function') cb();
 }
-let recognition = null, listening = false, lastInterim = '', answerSent = false;
+// ── ЗАПАСНОЙ ПУТЬ БЕЗ ГОЛОСА: четыре карточки с переводом вместо микрофона ──
+// Нужен там, где распознавание речи браузером не работает вовсе: встроенные браузеры
+// приложений, Firefox, запрет на микрофон. Раньше игрок оставался с неподвижной шкалой.
+let _cardsFallback = false;   // до перезагрузки страницы: голос тут не работает
+let _srSilentFails = 0;       // распознавание закончилось, не начавшись, и без ошибки
+function switchToCards(reason) {
+  if (state.isPvP) return false;
+  _cardsFallback = true;
+  state.battleMode = 'cards';
+  try { recognition && recognition.abort(); } catch {}
+  listening = false;
+  stopMeter();
+  const meter = document.querySelector('.meter-zone');
+  const cards = document.getElementById('cards-row');
+  if (meter) meter.style.display = 'none';
+  if (cards) cards.style.display = '';
+  const nv = document.getElementById('no-voice');
+  if (nv) {
+    nv.textContent = reason || '';
+    if (reason) setTimeout(() => { if (nv.textContent === reason) nv.textContent = ''; }, 7000);
+  }
+  layoutArena();
+  if (state.phase === 'player_turn' && state.currentPhrase && state.acceptingAnswer) {
+    document.getElementById('phrase-sub').textContent = '🃏 Выбери перевод - бей врага';
+    setStatus('⚔ ВЫБЕРИ ПЕРЕВОД - БЕЙ!', 'mine');
+    renderCardOptions();
+  }
+  return true;
+}
+function micGatePlayCards() {
+  switchToCards('');
+  hideMicGate();
+  const cb = _micResume;
+  _micResume = null;
+  if (typeof cb === 'function') cb();
+}
+function resetTrainSpeakBtn() {
+  const sb = document.getElementById('train-btn-speak');
+  if (!sb) return;
+  sb.classList.remove('listening');
+  sb.textContent = '🎤 СКАЗАТЬ ПО-АНГЛИЙСКИ';
+}
+// голос отказал по причине, которая сама не пройдёт: говорим словами и даём играть дальше
+function voiceFailed(why) {
+  const screen = document.querySelector('.screen.on')?.id;
+  const human = {
+    'network':               'нет связи с распознаванием речи',
+    'service-not-allowed':   'распознавание речи в этом браузере запрещено',
+    'audio-capture':         'микрофон не найден',
+    'language-not-supported':'браузер не распознаёт английский',
+    'not-allowed':           'микрофон заблокирован',
+    'silent':                'браузер не распознаёт речь',
+  }[why] || 'голос недоступен';
+  if (screen === 's-train') {
+    resetTrainSpeakBtn();
+    const h = document.getElementById('train-heard');
+    h.style.display = '';
+    h.style.color = '#ff8080';
+    h.textContent = `⚠ Голос здесь не работает: ${human}. Жми «ЗНАЮ» или «НЕ ЗНАЮ».`;
+    return;
+  }
+  if (screen === 's-battle' && !state.isPvP) {
+    switchToCards(`🎤 Голос здесь не работает: ${human}. Играем карточками.`);
+    return;
+  }
+  const nv = document.getElementById('no-voice');
+  nv.textContent = `⚠ Голос не работает: ${human}`;
+  setTimeout(() => nv.textContent = '', 3500);
+}
+let recognition = null, listening = false, lastInterim = '', answerSent = false, _stopRequested = false;
 
 function updateMic(active) {
   const btn = document.getElementById('mic-btn');
@@ -6369,12 +6481,20 @@ function startListen() {
 
   lastInterim = '';
   answerSent  = false;
+  _stopRequested = false;
+  let started = false, errored = false;
+  const LISTEN_TXT = '🎤 слушаю - говори';
 
   recognition.onstart = () => {
+    started = true;
+    _srSilentFails = 0;
     listening = true;
     updateMic(true);
     startMeter();
-    setHeard('🎤 слушаю... (тапни 🎤 ещё раз когда закончил)');
+    const cur = document.getElementById('heard-txt').textContent;
+    if (cur.startsWith('✗')) {
+      setTimeout(() => { if (listening && document.getElementById('heard-txt').textContent === cur) setHeard(LISTEN_TXT); }, 1500);
+    } else setHeard(LISTEN_TXT);
   };
   recognition.onresult = e => {
     let interim = '';
@@ -6401,12 +6521,23 @@ function startListen() {
     }
   };
   recognition.onerror = e => {
+    errored = true;
     listening = false;
     stopMeter();
     updateMic(state.phase === 'player_turn');
-    // permission отозвали посреди боя → паузим и показываем гейт
+    // шкала остановлена - подпись «слушаю» оставлять нельзя, она врёт
+    if (document.getElementById('heard-txt').textContent === LISTEN_TXT) setHeard('');
+    const onTrain = document.querySelector('.screen.on')?.id === 's-train';
+    if (onTrain && e.error !== 'aborted') resetTrainSpeakBtn();
+    // permission отозвали посреди боя → паузим и показываем гейт (в нём есть запасной путь)
     if (e.error === 'not-allowed') {
+      if (onTrain) { voiceFailed('not-allowed'); return; }
       requireMicThen(() => { startTurn(); });
+      return;
+    }
+    // причины, которые сами не пройдут: голос в этом браузере не работает
+    if (['network', 'service-not-allowed', 'audio-capture', 'language-not-supported'].includes(e.error)) {
+      voiceFailed(e.error);
       return;
     }
     const msgs = {
@@ -6426,14 +6557,22 @@ function startListen() {
     listening = false;
     stopMeter();
     updateMic(state.phase === 'player_turn');
+    if (document.getElementById('heard-txt').textContent === LISTEN_TXT) setHeard('');
+    if (!answerSent && document.querySelector('.screen.on')?.id === 's-train') resetTrainSpeakBtn();
+    // закончилось, так и не начавшись, без ошибки и не по нашей просьбе: браузер молча не умеет
+    if (!started && !errored && !_stopRequested) {
+      if (++_srSilentFails >= 2) voiceFailed('silent');
+    }
   };
   try { recognition.start(); } catch (e) { console.warn('start failed:', e); }
 }
 function submitAnswerOnce(alts) {
   if (answerSent) return;
   answerSent = true;
-  setHeard(`→ "${alts[0]}"`, true);
-  setTimeout(() => setHeard(''), 1800);
+  const shown = `→ "${alts[0]}"`;
+  setHeard(shown, true);
+  // стираем только свою подпись: раньше таймер от прошлого ответа гасил «ещё раз» и «слушаю»
+  setTimeout(() => { if (document.getElementById('heard-txt').textContent === shown) setHeard(''); }, 1800);
   // Route based on current screen — training has its own check
   const screen = document.querySelector('.screen.on')?.id;
   if (screen === 's-train') {
@@ -6500,6 +6639,7 @@ function submitTrainAnswer(alts) {
   }
 }
 function stopListen() {
+  _stopRequested = true;
   try { recognition?.stop(); } catch {}
   listening = false;
   updateMic(state.phase === 'player_turn');
@@ -6583,6 +6723,7 @@ async function startPvP(opts = {}) {
     }
     state.battleMode = 'voice';
     state.isPvP = true;
+    document.getElementById('to-cards').style.display = 'none';   // в онлайне судит сервер по голосу
     document.querySelector('.meter-zone').style.display = '';
     document.getElementById('cards-row').style.display  = 'none';
     setupPvPHandlers();
@@ -6832,13 +6973,44 @@ goHome = function() {
   applyLoginState();
 };
 
-function layoutArena() {
+let _botNeed = 0;   // сколько места уже отдано панели в этом бою: арена не прыгает туда-сюда
+// если содержимое панели выросло (длинная фраза в две строки, экран результата) и не влезло -
+// отдаём панели недостающее место за счёт арены; обратно в этом бою не возвращаем
+function fitBattlePanel() {
+  const bot = document.querySelector('#s-battle .bot');
+  if (bot && bot.offsetParent !== null && bot.scrollHeight > bot.clientHeight + 1) layoutArena(true);
+}
+function layoutArena(keep) {
+  if (keep !== true) _botNeed = 0;   // новый бой, смена режима, поворот или размер окна
+  const arena = document.getElementById('arena');
+  const bot   = document.querySelector('#s-battle .bot');
   const isMobile = window.innerWidth < 480;
-  const botH    = isMobile ? 230 : 260;
-  const maxH    = isMobile ? 380 : 440;
-  const minH    = isMobile ? 200 : 220;
-  const avail   = window.innerHeight - botH;
-  document.getElementById('arena').style.height = `${Math.min(maxH, Math.max(minH, avail))}px`;
+  const isShort  = window.innerHeight <= 600;
+  const maxH = isMobile ? 380 : 440;
+  const minH = 130;
+  // Сколько места нужно нижней панели. Раньше стояла константа 230/260, а содержимому
+  // (картинка, фраза, подсказка, статус, шкала, подпись) нужно около 290-320 - блоки
+  // сжимались и строки наезжали друг на друга. Теперь запас с учётом экрана результата
+  // и, когда бой на экране, фактический замер содержимого.
+  let need = isShort ? (isMobile ? 290 : 310) : (isMobile ? 325 : 355);
+  if (bot && bot.offsetParent !== null) {
+    const cs = getComputedStyle(bot);
+    let sum = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    let n = 0;
+    Array.from(bot.children).forEach(ch => { if (ch.offsetHeight > 0) { sum += ch.offsetHeight; n++; } });
+    need = Math.max(need, Math.ceil(sum + (n + 1) * 4));
+  }
+  need = Math.max(need, _botNeed);
+  _botNeed = need;
+  const h = Math.min(maxH, Math.max(minH, window.innerHeight - need));
+  arena.style.height = `${h}px`;
+  // бойцы с именем и полоской здоровья должны помещаться в арену целиком
+  document.querySelectorAll('#arena .fc').forEach(fc => {
+    const nat = fc.offsetHeight;
+    const k = nat > 0 ? Math.min(1, (h - 46) / nat) : 1;   // 46 px сверху заняты кнопкой «Выйти» и значком времени
+    fc.style.transformOrigin = '50% 100%';
+    fc.style.transform = k < 1 ? `scale(${k.toFixed(3)})` : '';
+  });
 }
 layoutArena();
 window.addEventListener('resize', layoutArena);

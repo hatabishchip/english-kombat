@@ -9,3 +9,4 @@ pvp-server/node_modules/
 qa/.tmp-media/
 qa/last-run*.json
 .playwright-mcp/
+qa/shots-*/
