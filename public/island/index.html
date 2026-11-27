@@ -1771,11 +1771,19 @@ function throwBanana(p, crooked){
     return;
   }
   const r=cv.getBoundingClientRect(); const gy=groundY(r.height);
-  let vx=(3+p*5), vy=-(5+p*5);
+  // Скорости подобраны под поле шириной 390 (телефон). На широком поле (до 520 на компьютере)
+  // банан не долетал вовсе, а на телефоне самая чистая фраза (сила 95-100) перелетала соперника.
+  // k растягивает бросок под ширину поля, прицельный бросок не сильнее 0.85 - это точно в цель.
+  const k=fieldK(r.width);
+  if(!crooked) p=Math.min(p,0.85);
+  let vx=(3+p*5)*k, vy=-(5+p*5);
   if(crooked){ vx*=(0.55+Math.random()*0.8); vy*=(0.6+Math.random()*0.7); }
-  F.banana={ x:70, y:gy-44, vx, vy, r:14, done:false };
+  F.banana={ x:70, y:gy-44, vx, vy, r:14, done:false, k };
   F.turn='fly';
 }
+
+// расстояние между бойцами относительно телефонного поля 390 (там оно 250)
+function fieldK(W){ return Math.max(0.6, ((W||390)-140)/250); }
 
 // Запасной путь: без микрофона голосом играть нельзя, но бой не должен вставать.
 // Тап по карточке = бросок средней силы, чтобы человек хотя бы доиграл.
@@ -1836,7 +1844,7 @@ function foeShoot(){
   const acc=(F.league&&F.league.acc)!=null?F.league.acc:0.35;
   const rx=4.8+Math.random()*3.0, ry=6.4+Math.random()*3.2;   // разброс
   const px=6+Math.random()*1.6,  py=7.6+Math.random()*1.6;    // почти гарантированное попадание
-  F.foeBanana={ x:r.width-70, y:gy-40, vx:-(rx+(px-rx)*acc), vy:-(ry+(py-ry)*acc), r:13 };
+  F.foeBanana={ x:r.width-70, y:gy-40, vx:-(rx+(px-rx)*acc)*fieldK(r.width), vy:-(ry+(py-ry)*acc), r:13 };
 }
 // Линия земли раньше была жёстко на 58% высоты, а карточка с фразой снизу выросла
 // и накрывала бойцов. Теперь земля поднимается ровно настолько, чтобы бойцы всегда
@@ -1924,12 +1932,12 @@ function loopFight(){
     }
     // физика банана игрока (дуга + гравитация + ветер) - fight4
     if(F.banana){
-      const b=F.banana; b.vy+=0.5; b.vx+=F.wind*0.02; b.x+=b.vx; b.y+=b.vy;
+      const b=F.banana; b.vy+=0.5; b.vx+=F.wind*0.02*(b.k||1); b.x+=b.vx; b.y+=b.vy;
       // попадание во врага
-      const fx=W-70, fy=gy-22;
-      if(Math.hypot(b.x-fx,b.y-fy)<44){ hitFoe(); F.banana=null; }
+      const fx=W-70, fy=gy-22, bk=b.k||1;   // промах по горизонтали меряем в масштабе телефонного поля
+      if(Math.hypot((b.x-fx)/bk,b.y-fy)<44){ hitFoe(); F.banana=null; }
       else if(b.y>gy-6 || b.x>W+30 || b.x<-30){
-        const d=Math.hypot(b.x-fx,b.y-fy); F.banana=null;
+        const d=Math.hypot((b.x-fx)/bk,b.y-fy); F.banana=null;
         if(d<110){ splashFoe(d); } else { missShot(); } // близкий промах = задело взрывной волной
       }
     }
@@ -1937,7 +1945,7 @@ function loopFight(){
     if(F.foeBanana){
       const b=F.foeBanana; b.vy+=0.5; b.x+=b.vx; b.y+=b.vy;
       const mx=70,my=gy-28;
-      if(Math.hypot(b.x-mx,b.y-my)<42){ hitMe(); F.foeBanana=null; }
+      if(Math.hypot((b.x-mx)/fieldK(W),b.y-my)<42){ hitMe(); F.foeBanana=null; }
       else if(b.y>gy-6||b.x<-30){ F.foeBanana=null; }
     }
     drawFight(); fightRAF=requestAnimationFrame(tick);
