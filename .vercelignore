@@ -1,0 +1,7 @@
+# Белый список: на Vercel уходит ТОЛЬКО папка public и vercel.json.
+# Vercel CLI не читает .gitignore, без этого файла он грузит весь проект,
+# включая private/ (переписка, аудио). Случай 27.11.2026: 195 МБ private/roman
+# пошли в загрузку, выкатка оборвалась на write EPIPE.
+/*
+!/public
+!/vercel.json

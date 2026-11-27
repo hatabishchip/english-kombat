@@ -8,6 +8,12 @@
 export VERCEL_TOKEN=$(cat ~/.claude/secure/vercel-english-kombat.token) && vercel deploy --prod --yes --token "$VERCEL_TOKEN" --scope team_yAQstyztFc7eZYKFrqQdtZeJ
 ```
 
+✅ ПРОВЕРЕНО 27.11.2026. В корне обязан лежать `.vercelignore` белым списком (`/*`, `!/public`, `!/vercel.json`).
+Vercel CLI НЕ читает `.gitignore` и без этого файла грузит весь каталог: 27.11.2026 в загрузку пошла `private/`
+(195 МБ), выкатка оборвалась на `write EPIPE`. К команде добавлять `< /dev/null`, в логе смотреть размер загрузки
+(норма около 1-2 МБ, при правке одного файла десятки КБ). После выкатки проверять состав выкладки:
+`GET https://api.vercel.com/v6/deployments/<id>/files?teamId=...` - в `src` только `public` и `vercel.json`. Урок L-40.
+
 Глобальный `vercel whoami` остаётся «Not authorized» - так и надо, глобальную авторизацию CLI не трогаем (правило «один проект = один хостинг-аккаунт»).
 
 ## Бэкенд - Contabo, хост `bojra-srv`

@@ -1,7 +1,7 @@
 # Тестировщик Острова в English Kombat (`ek-island-qa`)
 <!-- ВЕРСИИ РОЛИ: НАЧАЛО (правит только тот, кто пишет строку в историю изменений) -->
 **Версии роли `ek-island-qa`** (проставлены 2026-08-10; формат ГЛАВНАЯ.ПОПОЛНЕНИЕ, единый на систему)
-- ремесло: 2.2
+- ремесло: 2.3
 - книги: нет полки
 - контекст[english-kombat]: 1.0
 - сводный реестр: `/Users/oleksandrdiachuk/Projects/system-dashboard/agents/registry.json`
@@ -48,6 +48,14 @@
 собрать копию страницы без починки рядом (`public/island/_имя.html`), прогнать набор с
 `--page=island/_имя.html`, копию удалить ДО выкатки (Vercel выкладывает всю папку `public`).
 
+✅ проверено 27.11.2026. Выкатка и приёмка у получателя (урок L-40). В корне обязан лежать
+`.vercelignore` белым списком (`/*`, `!/public`, `!/vercel.json`): Vercel CLI не читает `.gitignore`
+и без него грузит весь каталог, включая `private/`. Команда (в фоне, вывод в файл, stdin из /dev/null):
+`export VERCEL_TOKEN=$(cat ~/.claude/secure/vercel-english-kombat.token) && vercel deploy --prod --yes --token "$VERCEL_TOKEN" --scope team_yAQstyztFc7eZYKFrqQdtZeJ < /dev/null`
+В логе размер загрузки должен быть около 1-2 МБ. Приёмка: состав выкладки
+`curl -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v6/deployments/<id>/files?teamId=team_yAQstyztFc7eZYKFrqQdtZeJ"`
+(в `src` только `public` и `vercel.json`), затем md5 боевых файлов против `md5 -q public/...`.
+
 ✅ проверено 27.11.2026. Замер частоты кадров в headless, если "игра зависла":
 `page.evaluate(() => new Promise(r => { let n = 0; const t = performance.now(); const f = () => { n++; performance.now() - t < 2000 ? requestAnimationFrame(f) : r(n / 2); }; requestAnimationFrame(f); }))`
 
@@ -87,3 +95,11 @@
 ## Урок 27.11.2026
 
 Симптом «бот не отвечает, ход завис» в headless сначала мерить частотой кадров, а не читать код хода: 27.11.2026 пустая страница давала 60 кадров в секунду, а арена на Phaser 3 кадра (программный WebGL, мак под нагрузкой), и так как Phaser считает игровое время кадрами, 650 мс до конца броска шли 13 секунд. Дефекта хода бота не было вовсе. Команда замера: в page.evaluate посчитать вызовы requestAnimationFrame за 2 секунды. Лечение в стенде: game.loop.sleep() и таймер, который зовёт game.headlessStep(now, 16.667) (помощник turbo в qa/run-worms.mjs) - игровое время идёт вровень с настоящим на любой машине. Анти-паттерн: записать «ход навсегда остаётся у бота» как дефект игры по одной пробе на загруженной машине и передать это дальше как факт.
+
+## Урок 27.11.2026
+
+Выкатка English Kombat: Vercel CLI не читает .gitignore, только .vercelignore. Без него vercel deploy грузит весь каталог, 27.11.2026 так пошла на Vercel private/roman (195 МБ), обрыв write EPIPE. Держать .vercelignore белым списком (/*, !/public, !/vercel.json); после выкатки проверять состав: GET api.vercel.com/v6/deployments/<id>/files, в src только public и vercel.json. Анти-паттерн: верить коду 0 фоновой строки, которая кончается на echo, и не смотреть размер Uploading в логе.
+
+## Урок 27.11.2026
+
+Если стенду пришлось менять жест, чтобы пройти, это находка, а не неудобство стенда. 27.11.2026: набор арены тянул рогатку от середины поля, потому что от бойца "отпускание терялось" (комментарий в qa/run-worms.mjs), и 45 проверок были зелёными при живом дефекте: на окне 1280 курсор уходит за колонку 520 px, Phaser шлёт pointerupoutside вместо pointerup, бросок не вылетал. Починка: this.input.on("pointerupoutside", ...) плюс свои координаты из p.event.clientX (у Phaser после выхода за канвас worldX старый, бросок был на треть слабее пунктира) плюс window mousemove для пунктира. Проверки WRM-80..84: тянуть ОТ БОЙЦА, отпускать на 70 px левее колонки, сверять вектор броска с оттяжкой (допуск 0.6 из 23). Анти-паттерн: проверять только "вылетел" без силы; подгонять жест стенда под игру.

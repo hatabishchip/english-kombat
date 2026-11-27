@@ -259,14 +259,25 @@ class Arena extends Phaser.Scene {
     this.aiming=false;
     this.input.on('pointerdown',p=>{ if(!this.canAim()) return; this.aiming=true; this.aimStart={x:p.worldX,y:p.worldY}; });
     this.input.on('pointermove',p=>{ if(this.aiming) this.drawGhost(p); });
-    this.input.on('pointerup',p=>{
+    const release=p=>{
       if(!this.aiming) return; this.aiming=false; this.ghost.clear();
       const v=this.aimVec(p); if(!v) return;
       if(this.missKick){ v.vx*=(0.45+Math.random()*0.95); v.vy*=(0.55+Math.random()*0.8); this.missKick=false; toast('🌀 Криво полетел!'); }
       this.charged=false;
       if(CFG.mode==='pvp'){ try{CFG.room.send('shot',{vx:v.vx,vy:v.vy});}catch(e){} this.moveLog={craters:[],drowned:[]}; }
       this.fire(this.myWorm, v.vx, v.vy, true);
-    });
+    };
+    this.input.on('pointerup',release);
+    // На широком окне игра стоит колонкой, боец у её левого края: сильная оттяжка уводит курсор за колонку.
+    // Phaser для отпускания вне канваса шлёт не pointerup, а pointerupoutside - без этой строки бросок терялся, прицел залипал.
+    // Координаты указателя вне канваса Phaser не обновляет (остаются с последней точки внутри): считаем их сами по окну,
+    // иначе бросок выходит слабее, чем показывал пунктир.
+    const evWorld=e=>{ const c=this.game.canvas.getBoundingClientRect(), k=this.W/c.width; return {worldX:(e.clientX-c.left)*k, worldY:(e.clientY-c.top)*k}; };
+    this.input.on('pointerupoutside',p=>release(p.event&&typeof p.event.clientX==='number'?evWorld(p.event):p));
+    // движение вне канваса Phaser не видит вовсе: пока тянем за краем, прицел ведём сами
+    const outMove=e=>{ if(!this.aiming||e.target===this.game.canvas) return; this.drawGhost(evWorld(e)); };
+    window.addEventListener('mousemove',outMove);
+    this.events.once('shutdown',()=>window.removeEventListener('mousemove',outMove));
 
     // старт хода
     if(CFG.mode==='pvp'){ this.setTurn(CFG.turn===CFG.mySid?'me':'foe', CFG.wind); }

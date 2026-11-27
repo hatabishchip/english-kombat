@@ -310,6 +310,38 @@ function measureCard() {
       await shot(page, `worms-${w}x${h}`);
       await page.ctx.close();
     }
+
+    // Найдено руками на боевом адресе 27.11.2026: на широком окне боец стоит у левого края колонки, сильная
+    // оттяжка уводит курсор за колонку, а Phaser для отпускания вне канваса шлёт не pointerup. Бросок терялся.
+    { scenario('Рогатку тянут от бойца и отпускают за краем колонки, окно 1280x800');
+      const page = await open({ mic: 'denied', viewport: { width: 1280, height: 800 } });
+      await startBot(page);
+      await waitHeard(page, /тапни/, 8000);
+      await page.click('#spPhrase');
+      await page.waitForFunction(() => SCENE.charged, null, { timeout: 4000 }).catch(() => {});
+      await page.evaluate(() => { window.__fv = null; const f = SCENE.fire.bind(SCENE);
+        SCENE.fire = (w, vx, vy, m) => { if (m && !__fv) __fv = { vx, vy }; return f(w, vx, vy, m); }; });
+      const p = await page.evaluate(() => { const c = document.querySelector('#game canvas').getBoundingClientRect(); const k = c.width / CFG.W;
+        return { x: c.left + SCENE.myWorm.x * k, y: c.top + SCENE.myWorm.y * k, k, left: c.left }; });
+      const ghostSig = () => page.evaluate(() => SCENE.ghost.commandBuffer.join(',').length + ':' + SCENE.ghost.commandBuffer.slice(0, 40).join(','));
+      const edge = { x: p.left + 3, y: p.y + 30 }, out = { x: p.left - 70, y: p.y + 95 };
+      await page.mouse.move(p.x, p.y); await page.mouse.down();
+      await page.mouse.move(edge.x, edge.y, { steps: 5 });
+      const g1 = await ghostSig();
+      await page.mouse.move(out.x, out.y, { steps: 6 });
+      const g2 = await ghostSig();
+      await page.mouse.up();
+      await page.waitForFunction(() => window.__fv || !SCENE.aiming, null, { timeout: 3000 }).catch(() => {});
+      const r = await page.evaluate(() => ({ fv: window.__fv, aiming: SCENE.aiming, charged: SCENE.charged, ghost: SCENE.ghost.commandBuffer.length, busy: SCENE.busy, turn: SCENE.turn }));
+      const dx = (p.x - out.x) / p.k, dy = (p.y - out.y) / p.k, len = Math.hypot(dx, dy), pow = Math.min(1, Math.max(.15, len / 230));
+      const want = { vx: dx / len * pow * 23, vy: dy / len * pow * 23 };
+      const miss = r.fv ? Math.hypot(r.fv.vx - want.vx, r.fv.vy - want.vy) : null;
+      check('WRM-80', `Курсор за колонкой на ${Math.round(p.left - out.x)} px: бросок вылетел`, !!r.fv, JSON.stringify(r));
+      check('WRM-81', `Сила и угол броска соответствуют оттяжке (расхождение ${miss === null ? 'нет броска' : miss.toFixed(2)} из 23)`, miss !== null && miss < 0.6, JSON.stringify({ got: r.fv, want }));
+      check('WRM-82', 'Прицел не залип: игра не ждёт отпускания, пунктир убран', !r.aiming && !r.charged, JSON.stringify(r));
+      check('WRM-83', 'Пока курсор за колонкой, пунктир прицела идёт за ним', g1 !== g2 && g2.length > 4, `${g1.slice(0, 30)} | ${g2.slice(0, 30)}`);
+      check('WRM-84', 'Нет ошибок скрипта', page.errors.length === 0, page.errors.join(' | '));
+      await page.ctx.close(); }
   } catch (e) { check('WRM-00', 'Прогон дошёл до конца', false, String(e && e.stack || e).split('\n').slice(0, 3).join(' / ')); }
   await browser.close(); if (srv) srv.close();
   process.exit(report(BASE ? 'last-run-worms-live.json' : 'last-run-worms.json') ? 1 : 0);
