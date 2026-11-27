@@ -10,3 +10,4 @@ qa/.tmp-media/
 qa/last-run*.json
 .playwright-mcp/
 qa/shots-*/
+private/

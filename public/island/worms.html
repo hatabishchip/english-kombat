@@ -8,11 +8,13 @@
 <style>
   html,body{margin:0;padding:0;height:100%;background:#0b1f2a;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
-  #game{position:fixed;inset:0}
-  .back-link{position:fixed;top:calc(8px + env(safe-area-inset-top));left:10px;z-index:50;background:rgba(11,31,42,.75);color:#fff;
+  /* телефонный формат и на компьютере: игра живёт в колонке шириной с телефон (ширину ставит fitApp) */
+  #app{position:fixed;top:0;bottom:0;left:0;right:0;margin:0 auto;width:100%;max-width:520px;overflow:hidden;background:#7fd3e6}
+  #game{position:absolute;inset:0}
+  .back-link{position:absolute;top:calc(8px + env(safe-area-inset-top));left:10px;z-index:50;background:rgba(11,31,42,.75);color:#fff;
     font:800 14px system-ui;padding:9px 14px;border-radius:14px;text-decoration:none}
   /* стартовое меню */
-  #menu{position:fixed;inset:0;z-index:60;background:linear-gradient(180deg,#123c2e,#0b1f2a);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:26px;text-align:center;color:#fff}
+  #menu{position:absolute;inset:0;z-index:60;background:linear-gradient(180deg,#123c2e,#0b1f2a);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:26px;text-align:center;color:#fff}
   #menu h1{font-size:30px;margin:0 0 6px}
   #menu p{color:#9fc9b8;font-size:15px;line-height:1.5;margin:0 0 26px;max-width:320px}
   .mbtn{width:100%;max-width:320px;padding:16px;border-radius:18px;border:0;font:800 17px system-ui;color:#fff;margin-bottom:12px;cursor:pointer}
@@ -21,22 +23,24 @@
   .mbtn:active{transform:translateY(3px);box-shadow:none}
   #searching{display:none;color:#c8b6e8;font-weight:700;margin-top:8px}
   /* карточка речи-зарядки */
-  #speech{position:fixed;left:10px;right:10px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:55;background:rgba(11,31,42,.94);border-radius:20px;padding:14px 14px 12px;color:#fff;display:none;text-align:center;box-shadow:0 8px 26px rgba(0,0,0,.35)}
+  #speech{position:absolute;left:10px;right:10px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:55;background:rgba(11,31,42,.94);border-radius:20px;padding:14px 14px 12px;color:#fff;display:none;text-align:center;box-shadow:0 8px 26px rgba(0,0,0,.35)}
   #speech .ru{font-size:13px;color:#bcd3db}
   #speech .en{font-size:24px;font-weight:900;color:#ffd23f;margin:3px 0 2px}
-  #speech .heard{min-height:17px;font-size:13px;font-weight:700;margin:4px 0 8px}
-  #speech .row{display:flex;gap:9px}
-  .sbtn{flex:1;padding:13px;border-radius:14px;border:0;font:800 15px system-ui;cursor:pointer}
-  #spSay{background:rgba(255,255,255,.14);color:#fff;flex:0 0 118px}
-  #spMic{background:linear-gradient(180deg,#ff8a3d,#e56b1f);color:#fff}
-  #spMic.rec{background:linear-gradient(180deg,#ff5a6e,#d83a4d);animation:pl 1s infinite}
-  @keyframes pl{0%,100%{box-shadow:0 0 0 0 rgba(255,90,110,.5)}50%{box-shadow:0 0 0 14px rgba(255,90,110,0)}}
+  #speech .heard{min-height:17px;font-size:13px;font-weight:700;margin:2px 0 8px;line-height:1.3}
+  #spPhrase.tap{cursor:pointer}
+  #spPhrase.tap .en{text-decoration:underline dotted;text-underline-offset:5px}
+  /* живая шкала голоса вместо кнопки записи */
+  .eq{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:34px;margin:6px 0 2px}
+  .eq i{width:5px;border-radius:3px;background:#5ef2c9;height:4px;transition:height .07s linear}
+  .eq.idle i{background:#41626f}
+  #spSay{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:12px;padding:8px 16px;font:700 13px system-ui;cursor:pointer}
   /* тост */
-  #toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);z-index:70;background:rgba(11,31,42,.95);color:#fff;padding:10px 16px;border-radius:14px;font:700 14px system-ui;opacity:0;transition:.25s;pointer-events:none;white-space:nowrap}
+  #toast{position:absolute;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);z-index:70;background:rgba(11,31,42,.95);color:#fff;padding:10px 16px;border-radius:14px;font:700 14px system-ui;opacity:0;transition:.25s;pointer-events:none;white-space:nowrap}
   #toast.on{opacity:1}
 </style>
 </head>
 <body>
+<div id="app">
 <a class="back-link" href="/island/">← Остров</a>
 <div id="game"></div>
 
@@ -50,15 +54,16 @@
 </div>
 
 <div id="speech">
-  <div class="ru" id="spRu"></div>
-  <div class="en" id="spEn"></div>
-  <div class="heard" id="spHeard"></div>
-  <div class="row">
-    <button class="sbtn" id="spSay">🔊</button>
-    <button class="sbtn" id="spMic">🎙️ Держи и говори</button>
+  <div id="spPhrase">
+    <div class="ru" id="spRu"></div>
+    <div class="en" id="spEn"></div>
   </div>
+  <div class="eq idle" id="spEq"></div>
+  <div class="heard" id="spHeard"></div>
+  <button id="spSay" type="button">🔊 послушать</button>
 </div>
 <div id="toast"></div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
 <script src="https://unpkg.com/colyseus.js@^0.16.0/dist/colyseus.js"></script>
@@ -93,7 +98,7 @@ function matchPhrase(said,ans){ const n=norm(said); if(!n) return false; return 
 function toast(t){ const el=document.getElementById('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('on'),1900); }
 function say(text){ try{const u=new SpeechSynthesisUtterance(text);u.lang='en-US';u.rate=.95;speechSynthesis.cancel();speechSynthesis.speak(u);}catch(e){} }
 
-/* ── запись + Deepgram (компакт, hold-to-record) ── */
+/* ── запись + Deepgram ── */
 let micStream=null;
 async function getMic(){
   if(micStream && micStream.getAudioTracks().some(t=>t.readyState==='live')) return micStream;
@@ -107,39 +112,70 @@ async function transcribe(blob){
   if(!r.ok) throw new Error('t '+r.status);
   const j=await r.json(); return (j.transcript||'').trim();
 }
-function holdRecord(btn,onText,onState){
-  let ses=null;
-  btn.style.touchAction='none';
-  btn.addEventListener('contextmenu',e=>e.preventDefault());
-  btn.addEventListener('pointerdown',async ev=>{
-    if(ev.cancelable) ev.preventDefault(); if(ses) return;
-    if(!(navigator.mediaDevices&&window.MediaRecorder)){ toast('Запись не поддерживается'); return; }
-    try{ btn.setPointerCapture&&btn.setPointerCapture(ev.pointerId); }catch(e){}
-    const s={rec:null,chunks:[],released:false,t0:0}; ses=s;
-    btn.classList.add('rec'); onState&&onState('rec');
-    try{
-      const stream=await getMic();
-      if(s.released){ ses=null; btn.classList.remove('rec'); onState&&onState('idle'); toast('Доступ есть ✅ Зажми и говори'); return; }
-      const mime=pickMime(['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg']);
-      const mr=new MediaRecorder(stream, mime?{mimeType:mime}:undefined);
-      s.rec=mr; s.t0=Date.now();
-      mr.ondataavailable=e=>{ if(e.data&&e.data.size) s.chunks.push(e.data); };
-      mr.onstop=async()=>{
-        btn.classList.remove('rec'); ses=null;
-        const held=Date.now()-s.t0;
-        const blob=new Blob(s.chunks,{type:(s.chunks[0]&&s.chunks[0].type)||mime||'audio/mp4'});
-        if(held<350||blob.size<1500){ onState&&onState('idle'); toast('Зажми и держи, пока говоришь 🎙️'); return; }
-        onState&&onState('busy');
-        let t=''; try{ t=await transcribe(blob); }catch(e){}
-        onState&&onState('idle');
-        onText(t);
-      };
-      mr.start(250);
-    }catch(e){ ses=null; btn.classList.remove('rec'); onState&&onState('idle'); toast('Нет доступа к микрофону 🎙️'); }
-  });
-  const end=()=>{ if(!ses) return; const s=ses; s.released=true; if(s.rec){ const w=Math.max(0,650-(Date.now()-s.t0)); setTimeout(()=>{ try{ if(s.rec.state!=='inactive') s.rec.stop(); }catch(e){} }, s.chunks.length?0:w); } };
-  btn.addEventListener('pointerup',end);
-  btn.addEventListener('pointercancel',end);
+/* Автослушание (27.11.2026): запись открывается САМА, как в бою Острова, стоп по тишине.
+   Раньше здесь была кнопка «Держи и говори»: без доступа к микрофону подпись «Говорю…»
+   залипала, зарядить банан было нечем, и ход не кончался никогда. */
+const mediaOK=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);
+let sharedAC=null;
+function wakeAudio(){   // зовётся из жеста (кнопки меню): iOS даёт звуковой контекст только по касанию
+  try{ if(!sharedAC) sharedAC=new (window.AudioContext||window.webkitAudioContext)();
+       if(sharedAC.state==='suspended') sharedAC.resume(); }catch(e){}
+}
+async function listenOnce(words, alive, onLevel, onBusy){
+  if(!mediaOK) return {fail:'nomic'};
+  let stream; try{ stream=await getMic(); }catch(e){ return {fail:'denied'}; }
+  if(!alive()) return {cancel:true};
+  const mime=pickMime(['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg']);
+  let mr; try{ mr=new MediaRecorder(stream, mime?{mimeType:mime}:undefined); }catch(e){ return {fail:'nomic'}; }
+  const chunks=[]; mr.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+  const blobP=new Promise(res=>{ mr.onstop=()=>res(new Blob(chunks,{type:(chunks[0]&&chunks[0].type)||mime||'audio/mp4'})); });
+  const t0=Date.now(); mr.start(250);
+  let stopped=false, cancelled=false;
+  // кодеку нужно около 650 мс, чтобы отдать первый кусок (урок iOS: иначе запись пустая)
+  const halt=()=>{ if(stopped) return; stopped=true;
+    const w=Math.max(0,650-(Date.now()-t0));
+    setTimeout(()=>{ try{ if(mr.state!=='inactive') mr.stop(); }catch(e){} }, chunks.length?0:w); };
+  wakeAudio();
+  let an=null, src=null, data=null;
+  try{ if(sharedAC){ an=sharedAC.createAnalyser(); an.fftSize=512; src=sharedAC.createMediaStreamSource(stream); src.connect(an); data=new Uint8Array(an.fftSize); } }catch(e){ an=null; }
+  const w=words||3, SIL=w>5?1200:900, CAP=Math.min(10000, 450*w*2.5+2000);
+  let floor=0, floorN=0, speaking=false, lastLoud=0, noVad=false, peak=0, ticks=0;
+  // Шаг детектора зовётся и по таймеру, и на каждый кусок записи (раз в 250 мс): в фоновой или
+  // перекрытой вкладке браузер душит таймеры до одного раза в секунду, и по счёту тиков
+  // детектор не успевал заметить речь. Поэтому «заговорил» считаем по времени, а не по тикам.
+  let loudSince=-1;
+  const step=()=>{
+    if(stopped) return;
+    if(!alive()){ cancelled=true; halt(); return; }
+    const el=Date.now()-t0; let rms=0;
+    // звуковой контекст так и не проснулся - тишину от речи не отличить: пишем отрезок и отдаём как есть
+    if(!an || (el>700 && sharedAC.state!=='running')){ noVad=true; if(el>Math.min(CAP,4500)) halt(); return; }
+    an.getByteTimeDomainData(data);
+    let sum=0; for(let i=0;i<data.length;i++){ const v=(data[i]-128)/128; sum+=v*v; }
+    rms=Math.sqrt(sum/data.length); ticks++; if(rms>peak) peak=rms;
+    if(el<300){ floor=(floor*floorN+rms)/(++floorN); return; }       // калибровка фона
+    // Потолок фона: если человек заговорил сразу (типично на повторе «ещё раз»), калибровка
+    // попадала на речь, порог улетал выше голоса и игра отвечала «не слышу» говорящему.
+    const th=Math.max(0.012, Math.min(floor,0.02)*2.5);
+    if(rms>th){ if(loudSince<0) loudSince=el; lastLoud=el; if(el-loudSince>=80) speaking=true; }
+    else { loudSince=-1; if(!speaking) floor=floor*0.95+rms*0.05; }
+    onLevel&&onLevel(Math.min(1, rms/Math.max(0.06, th*3)));
+    if(speaking && el-lastLoud>SIL) halt();
+    else if(el>CAP) halt();
+    else if(!speaking && el>6000) halt();                              // молчит вовсе - не ждём вечно
+  };
+  const iv=setInterval(step, 40);
+  mr.addEventListener('dataavailable', step);
+  const blob=await blobP;
+  clearInterval(iv); try{ src&&src.disconnect(); }catch(e){}
+  // журнал слушаний для стенда и разбора жалоб: что слышал детектор речи
+  (window.__vadLog=window.__vadLog||[]).push({ms:Date.now()-t0, ticks, peak:+peak.toFixed(3), floor:+floor.toFixed(4), speaking, noVad, size:blob?blob.size:0,
+    ac:sharedAC&&sharedAC.state, track:(stream.getAudioTracks()[0]||{}).readyState, muted:(stream.getAudioTracks()[0]||{}).muted});
+  if(cancelled || !alive()) return {cancel:true};
+  if((!noVad && !speaking) || !blob || blob.size<1500) return {spoke:false};
+  onBusy&&onBusy();
+  try{ return {spoke:true, text:await transcribe(blob)}; }
+  catch(e){ return {spoke:true, text:'', err:true}; }
 }
 
 /* ── seeded RNG для одинакового террейна у обоих игроков ── */
@@ -172,7 +208,8 @@ class Arena extends Phaser.Scene {
     const ctx=tex.getContext();
     ctx.fillStyle='#e8c98a';
     ctx.beginPath(); ctx.moveTo(0,WATER_Y+20);
-    const base=Math.min(WATER_Y-96, Math.round(H*0.76));
+    // против бота рельеф поднят над карточкой фразы (CFG.baseY); в живом бою он обязан совпадать у обоих игроков
+    const base=CFG.baseY || Math.min(WATER_Y-96, Math.round(H*0.76));
     for(let x=0;x<=W;x+=8){
       const y=base -110*Math.sin(x/W*Math.PI) -48*Math.sin(x/170+ph1) -22*Math.sin(x/61+ph2);
       ctx.lineTo(x,y);
@@ -424,33 +461,93 @@ class Arena extends Phaser.Scene {
   }
 }
 
-/* ── речь-зарядка (DOM поверх канваса) ── */
-let curPhrase=null;
+/* ── речь-зарядка (DOM поверх канваса): без кнопок, слушаем сами ── */
+let curPhrase=null, listenTok=0, tapArmed=false, RT=null;
 const spEl=document.getElementById('speech');
+const spEq=document.getElementById('spEq');
+for(let i=0;i<24;i++) spEq.appendChild(document.createElement('i'));
+function eqDraw(level){ const bars=spEq.children;
+  for(let i=0;i<bars.length;i++){ const mid=1-Math.abs(i-(bars.length-1)/2)/((bars.length-1)/2);
+    bars[i].style.height=Math.min(34, 4+level*30*(0.35+0.65*mid)*(0.7+Math.random()*0.6))+'px'; } }
+function eqIdle(on){ spEq.className='eq'+(on?' idle':''); if(on) for(const b of spEq.children) b.style.height='4px'; }
+function spStatus(t,c){ const h=document.getElementById('spHeard'); h.textContent=t; h.style.color=c||'#bcd3db'; }
+const myTurnOpen=()=> !!SCENE && SCENE.turn==='me' && !SCENE.charged && !SCENE.busy && spEl.style.display!=='none';
+
 function speechShow(){
   curPhrase=PHRASES[Math.floor(Math.random()*PHRASES.length)];
   document.getElementById('spRu').textContent=curPhrase.ru;
   document.getElementById('spEn').textContent=curPhrase.en;
-  const h=document.getElementById('spHeard'); h.textContent='Скажи фразу - зарядишь банан 🍌'; h.style.color='#bcd3db';
+  RT={silent:0, err:0, heard:0, again:0};
+  armTap(false);
   spEl.style.display='block';
+  listenTurn();
 }
-function speechHide(){ spEl.style.display='none'; }
-document.getElementById('spSay').addEventListener('click',()=>{ if(curPhrase) say(curPhrase.en); });
-holdRecord(document.getElementById('spMic'), t=>{
-  const h=document.getElementById('spHeard');
-  if(!t){ h.textContent='Не расслышал, зажми и скажи чётче 🎙️'; h.style.color='#ff8aa0'; return; }
-  if(matchPhrase(t,curPhrase.ans)){
-    h.textContent='✅ «'+t+'» - заряжено!'; h.style.color='#5ef2c9';
-    say(curPhrase.en);
-    setTimeout(()=>{ speechHide(); if(SCENE){ SCENE.charged=true; SCENE.missKick=false; SCENE.ui.hint.setVisible(true); } },600);
-  } else { // Рома: неверно сказал - банан всё равно летит, но криво
-    h.textContent='😅 «'+t+'» - не то! Верно: '+curPhrase.en+'. Бросок будет кривой'; h.style.color='#ffd23f';
-    say(curPhrase.en);
-    setTimeout(()=>{ speechHide(); if(SCENE){ SCENE.charged=true; SCENE.missKick=true; SCENE.ui.hint.setVisible(true); SCENE.ui.hint.setText('🌀 Кривой заряд: бросок будет со сбивом!'); } },1200);
+function speechHide(){ listenTok++; eqIdle(true); spEl.style.display='none'; }
+
+async function listenTurn(note){
+  const tok=++listenTok;
+  const alive=()=> tok===listenTok && myTurnOpen();
+  if(!alive()) return;
+  eqIdle(false);
+  spStatus(note||'🎙️ Слушаю - скажи фразу, банан зарядится сам', note?'#ffd23f':'#5ef2c9');
+  const words=norm(curPhrase.en).split(' ').filter(Boolean).length;
+  const r=await listenOnce(words, alive, eqDraw, ()=>{ eqIdle(true); spStatus('⏳ Распознаю…'); });
+  eqIdle(true);
+  if(r.cancel || tok!==listenTok) return;
+  if(r.fail) return tapFallback(r.fail==='nomic'?'Микрофон недоступен':'Нет доступа к микрофону');
+  if(!r.spoke){                                   // тишина: на сервер ничего не шлём, слушаем дальше
+    if(++RT.silent>=2){ armTap(true); return listenTurn('Не слышу тебя - скажи громче или тапни по фразе'); }
+    return listenTurn('Не слышу тебя - скажи погромче 🎙️');
   }
-}, st=>{ const h=document.getElementById('spHeard');
-  if(st==='rec'){ h.textContent='🔴 Говорю…'; h.style.color='#ffd23f'; }
-  if(st==='busy'){ h.textContent='⏳ Распознаю…'; h.style.color='#bcd3db'; } });
+  if(r.err){
+    if(++RT.err>=2) return tapFallback('Нет связи с распознаванием');
+    return listenTurn('Не получилось распознать - повтори 🎙️');
+  }
+  const t=r.text;
+  if(!t){
+    if(++RT.heard<2) return listenTurn('Не расслышал - повтори чётче 🎙️');
+    return charge(false, '');
+  }
+  if(matchPhrase(t,curPhrase.ans)) return charge(true, t);
+  // автостоп мог обрезать фразу - одна бесплатная попытка, потом кривой заряд (правило Ромы)
+  if(RT.again<1){ RT.again++; return listenTurn('Услышал: «'+t+'» - ещё раз!'); }
+  charge(false, t);
+}
+
+function charge(ok, t){
+  listenTok++; armTap(false); eqIdle(true);
+  const ph=curPhrase;
+  if(ok) spStatus(t?('✅ «'+t+'» - заряжено!'):'✅ Заряжено!', '#5ef2c9');
+  else   spStatus('😅 '+(t?('«'+t+'» - не то!'):'Не разобрал.')+' Верно: '+ph.en+'. Бросок будет кривой', '#ffd23f');
+  say(ph.en);
+  setTimeout(()=>{
+    if(!SCENE || SCENE.turn!=='me' || SCENE.busy) return;
+    spEl.style.display='none';
+    SCENE.charged=true; SCENE.missKick=!ok;
+    SCENE.ui.hint.setText(ok?'⬅️ Потяни назад, как рогатку, и отпусти!':'🌀 Кривой заряд: бросок будет со сбивом!');
+    SCENE.ui.hint.setVisible(true);
+  }, ok?600:1200);
+}
+
+// Запасной путь: без микрофона голосом играть нельзя, но ход не должен вставать.
+function armTap(on){ tapArmed=!!on; document.getElementById('spPhrase').classList.toggle('tap', tapArmed); }
+function tapFallback(why){ armTap(true); spStatus(why+' - тапни по фразе, чтобы зарядить', '#ffd23f'); }
+document.getElementById('spPhrase').addEventListener('click',()=>{ if(tapArmed && myTurnOpen()) charge(true, ''); });
+
+// «послушать»: пока игра говорит, микрофон не слушает - иначе запишет саму себя
+document.getElementById('spSay').addEventListener('click',()=>{
+  if(!curPhrase) return;
+  listenTok++; eqIdle(true); spStatus('🔊 Слушай…');
+  let done=false; const back=()=>{ if(done) return; done=true; if(myTurnOpen()) listenTurn(); };
+  try{ const u=new SpeechSynthesisUtterance(curPhrase.en); u.lang='en-US'; u.rate=.9; u.onend=back; u.onerror=back;
+       speechSynthesis.cancel(); speechSynthesis.speak(u); }catch(e){}
+  setTimeout(back, 3500);
+});
+
+/* Телефонный формат и на компьютере: колонка шириной с телефон, высота окна. */
+const appEl=document.getElementById('app');
+function fitApp(){ appEl.style.width=Math.min(innerWidth, 520, Math.max(320, Math.round(innerHeight*0.62)))+'px'; }
+fitApp(); addEventListener('resize', fitApp);
 
 /* ── старт: меню -> игра ── */
 function bootGame(){
@@ -463,12 +560,17 @@ function bootGame(){
   });
 }
 document.getElementById('mBot').addEventListener('click',()=>{
-  const iw=Math.max(320,innerWidth), ih=Math.max(480,innerHeight);
-  const W=iw>ih?1280:900, H=Math.round(W*ih/iw);
-  CFG={mode:'bot', W, H, seed:(Math.random()*1e9)|0};
+  wakeAudio();
+  // поле всегда портретное, как на телефоне: ширина 900, высота по пропорции колонки
+  const r=appEl.getBoundingClientRect();
+  const W=900, H=Math.max(1100, Math.min(2000, Math.round(W*r.height/Math.max(1,r.width))));
+  // карточка с фразой занимает около 215 px низа экрана - бойцы и земля не должны под неё уходить
+  const baseY=Math.min(H-160, Math.round(H*0.76), Math.round(H-215/(r.width/W)-75));
+  CFG={mode:'bot', W, H, baseY, seed:(Math.random()*1e9)|0};
   bootGame();
 });
 document.getElementById('mLive').addEventListener('click',async()=>{
+  wakeAudio();
   if(typeof Colyseus==='undefined'){ toast('Мультиплеер не загрузился 😕'); return; }
   document.getElementById('searching').style.display='block';
   let name='Боец'; try{ name=(JSON.parse(localStorage.getItem('ek_island_v1')||'{}').name)||'Боец'; }catch(e){}
