@@ -16,6 +16,8 @@
      WRM-3x  сказал не то: одна бесплатная попытка, потом кривой заряд
      WRM-4x  кнопка "послушать": пока игра говорит, микрофон молчит, потом слушает сам
      WRM-5x  телефонный формат на окнах 390x844, 766x600, 1280x800
+     WRM-6x  полный бой до победы: банан улетает, стрелок цел, бот отвечает, ход возвращается
+     WRM-7x  полный бой до поражения: свой банан, упавший обратно, ранит
 
    Запуск: node qa/run-worms.mjs [--base=https://english-kombat.vercel.app] [--shots=папка]
    ⚠️ Сценарий WRM-0x ходит в боевой /api/island/transcribe (один-два запроса).
@@ -75,7 +77,19 @@ async function open({ viewport = { width: 390, height: 844 }, mic = 'file', tran
   await page.waitForTimeout(700);                                    // фразы с сервера (подменены) успевают прийти
   return page;
 }
-const startBot = async page => { await page.click('#mBot'); await page.waitForFunction(() => typeof SCENE !== 'undefined' && SCENE && SCENE.turn === 'me', null, { timeout: 15000 }); };
+// Часы стенда. Headless рисует арену программным WebGL: под нагрузкой это 3 кадра в секунду, а Phaser
+// считает игровое время кадрами (не больше 16.7 мс на кадр), поэтому 650 мс до конца броска шли 13 секунд
+// и стенд видел "бот молчит". Здесь цикл отрисовки усыплён, игру шагает таймер без отрисовки:
+// игровое время идёт вровень с настоящим на любой машине. Код игры при этом тот же самый.
+const turbo = page => page.evaluate(() => {
+  if (window.__clock) return;
+  game.loop.sleep(); let last = performance.now();
+  window.__clock = setInterval(() => { const now = performance.now(); let n = Math.min(30, Math.floor((now - last) / 16.667));
+    last += n * 16.667; while (n-- > 0) game.headlessStep(now, 16.667); }, 8);
+});
+const startBot = async page => { await page.click('#mBot');
+  await page.waitForFunction(() => typeof SCENE !== 'undefined' && SCENE && SCENE.turn === 'me', null, { timeout: 90000 });
+  await turbo(page); };
 const info = page => page.evaluate(() => ({
   turn: SCENE.turn, charged: SCENE.charged, miss: !!SCENE.missKick, busy: SCENE.busy,
   heard: document.getElementById('spHeard').textContent, card: document.getElementById('speech').style.display !== 'none',
@@ -85,13 +99,68 @@ const info = page => page.evaluate(() => ({
   tap: !!document.getElementById('spPhrase') && document.getElementById('spPhrase').classList.contains('tap')
 }));
 const waitHeard = (page, rx, timeout = 15000) => page.waitForFunction(r => new RegExp(r).test(document.getElementById('spHeard').textContent), rx.source, { timeout }).then(() => true).catch(() => false);
-const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: path.join(SHOTS, name + '.png') }); };
+const shot = async (page, name) => { if (SHOTS) await page.evaluate(() => game.step(performance.now(), 16.667)).catch(() => {}); if (SHOTS) await page.screenshot({ path: path.join(SHOTS, name + '.png') }); };
 // рогатка: тянем назад-вниз от бойца, отпускаем
 async function sling(page) {
   const p = await page.evaluate(() => { const c = document.querySelector('#game canvas').getBoundingClientRect(); const k = c.width / CFG.W;
     return { x: c.left + SCENE.myWorm.x * k, y: c.top + SCENE.myWorm.y * k, k }; });
   await page.mouse.move(p.x, p.y); await page.mouse.down();
   await page.mouse.move(p.x - 170 * p.k, p.y + 120 * p.k, { steps: 6 }); await page.mouse.up();
+}
+
+/* ── полный бой ── */
+// журнал бросков: кто бросил, как далеко улетел банан, что стало со здоровьем обоих
+const watchShots = page => page.evaluate(() => {
+  window.__shots = []; const sc = SCENE, fire = sc.fire.bind(sc);
+  sc.fire = (from, vx, vy, mine) => { __shots.push({ mine: !!mine, x0: from.x, y0: from.y, far: 0, frames: 0, me0: sc.myWorm.hp, foe0: sc.foeWorm.hp, me1: null, foe1: null });
+    return fire(from, vx, vy, mine); };
+  const end = sc.endShot.bind(sc);
+  sc.endShot = () => { const s = __shots[__shots.length - 1]; if (s && s.me1 === null) { s.me1 = sc.myWorm.hp; s.foe1 = sc.foeWorm.hp; } return end(); };
+  setInterval(() => { const s = __shots[__shots.length - 1]; if (s && sc.banana) { s.frames++; s.far = Math.max(s.far, Math.round(Math.hypot(sc.banana.obj.x - s.x0, sc.banana.obj.y - s.y0))); } }, 4);
+});
+// прицел: перебираем силу и угол формулой самой игры, берём бросок, который ложится ближе всех к цели
+function pickAim(mode) {
+  const sc = SCENE, me = sc.myWorm, foe = sc.foeWorm;
+  if (mode === 'self') return { vx: 0, vy: -8 };                       // вверх и обратно на себя
+  let best = null;
+  for (let sp = 6; sp <= 23; sp += 0.5) for (let a = 25; a <= 75; a += 2.5) {
+    const dir = Math.sign(foe.x - me.x) || 1; let vx = Math.cos(a * Math.PI / 180) * sp * dir, vy = -Math.sin(a * Math.PI / 180) * sp;
+    let x = me.x, y = me.y - 20, wx = vx, wy = vy, miss = 1e9;
+    for (let i = 0; i < 600; i++) { wy += G; wx += sc.wind * 0.012; x += wx; y += wy;
+      if (Math.hypot(x - foe.x, y - foe.y + 16) < 34) { miss = 0; break; }
+      if (sc.solid(x, y) || y > sc.WATER_Y + 12 || x < -60 || x > sc.W + 60) { miss = Math.hypot(x - foe.x, y - foe.y + 16); break; } }
+    if (!best || miss < best.miss) best = { vx, vy, miss };
+  }
+  return best;
+}
+async function slingAim(page, mode) {
+  const v = await page.evaluate(pickAim, mode);
+  const p = await page.evaluate(() => { const c = document.querySelector('#game canvas').getBoundingClientRect(); const k = c.width / CFG.W;
+    return { x: c.left + c.width * 0.6, y: c.top + c.height * 0.35, k }; });
+  // рогатка: скорость = вектор натяжения / 10 (сила = длина / 230, потолок 23). Тянем от середины поля, а не
+  // от бойца: он стоит в 74 px от левого края, сильный бросок уводил палец за край окна, и отпускание терялось
+  await page.mouse.move(p.x, p.y); await page.mouse.down();
+  await page.mouse.move(p.x - v.vx * 10 * p.k, p.y - v.vy * 10 * p.k, { steps: 5 }); await page.mouse.up();
+  return v;
+}
+// бой до конца: mode 'foe' - целимся в соперника, 'self' - бросаем вверх на себя
+async function fight(page, mode, maxTurns = 14) {
+  await watchShots(page); let turns = 0, stuck = '';
+  for (; turns < maxTurns; turns++) {
+    const st = await page.waitForFunction(() => SCENE.turn === 'over' ? 'over' : (SCENE.turn === 'me' && !SCENE.busy && document.getElementById('spPhrase').classList.contains('tap') ? 'me' : false), null, { timeout: 30000 })
+      .then(h => h.jsonValue()).catch(() => 'stuck');
+    if (st === 'over') break;
+    if (st === 'stuck') { stuck = 'ход не вернулся: ' + JSON.stringify(await info(page)); break; }
+    await page.click('#spPhrase');
+    if (!await page.waitForFunction(() => SCENE.charged, null, { timeout: 6000 }).then(() => true).catch(() => false)) { stuck = 'тап не зарядил'; break; }
+    const n0 = await page.evaluate(() => __shots.length);
+    await slingAim(page, mode);
+    if (!await page.waitForFunction(n => __shots.length > n, n0, { timeout: 6000 }).then(() => true).catch(() => false)) { stuck = 'рогатка не выстрелила'; break; }
+  }
+  const end = await page.evaluate(() => ({ turn: SCENE.turn, shots: __shots, me: SCENE.myWorm.hp, foe: SCENE.foeWorm.hp,
+    texts: SCENE.children.list.filter(o => o.type === 'Text').map(o => o.text),
+    trophies: (JSON.parse(localStorage.getItem('ek_island_v1') || '{}').league || {}).trophies || 0 }));
+  return { ...end, turns, stuck };
 }
 function measureCard() {
   const app = document.getElementById('app').getBoundingClientRect();
@@ -196,6 +265,35 @@ function measureCard() {
       const back = await waitHeard(page, /Слушаю/, 6000);
       check('WRM-40', 'Пока игра произносит фразу, она не слушает; потом слушает сама', /Слушай/.test(a.heard) && back, `во время: "${a.heard}"`);
       check('WRM-41', 'Фраза произнесена', (await page.evaluate(() => window.__tts)).includes('One board, please'));
+      await page.ctx.close(); }
+
+
+    { scenario('Полный бой: целюсь в соперника, до победы');
+      const page = await open({ mic: 'denied' });
+      await startBot(page);
+      const r = await fight(page, 'foe');
+      const mine = r.shots.filter(s => s.mine), bot = r.shots.filter(s => !s.mine);
+      const m0 = mine[0] || {};
+      check('WRM-60', `Мой банан улетает от бойца: ${m0.far} px (раньше 0: взрывался на стрелке в первом кадре)`, m0.far > 100, JSON.stringify(m0));
+      check('WRM-61', `Прицельный бросок не ранит самого стрелка: бросков ${mine.length}, со своим уроном ${mine.filter(s => s.me1 !== null && s.me1 < s.me0).length}`, mine.length > 0 && mine.every(s => s.me1 === null || s.me1 >= s.me0), JSON.stringify(mine.map(s => [s.me0, s.me1])));
+      check('WRM-62', `Прицельный бросок ранит соперника: попаданий ${mine.filter(s => s.foe1 !== null && s.foe1 < s.foe0).length} из ${mine.length}`, mine.some(s => s.foe1 !== null && s.foe1 < s.foe0), JSON.stringify(mine.map(s => [s.foe0, s.foe1, s.far])));
+      check('WRM-63', `Бот отвечает броском: бросков бота ${bot.length}, дальность первого ${(bot[0] || {}).far} px`, r.turn === 'over' && mine.length === 1 ? true : (bot.length > 0 && bot[0].far > 100), JSON.stringify(bot.map(s => s.far)));
+      check('WRM-64', `После броска бота ход возвращается игроку: моих бросков ${mine.length}`, !r.stuck && (mine.length > 1 || r.turn === 'over'), r.stuck);
+      check('WRM-65', `Бой дошёл до экрана победы за ${mine.length} моих бросков (я ${r.me}, он ${r.foe})`, r.turn === 'over' && r.texts.some(t => /ПОБЕДА/.test(t)) && r.foe <= 0, JSON.stringify({ turn: r.turn, stuck: r.stuck, me: r.me, foe: r.foe }));
+      check('WRM-66', `За победу начислены кубки: ${r.trophies}`, r.trophies === 10);
+      check('WRM-67', 'Нет ошибок скрипта за весь бой', page.errors.length === 0, page.errors.join(' | '));
+      await shot(page, 'worms-win');
+      await page.ctx.close(); }
+
+    { scenario('Полный бой: бросаю вверх на себя, до поражения');
+      const page = await open({ mic: 'denied' });
+      await startBot(page);
+      const r = await fight(page, 'self');
+      const mine = r.shots.filter(s => s.mine);
+      check('WRM-70', `Свой банан, упавший обратно, ранит стрелка: таких бросков ${mine.filter(s => s.me1 !== null && s.me1 < s.me0).length} из ${mine.length}`, mine.some(s => s.me1 !== null && s.me1 < s.me0 && s.far >= 44), JSON.stringify(mine.map(s => [s.me0, s.me1, s.far])));
+      check('WRM-71', `Бой дошёл до экрана поражения (я ${r.me}, он ${r.foe})`, r.turn === 'over' && r.texts.some(t => /ПОРАЖЕНИЕ/.test(t)) && r.me <= 0, JSON.stringify({ turn: r.turn, stuck: r.stuck }));
+      check('WRM-72', 'На экране конца есть "Ещё раз", кубки за поражение не начислены', r.texts.some(t => /Ещё раз/.test(t)) && r.trophies === 0, String(r.trophies));
+      check('WRM-73', 'Нет ошибок скрипта за весь бой', page.errors.length === 0, page.errors.join(' | '));
       await page.ctx.close(); }
 
     for (const [w, h] of [[390, 844], [766, 600], [1280, 800]]) {

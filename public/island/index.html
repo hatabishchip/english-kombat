@@ -110,13 +110,13 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .cap b{color:var(--teal-d);font-style:normal}
 
 /* замок записи (свайп вверх) */
-#lockBar{position:fixed;left:12px;right:12px;bottom:calc(84px + var(--safe-b));z-index:96;background:rgba(11,31,42,.96);border-radius:16px;padding:10px 12px;display:none;align-items:center;gap:10px;color:#fff;font-weight:800;box-shadow:var(--shadow)}
+#lockBar{position:fixed;left:max(12px, calc(50% - 248px));right:max(12px, calc(50% - 248px));bottom:calc(84px + var(--safe-b));z-index:96;background:rgba(11,31,42,.96);border-radius:16px;padding:10px 12px;display:none;align-items:center;gap:10px;color:#fff;font-weight:800;box-shadow:var(--shadow)}
 #lockBar.on{display:flex}
 #lockBar span{flex:1;font-size:14px}
 #lockBar button{border:0;border-radius:12px;padding:10px 14px;font:800 14px system-ui;cursor:pointer}
 #lockCancel{background:rgba(255,255,255,.15);color:#fff}
 #lockSend{background:linear-gradient(180deg,#3ecf6b,#2ba456);color:#fff}
-.rec-hints{position:fixed;right:78px;bottom:calc(96px + var(--safe-b));z-index:96;background:rgba(11,31,42,.85);color:#fff;border-radius:12px;padding:8px 12px;font:700 12px system-ui;display:none}
+.rec-hints{position:fixed;right:max(78px, calc(50% - 182px));bottom:calc(96px + var(--safe-b));z-index:96;background:rgba(11,31,42,.85);color:#fff;border-radius:12px;padding:8px 12px;font:700 12px system-ui;display:none}
 .rec-hints.on{display:block}
 
 /* оверлей записи кружка (Telegram-стиль) */
@@ -330,6 +330,11 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .duel-topic{font-size:26px;font-weight:900;margin:8px 0 4px}
 .duel-topic-ru{font-size:14px;color:#c8b6e8}
 .duel-feedback{margin-top:16px;min-height:80px}
+.duel-listen{margin-top:auto;padding-top:10px}
+.duel-heard{text-align:center;font-size:15px;font-weight:700;color:#e6d9ff;min-height:22px;line-height:1.35}
+.duel-type{display:flex;gap:8px;margin-top:12px}
+.duel-type input{flex:1;min-width:0;border:0;border-radius:14px;padding:14px 14px;font-size:16px;font-family:inherit;background:rgba(255,255,255,.95);color:#1a0e2e}
+.duel-type .btn{flex:0 0 auto;padding:0 18px}
 .duel-fb-card{background:rgba(255,255,255,.12);border-radius:16px;padding:14px;animation:rise .3s}
 .duel-fb-score{font-size:32px;font-weight:900;text-align:center}
 .duel-fb-verdict{text-align:center;font-weight:700;margin:2px 0 8px}
@@ -355,12 +360,12 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 .push-note .pn-tx span{font-size:13px;color:var(--ink-soft);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* всплывающий чат-пузырь поверх игры (habit5) */
-.float-chat{position:fixed;right:14px;bottom:calc(88px + var(--safe-b));z-index:40;width:56px;height:56px;border-radius:50%;background:linear-gradient(180deg,var(--teal),var(--teal-d));box-shadow:var(--shadow);display:none;align-items:center;justify-content:center;font-size:26px}
+.float-chat{position:fixed;right:max(14px, calc(50% - 246px));bottom:calc(88px + var(--safe-b));z-index:40;width:56px;height:56px;border-radius:50%;background:linear-gradient(180deg,var(--teal),var(--teal-d));box-shadow:var(--shadow);display:none;align-items:center;justify-content:center;font-size:26px}
 .float-chat.on{display:flex;animation:rise .3s}
 .float-chat .dot{position:absolute;top:-2px;right:-2px;width:20px;height:20px;border-radius:50%;background:var(--coral);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff}
 
 /* нижняя навигация (появляется после онбординга) */
-.tabbar{position:absolute;left:0;right:0;bottom:0;z-index:30;display:none;padding:8px 8px calc(8px + var(--safe-b));background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-top:1px solid var(--line);justify-content:space-around}
+.tabbar{position:absolute;left:0;right:0;max-width:520px;margin:0 auto;bottom:0;z-index:30;display:none;padding:8px 8px calc(8px + var(--safe-b));background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-top:1px solid var(--line);justify-content:space-around}
 .tabbar.on{display:flex}
 .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;color:#9fb3bc;font-size:10.5px;font-weight:700;padding:4px}
 .tab .ic{font-size:22px}
@@ -587,7 +592,14 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
         <div class="duel-topic-ru" id="duelTopicRu"></div>
       </div>
       <div class="duel-feedback" id="duelFeedback"></div>
-      <button class="btn sun wide" id="duelMic" style="margin-top:auto">🎙️ Держи и говори (англ.)</button>
+      <div class="duel-listen" id="duelListen">
+        <div class="eq idle" id="duelEq"></div>
+        <div class="duel-heard" id="duelHeard"></div>
+        <form class="duel-type" id="duelType" style="display:none" autocomplete="off">
+          <input id="duelInput" type="text" inputmode="text" lang="en" placeholder="Напиши ответ по-английски" maxlength="300">
+          <button class="btn sun" id="duelSend" type="submit">➤</button>
+        </form>
+      </div>
     </div>
   </section>
 
@@ -629,7 +641,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none}
 <!-- всплывающий чат Романа поверх игры (habit5) -->
 <button class="float-chat" id="floatChat">💬<span class="dot" id="floatDot">1</span></button>
 <!-- вызов на дуэль (Фаза 3) -->
-<button class="float-chat" id="floatDuel" style="left:14px;right:auto;bottom:calc(160px + var(--safe-b));background:linear-gradient(180deg,#9b5cff,#6a2cc9)">⚔️</button>
+<button class="float-chat" id="floatDuel" style="left:max(14px, calc(50% - 246px));right:auto;bottom:calc(160px + var(--safe-b));background:linear-gradient(180deg,#9b5cff,#6a2cc9)">⚔️</button>
 <!-- пуш от персонажа (habit2) -->
 <div class="push-note" id="pushNote"><div class="pn-ic" id="pushIc">🧔</div><div class="pn-tx"><b id="pushName">Роман</b><span id="pushMsg"></span></div></div>
 
@@ -1107,6 +1119,7 @@ function runStep(){
 // ── ШАГ 2: имя ──
 function askName(){
   setStep('name'); gateVoice(false);
+  hideQuick();   // на шаге имени кнопок нет: устаревшее «Дальше» от ответа Романа во время кружка убираем
   const sv=SV().name||{};
   const inp=$('#onbInput'); if(inp) inp.placeholder=sv.placeholder||'Напиши имя, или зажми 🎙️';
   typing();setTimeout(()=>{untype(); addMsg('in',esc(sv.ask||'Как тебя зовут?')); },800);
@@ -1308,7 +1321,9 @@ function matchOption(said){
 }
 function onQuick(label){
   if(onbAwait&&onbAwait.indexOf('watch')===0){ if(onbAdvance) onbAdvance(); return; }
-  if(onbAwait==='name'){ setName(label); return; }
+  // Имя вводят текстом или голосом, кнопок на этом шаге нет. Кнопка, дожившая до него, устарела:
+  // раньше её нажатие записывало подпись кнопки («Дальше 👉») как имя игрока.
+  if(onbAwait==='name'){ hideQuick(); return; }
   if(onbAwait==='goal'){ pickGoal(label); return; }
   if(onbAwait==='time'){ pickTime(label); return; }
   if(onbAwait==='exp'){ pickExp(label); return; }
@@ -1642,7 +1657,9 @@ async function autoListen({eqBox, status, words, alive}){
     ac.createMediaStreamSource(clip.stream).connect(an);
     data=new Uint8Array(an.fftSize);
   }catch(e){}
-  const done=()=>{ if(raf) cancelAnimationFrame(raf); try{ac&&ac.close();}catch(e){} };
+  // done зовётся дважды, если игрок ушёл с экрана во время записи: повторное закрытие контекста
+  // давало необработанную ошибку «Cannot close a closed AudioContext»
+  const done=()=>{ if(raf) cancelAnimationFrame(raf); try{ if(ac && ac.state!=='closed') ac.close().catch(()=>{}); }catch(e){} };
   const halt=()=>{ if(stopped) return; stopped=true; clip.stop(); };
   const tick=()=>{
     if(alive && !alive()){ halt(); done(); return; }
@@ -2059,7 +2076,7 @@ $('#floatChat').addEventListener('click',()=>{ $('#floatChat').classList.remove(
    ===================================================================== */
 function fmtTime(sec){ sec=Math.max(0,sec||0); return Math.floor(sec/60)+':'+String(Math.floor(sec%60)).padStart(2,'0'); }
 // блокировка кнопок записи, пока звучит TTS (нельзя писать поверх речи Романа)
-const VOICE_BTN_IDS=['onbRec','liveRec','lobbyMic','duelMic'];
+const VOICE_BTN_IDS=['onbRec','liveRec','lobbyMic'];
 let speakingCount=0;
 function voiceLock(on){ VOICE_BTN_IDS.forEach(id=>{ const b=document.getElementById(id); if(b) b.classList.toggle('voice-locked', on); }); }
 function speakLock(d){ speakingCount=Math.max(0, speakingCount+d); voiceLock(speakingCount>0); }
@@ -2158,7 +2175,9 @@ function copyText(t){ try{navigator.clipboard.writeText(t);}catch(e){ const ta=d
 // paywall (money2) - оффер премиума. Реальная оплата НЕ подключена (money hard-stop).
 function showPaywall(reason){
   const s=$('#sheet');
-  const why = reason==='country' ? 'Эта страна открывается в Premium 🌍' : 'Бесплатные диалоги на сегодня кончились 💬';
+  const why = reason==='country' ? 'Эта страна открывается в Premium 🌍'
+            : reason==='voice' ? 'Этот акцент открывается в Premium 🎙️'   // раньше из магазина голосов писало про страну
+            : 'Бесплатные диалоги на сегодня кончились 💬';
   s.innerHTML=
     '<div class="big">👑</div><h3>Gravity Island Premium</h3>'+
     '<p>'+why+'</p>'+
@@ -2453,6 +2472,7 @@ let D=null;
 function pickTopic(){ return DUEL_TOPICS[Math.floor(Math.random()*DUEL_TOPICS.length)]; }
 function startDuel(){
   D={you:0,ai:0,round:0,timeLeft:90,running:true,busy:false};
+  duelNoMic='';   // каждый новый бой снова пробует микрофон: человек мог успеть его разрешить
   $('#duelYouName').innerHTML=(S.avatar?'🖼️':'🙂')+' ТЫ';
   $('#duelYou').textContent='0';$('#duelAi').textContent='0';
   $('#duelFeedback').innerHTML='';
@@ -2465,14 +2485,42 @@ function startDuel(){
   },1000);
 }
 function nextDuelRound(){
+  if(!D||!D.running) return;
   D.round++; $('#duelRound').textContent='Раунд '+D.round;
   const t=pickTopic(); D.topic=t;
   $('#duelTopic').textContent=t.en; $('#duelTopicRu').textContent=t.ru;
-  $('#duelMic').innerHTML='🎙️ Держи и говори (англ.)'; $('#duelMic').disabled=false;
+  if(duelNoMic) duelTypeShow(duelNoMic); else duelListen();
 }
-setupVoiceBtn($('#duelMic'), {lang:'en'}, said=>{
-  if(!D||!D.running||D.busy)return; D.busy=true;
-  $('#duelMic').innerHTML='⚖️ Судья думает…'; judgeDuel(said);
+/* Дуэль слушает сама (27.11.2026): раньше здесь была кнопка «Держи и говори», хотя бой и локации уже
+   шли без кнопок. То же ядро autoListen: запись открывается сама, шкала дышит, стоп по тишине.
+   Без микрофона дуэль не встаёт: ответ можно написать. */
+eqBuild($('#duelEq'));
+let duelTok=0, duelNoMic='';
+function duelStatus(t){ const h=$('#duelHeard'); if(h) h.textContent=t||''; }
+function duelTypeShow(why){
+  duelNoMic=why; eqSetOn($('#duelEq'),'idle'); eqResetOn($('#duelEq'));
+  $('#duelType').style.display='flex'; duelStatus(why+' - напиши ответ по-английски');
+}
+async function duelListen(note){
+  const tok=++duelTok;
+  const alive=()=> tok===duelTok && !!D && D.running && !D.busy && $('#s-duel').classList.contains('on');
+  $('#duelType').style.display='none';
+  // пока игра сама говорит («лучше так»), микрофон молчит - иначе запишет саму себя
+  for(let i=0;i<40 && speakingCount>0;i++) await new Promise(r=>setTimeout(r,150));
+  if(!alive()) return;
+  duelStatus(note||'🎙️ Слушаю - говори по теме по-английски');
+  const r=await autoListen({ eqBox:$('#duelEq'), status:()=>duelStatus('⏳ Распознаю…'), words:8, alive });
+  if(!alive()) return;
+  if(r.fail) return duelTypeShow(r.fail==='nomic'?'Микрофон недоступен':'Нет доступа к микрофону');
+  if(!r.spoke) return duelListen('Не слышу тебя - говори громче 🎙️');
+  if(!r.text) return duelListen('Не расслышал - скажи ещё раз 🎙️');
+  D.busy=true; duelStatus('⚖️ Судья думает… «'+r.text+'»'); judgeDuel(r.text);
+}
+$('#duelType').addEventListener('submit',e=>{
+  e.preventDefault();
+  const t=$('#duelInput').value.trim();
+  if(!t||!D||!D.running||D.busy) return;
+  $('#duelInput').value=''; D.busy=true; duelStatus('⚖️ Судья думает…'); judgeDuel(t);
 });
 async function judgeDuel(said){
   let r={score:55,verdict:'Засчитано!',better:''};
@@ -2490,19 +2538,20 @@ async function judgeDuel(said){
     (r.better?'<div class="duel-fb-better">✍️ Лучше так: <b>'+esc(r.better)+'</b></div>':'')+
     '<div style="text-align:center;font-size:12px;color:#ff8aa0;margin-top:6px">соперник набрал +'+aiGain+'</div></div>';
   if(r.better) say(r.better);
+  duelStatus('');   // вердикт показан - подпись «Судья думает» больше не висит под ним
   D.busy=false;
   if(D.running && D.timeLeft>0){ setTimeout(nextDuelRound,1600); }
 }
 function endDuel(){
-  if(!D)return; D.running=false; clearInterval(D._t);
-  const win=D.you>=D.ai;
+  if(!D)return; D.running=false; clearInterval(D._t); duelTok++; duelStatus('');
+  const win=D.you>0 && D.you>=D.ai;   // раньше 0:0 считалось победой: молчавший получал награду
   const reward=win?60:20; addReward(reward,win?2:0); if(win)confetti();
   sheet({emoji:win?'🏆':'🤝',title:win?'Ты выиграл дуэль!':'Дуэль окончена',
     text:'Счёт '+D.you+' : '+D.ai+'. '+(win?'Ты говорил лучше 🔥':'Соперник вырвался вперёд. Реванш?'),
     rewards:[['⭐','+'+reward],['🍌',S.ammo]],
     cta:win?'Забрать награду':'Реванш ⚔️',onCta:()=>{closeSheet(); if(win){refreshStats(); showInvite(true);} else {startDuel();}}});
 }
-$('#duelBack').onclick=()=>{ if(D){D.running=false;clearInterval(D._t);} screen('s-map');selTab('map');refreshStats(); };
+$('#duelBack').onclick=()=>{ if(D){D.running=false;clearInterval(D._t);} duelTok++; screen('s-map');selTab('map');refreshStats(); };
 $('#floatDuel').addEventListener('click',()=>startDuel());
 $('#inviteBtn')&&$('#inviteBtn').addEventListener('click',()=>showInvite(false));
 // «Начать сначала»: полный сброс игрока. Нужен и Роману для показов, и живому
@@ -2729,7 +2778,7 @@ function renderVoiceShop(){
     const el=document.createElement('div'); el.className='vpack';
     el.innerHTML='<div class="em">'+v.em+'</div><div class="vn">'+v.n+'</div><div class="vp">'+v.p+'</div>'+
       '<button class="btn sun sm wide">👑 Premium</button>';
-    el.querySelector('button').onclick=()=>showPaywall('country');
+    el.querySelector('button').onclick=()=>showPaywall('voice');
     box.appendChild(el);
   });
 }

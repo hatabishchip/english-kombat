@@ -26,6 +26,7 @@ const ARGS = process.argv.slice(2);
 const ONLY = (ARGS.find(a => a.startsWith('--only=')) || '').split('=')[1] || '';
 const HEADED = ARGS.includes('--headed');
 let PORT = 0;
+const PAGE = (ARGS.find(a => a.startsWith('--page=')) || '').split('=')[1] || 'island/index.html';   // --page: проверить копию страницы (мутация)
 const want = p => !ONLY || p.startsWith(ONLY) || ONLY === 'ALL';
 
 // верные индексы дефолтного теста (content-defaults.js)
@@ -259,6 +260,40 @@ async function runEvil(browser) {
     check('EVIL-12', 'Короткая реплика «да» на вопросе теста НЕ засчитывается как выбор ответа',
       !jumped, 'matchOption сопоставляет по подстроке: «да» попало в «Узнать, где продаётся вода» и стало ответом');
     await page.ctx.close();
+  }
+
+  // 7. Написал во время первого кружка, ответ Романа пришёл в щель перед шагом имени (27.11.2026).
+  //    Кружок кончился -> 500 мс до вопроса "Как тебя зовут?" шаг ещё "смотри кружок": ответ, пришедший
+  //    в эту щель, показывал кнопку "Дальше", она доживала до шага имени, и её нажатие записывало
+  //    подпись кнопки как имя игрока. Ответ держим и отпускаем с разной задержкой.
+  {
+    const delays = [0, 120, 240, 360, 480, 700]; let stale = 0, badName = 0, stuck = 0; const seen = [];
+    for (const d of delays) {
+      const page = await newPage(browser);
+      let held = null;
+      await page.ctx.route('**/api/island/chat**', route => { held = route; });
+      await page.goto(`http://127.0.0.1:${PORT}/${PAGE}`, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#s-perm.on', { timeout: 8000 }).catch(() => {});
+      await page.click('#permSkip').catch(() => {});
+      await page.waitForSelector('#chatScroll .vcircle', { timeout: 12000 });
+      await page.fill('#onbInput', 'Привет'); await page.press('#onbInput', 'Enter');
+      for (let i = 0; i < 40 && !held; i++) await page.waitForTimeout(50);
+      await passCircle(page);
+      await page.waitForTimeout(d);
+      if (held) await held.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ reply: 'Nice! Tell me more' }) }).catch(() => {});
+      await waitBubble(page, /Как тебя зовут/i, 8000).catch(() => {});
+      await page.waitForTimeout(900);
+      const chips = await page.evaluate(() => { const q = document.querySelector('#onbQuick'); return q && !q.classList.contains('hidden') ? [...q.querySelectorAll('.chip')].filter(c => c.offsetHeight > 0).map(c => c.textContent.trim()) : []; });
+      if (chips.length) { stale++; seen.push(d + ' мс: ' + chips.join(',')); await (await page.$$('#onbQuick .chip'))[0].click().catch(() => {}); await page.waitForTimeout(700); }
+      if (/Дальше/.test((await state(page)).name || '')) badName++;
+      await page.fill('#onbInput', 'Мария'); await page.press('#onbInput', 'Enter');
+      const asked = await waitBubble(page, /Для чего/i, 8000).then(() => true).catch(() => false);
+      if (!asked || (await state(page)).name !== 'Мария') stuck++;
+      await page.ctx.close();
+    }
+    check('EVIL-13', `На шаге имени нет кнопки от прошлого шага: задержек ответа ${delays.length}, с устаревшей кнопкой ${stale}`, stale === 0, seen.join(' | '));
+    check('EVIL-14', `Подпись кнопки не становится именем игрока: случаев ${badName} из ${delays.length}`, badName === 0);
+    check('EVIL-15', `После этого имя вводится и знакомство идёт дальше: сбоев ${stuck} из ${delays.length}`, stuck === 0);
   }
 }
 
